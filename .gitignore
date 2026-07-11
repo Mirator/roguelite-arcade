@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# macOS
+.DS_Store
+
+# Local tooling / editor config
+.claude/
+
+# Sim scratch output (keep the .js harnesses and results-*.md, drop raw logs)
+sims/*.log

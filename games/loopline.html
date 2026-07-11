@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loopline — Loop Roguelite PoC</title>
+<style>
+  :root{
+    --bg:#0d1017; --panel:#141a24; --panel2:#1b2330; --edge:#2a3345;
+    --text:#cfd8e3; --dim:#7f8ba0; --gold:#e8b34b; --green:#6fd08c;
+    --red:#e5636c; --blue:#5aa7e8; --purple:#b07fe8; --bone:#c9c2ad;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; user-select:none;}
+  html,body{height:100%; overflow:hidden;}
+  body{
+    background:var(--bg); color:var(--text);
+    font:13px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;
+    display:flex; flex-direction:column;
+  }
+  button{font:inherit; color:inherit; background:var(--panel2); border:1px solid var(--edge);
+    border-radius:6px; padding:5px 12px; cursor:pointer;}
+  button:hover{border-color:var(--gold); color:var(--gold);}
+  button.active{background:var(--gold); color:#161006; border-color:var(--gold); font-weight:700;}
+  button.warn:hover{border-color:var(--red); color:var(--red);}
+  /* ---- top bar ---- */
+  #topbar{height:52px; flex:0 0 auto; display:flex; align-items:center; gap:14px;
+    padding:0 14px; background:var(--panel); border-bottom:1px solid var(--edge);}
+  #topbar .brand{font-weight:800; letter-spacing:3px; color:var(--gold); font-size:15px;}
+  #hud-ng{background:var(--purple); color:#12081c; font-weight:800; font-size:10px;
+    padding:2px 6px; border-radius:4px; letter-spacing:1px;}
+  #hud-ng.hidden{display:none;}
+  .counter{color:var(--dim);}
+  .counter b{color:var(--text); font-size:14px; margin-left:4px;}
+  #topbar .spacer{flex:1;}
+  .ring{width:42px; height:42px; border-radius:50%; padding:3px; flex:0 0 auto;
+    background:conic-gradient(var(--gold) 0deg,#232b3b 0deg); transition:box-shadow .3s;}
+  .ring.flash{box-shadow:0 0 14px var(--gold);}
+  .ring-in{width:100%; height:100%; border-radius:50%; background:var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1;}
+  .ring-in b{font-size:13px;}
+  .ring-in label{font-size:6.5px; letter-spacing:1px; color:var(--dim); margin-top:1px;}
+  /* ---- middle ---- */
+  #mid{flex:1; display:flex; min-height:0;}
+  #cvwrap{flex:1; position:relative; min-width:0;}
+  #cv{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:pointer;}
+  #side{width:276px; flex:0 0 auto; background:var(--panel); border-left:1px solid var(--edge);
+    padding:10px 12px; display:flex; flex-direction:column; gap:6px; overflow:hidden;}
+  .sect{font-size:10px; letter-spacing:2px; color:var(--dim); margin-top:4px;}
+  .sect i{font-style:normal; letter-spacing:0;}
+  #hpbar{position:relative; height:20px; background:#241017; border:1px solid var(--edge); border-radius:4px; overflow:hidden;}
+  #hpfill{position:absolute; inset:0; width:100%; background:linear-gradient(180deg,#e5636c,#a83644); transition:width .15s;}
+  #hptxt{position:absolute; inset:0; text-align:center; line-height:20px; font-size:11px; font-weight:700;
+    color:#fff; text-shadow:0 1px 2px #000;}
+  #statgrid{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; font-size:11.5px;}
+  #statgrid span{color:var(--dim);}
+  #statgrid b{color:var(--text); font-weight:600;}
+  #equip{display:flex; gap:6px;}
+  .slot{flex:1; height:50px; border:1px dashed var(--edge); border-radius:6px; display:flex;
+    flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:9px; color:var(--dim);}
+  .slot.filled{border-style:solid; cursor:pointer; background:var(--panel2);}
+  .slot .ic{width:20px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:11px; background:#0c0f15; border:1px solid var(--edge);}
+  #backpack{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+  .bslot{height:36px; border:1px dashed var(--edge); border-radius:6px; display:flex;
+    align-items:center; justify-content:center;}
+  .bslot.filled{border-style:solid; cursor:pointer; background:var(--panel2);}
+  .bslot .ic{width:23px; height:23px; border-radius:4px; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:12px; background:#0c0f15; border:1px solid var(--edge);}
+  #log{flex:1; min-height:0; overflow:hidden; font-size:11px; color:var(--dim); display:flex;
+    flex-direction:column; justify-content:flex-end;}
+  #log div{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #log .hl{color:var(--text);}
+  #log .syn{color:var(--purple);}
+  /* ---- hand ---- */
+  #handbar{height:122px; flex:0 0 auto; background:var(--panel); border-top:1px solid var(--edge);
+    display:flex; align-items:center; gap:12px; padding:0 14px;}
+  #handlabel{font-size:10px; letter-spacing:2px; color:var(--dim); writing-mode:vertical-lr; transform:rotate(180deg);}
+  #hand{display:flex; gap:10px; align-items:center; flex:1;}
+  #hand .empty{color:var(--dim); font-style:italic;}
+  .card{width:104px; height:98px; background:var(--panel2); border:1px solid var(--edge); border-radius:8px;
+    padding:7px 8px; cursor:pointer; transition:transform .1s, box-shadow .1s; position:relative;}
+  .card:hover{transform:translateY(-4px); border-color:var(--dim);}
+  .card.sel{transform:translateY(-8px); border-color:var(--gold); box-shadow:0 0 12px #e8b34b55;}
+  .card .cg{font-size:19px; line-height:1;}
+  .card .cn{font-weight:700; font-size:11.5px; margin-top:3px;}
+  .card .cd{font-size:9px; color:var(--dim); margin-top:2px; line-height:1.25;}
+  .card .tag{position:absolute; top:6px; right:7px; font-size:8px; letter-spacing:1px; color:var(--dim);}
+  /* ---- tooltip ---- */
+  #tt{position:fixed; z-index:60; max-width:240px; background:#0b0e14f2; border:1px solid var(--edge);
+    border-radius:6px; padding:8px 10px; font-size:11.5px; pointer-events:none; box-shadow:0 4px 18px #000a;}
+  #tt.hidden{display:none;}
+  #tt .t{font-weight:700; margin-bottom:3px;}
+  #tt .d{color:var(--dim);}
+  #tt .syn{color:var(--purple); margin-top:4px; font-size:10.5px;}
+  #tt .up{color:var(--green);} #tt .dn{color:var(--red);}
+  #tt .gs{margin-top:4px; font-size:11px;}
+  /* ---- overlay ---- */
+  #overlay{position:fixed; inset:0; z-index:50; background:#070a10d9; display:flex;
+    align-items:center; justify-content:center;}
+  #overlay.hidden{display:none;}
+  #screen{width:520px; max-width:94vw; max-height:90vh; overflow:auto; background:var(--panel);
+    border:1px solid var(--edge); border-radius:12px; padding:24px 28px; box-shadow:0 10px 60px #000;}
+  #screen h1{color:var(--gold); letter-spacing:4px; font-size:25px; margin-bottom:2px;}
+  #screen h2{font-size:18px; margin-bottom:8px;}
+  #screen .sub{color:var(--dim); margin-bottom:10px;}
+  #screen ul{list-style:none; margin:8px 0 12px;}
+  #screen li{margin:4px 0; color:var(--text); font-size:12px;}
+  #screen li b{color:var(--gold);}
+  #screen .stats{margin:10px 0 14px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px 14px;}
+  #screen .stats span{color:var(--dim); font-size:11px; display:block;}
+  #screen .stats b{color:var(--text); font-size:14px;}
+  #screen .btnrow{display:flex; gap:10px; margin-top:6px;}
+  #screen .btnrow button{padding:9px 18px; font-weight:700; font-size:13px;}
+  .camp{margin:10px 0 12px; padding:10px 12px; border:1px solid var(--edge); border-radius:8px; background:var(--panel2);}
+  .camp h3{font-size:10px; letter-spacing:2px; color:var(--gold); margin-bottom:8px;
+    display:flex; justify-content:space-between; font-weight:700;}
+  .camp h3 i{font-style:normal; color:var(--text); letter-spacing:0;}
+  .upgrid{display:grid; grid-template-columns:1fr 1fr; gap:7px;}
+  button.up{text-align:left; font-size:10.5px; padding:6px 9px; line-height:1.3; background:var(--panel);}
+  button.up .cost{color:var(--gold); font-weight:700;}
+  button.up small{color:var(--dim); display:block; font-size:9.5px;}
+  button.up.owned{border-color:var(--green); cursor:default; opacity:.75;}
+  button.up.owned .cost{color:var(--green);}
+  button.up.poor{opacity:.45; cursor:default;}
+  .loadrow{display:flex; gap:8px; margin-top:8px; align-items:center;}
+  .loadrow .lbl{font-size:10px; color:var(--dim); letter-spacing:1px;}
+  .loadrow button{font-size:11px; padding:4px 10px;}
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <div class="brand">LOOPLINE</div>
+    <span id="hud-ng" class="hidden">NG+1</span>
+    <div class="ring" id="ring-loop"><div class="ring-in"><b id="hud-loop">0</b><label>LOOP</label></div></div>
+    <div class="ring" id="ring-day"><div class="ring-in"><b id="hud-day">1</b><label>DAY</label></div></div>
+    <div class="counter">Score<b id="hud-score">0</b></div>
+    <div class="counter">Best<b id="hud-best">&mdash;</b></div>
+    <div class="spacer"></div>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-1" class="active">1x</button>
+    <button id="btn-2">2x</button>
+    <button id="btn-3">3x</button>
+    <button id="btn-retreat" class="warn">Retreat to camp</button>
+  </div>
+  <div id="mid">
+    <div id="cvwrap"><canvas id="cv"></canvas></div>
+    <div id="side">
+      <div class="sect">HERO</div>
+      <div id="hpbar"><div id="hpfill"></div><span id="hptxt"></span></div>
+      <div id="statgrid">
+        <div><span>ATK</span> <b id="st-atk">0</b></div>
+        <div><span>DEF</span> <b id="st-def">0</b></div>
+        <div><span>CRIT</span> <b id="st-crit">10%</b></div>
+        <div><span>SPD</span> <b id="st-spd">+0%</b></div>
+        <div><span>REGEN/day</span> <b id="st-reg">0</b></div>
+        <div><span>LIFESTEAL</span> <b id="st-steal">0%</b></div>
+        <div><span>THORNS</span> <b id="st-thorn">0</b></div>
+        <div><span>GEAR</span> <b id="st-gear">0</b></div>
+      </div>
+      <div class="sect">EQUIPMENT <i>(click to unequip)</i></div>
+      <div id="equip"></div>
+      <div class="sect">BACKPACK <i id="bp-count"></i> <i>(click to equip)</i></div>
+      <div id="backpack"></div>
+      <div class="sect">LOG</div>
+      <div id="log"></div>
+    </div>
+  </div>
+  <div id="handbar">
+    <div id="handlabel">CARDS</div>
+    <div id="hand"></div>
+  </div>
+  <div id="tt" class="hidden"></div>
+  <div id="overlay"><div id="screen"></div></div>
+
+<script>
+'use strict';
+/* ============================== helpers ============================== */
+const $=id=>document.getElementById(id);
+const R=(a,b)=>a+Math.random()*(b-a);
+const RI=(a,b)=>Math.floor(R(a,b+1));
+const choice=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const key=(x,y)=>x+','+y;
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function nb4(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];}
+function nb8(x,y){const r=[];for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(dx||dy)r.push([x+dx,y+dy]);return r;}
+
+/* ============================== constants ============================== */
+const GRID_W=16, GRID_H=12;
+const TILE_T=0.55;
+const DAY_TILES=30;
+const HAND_MAX=7, PACK_MAX=8;
+const MINI_LOOP=4, BOSS_LOOP=8;
+const HERO_INT=1.1;
+
+/* place: road | adj | off | special | mut (mutation results, not droppable) */
+const CARDS={
+  grove:{name:'Grove',glyph:'♣',color:'#6fd08c',place:'road',
+    short:'Road: +1 slime each dawn',
+    desc:'Place on the loop. Every dawn a slime appears here. More kills, more loot - and more danger.',
+    syn:'Synergy: adjacent to a Graveyard it mutates into a Blood Grove (harder spawns, better loot).'},
+  graveyard:{name:'Graveyard',glyph:'†',color:'#c9c2ad',place:'road',
+    short:'Road: skeleton every 2nd dawn',
+    desc:'Place on the loop. Every second dawn a tough skeleton rises. Skeletons drop better gear.',
+    syn:'Synergy: mutates adjacent Groves into Blood Groves.'},
+  village:{name:'Village',glyph:'⌂',color:'#e8b34b',place:'road',
+    short:'Road: heals 12% HP each pass',
+    desc:'Place on the loop. The hero heals 12% max HP every time they pass through.',
+    syn:'Warning: a Vampire Manor next to it corrupts the village - vampires instead of healing.'},
+  battlefield:{name:'Battlefield',glyph:'⚑',color:'#b8563e',place:'road',
+    short:'Road: loot chest each dawn',
+    desc:'Place on the loop. Every dawn an unguarded loot chest appears (guaranteed item).',
+    syn:'Sometimes restless ghosts haunt the chest.'},
+  manor:{name:'Vampire Manor',glyph:'♜',color:'#b07fe8',place:'adj',
+    short:'Beside road: vampiric foes, 2x loot',
+    desc:'Place next to the loop. Enemies on adjacent road tiles become vampiric (+35% HP, leech) but give double loot.',
+    syn:'Corrupts an adjacent Village into a vampire nest.'},
+  meadow:{name:'Meadow',glyph:'❀',color:'#8fd06f',place:'off',
+    short:'+3 HP regen per day',
+    desc:'Place anywhere off the road. Heals +3 HP at each dawn.',
+    syn:'Synergy: +6 instead when adjacent to a River.'},
+  mountain:{name:'Mountain',glyph:'▲',color:'#c08a52',place:'off',
+    short:'+10 max HP, +4 per adjacent Mountain',
+    desc:'Place anywhere off the road. +10 max HP. Each adjacent Mountain adds +4 more - build a range.',
+    syn:'Synergy: total doubled when adjacent to a River.'},
+  beacon:{name:'Beacon',glyph:'◆',color:'#5aa7e8',place:'off',
+    short:'+12% attack speed within 2 tiles',
+    desc:'Place anywhere off the road. Hero attacks 12% faster in fights on road tiles within 2 tiles.',
+    syn:'Synergy: +24% instead when adjacent to a River.'},
+  desert:{name:'Desert',glyph:'∴',color:'#d8c08a',place:'off',
+    short:'-5% max HP for EVERYONE',
+    desc:'Place anywhere off the road. All max HP -5% per Desert (hero AND enemies, caps at -25%).',
+    syn:'Cruel math: enemies usually have more HP to lose than you do.'},
+  river:{name:'River',glyph:'≈',color:'#6fb8d0',place:'off',
+    short:'Doubles adjacent scenery bonuses',
+    desc:'Place anywhere off the road. Meadows, Mountains and Beacons orthogonally adjacent to it give double bonus.',
+    syn:'Synergy engine: snake it through your scenery.'},
+  oblivion:{name:'Oblivion',glyph:'∅',color:'#8f7fe8',place:'special',
+    short:'Erase any placed card',
+    desc:'Click any placed card (on or off the road) to remove it permanently.',
+    syn:'The only cure for a corrupted Village or a misplaced Manor.'},
+  bloodgrove:{name:'Blood Grove',glyph:'♣',color:'#e5636c',place:'mut',
+    short:'Spawns blood slimes',
+    desc:'A Grove twisted by graveyard soil. Spawns a blood slime each dawn - tougher, better loot.',
+    syn:'Mutation of Grove + Graveyard.'},
+  corruptvillage:{name:'Ransacked Village',glyph:'⌂',color:'#b07fe8',place:'mut',
+    short:'Vampires, no healing',
+    desc:'The Manor bled it dry. No healing here; a vampire hunts every 2nd dawn - but its loot is rich.',
+    syn:'Mutation of Village + Vampire Manor. Oblivion can erase it.'},
+};
+const CARD_DROPS=[['grove',18],['meadow',14],['mountain',12],['graveyard',12],['beacon',9],
+  ['manor',8],['river',8],['village',7],['desert',5],['battlefield',5],['oblivion',2]];
+
+const ENEMY={
+  slime:     {name:'Slime',       color:'#6fd08c', hp:L=>14+6*L,   atk:L=>4+1.5*L,  def:L=>0,       int:1.7, score:L=>4+2*L},
+  bloodslime:{name:'Blood Slime', color:'#e5636c', hp:L=>22+8*L,   atk:L=>6+2*L,    def:L=>1+0.4*L, int:1.55,score:L=>9+3*L,  lootMult:1.5},
+  skeleton:  {name:'Skeleton',    color:'#c9c2ad', hp:L=>24+10*L,  atk:L=>7+2.6*L,  def:L=>2+0.8*L, int:1.35,score:L=>8+3*L},
+  wraith:    {name:'Wraith',      color:'#8f7fe8', hp:L=>16+7*L,   atk:L=>5+1.9*L,  def:L=>1+0.6*L, int:1.5, score:L=>6+2*L},
+  ghost:     {name:'Ghost',       color:'#9ec8dd', hp:L=>9+4*L,    atk:L=>4+1.3*L,  def:L=>0,       int:0.85,score:L=>5+2*L},
+  vampire:   {name:'Vampire',     color:'#b07fe8', hp:L=>26+9*L,   atk:L=>7+2.2*L,  def:L=>2+0.6*L, int:1.3, score:L=>12+4*L, lootMult:2, vamp:true},
+  chest:     {name:'Loot Chest',  color:'#e8b34b', hp:L=>4+2*L,    atk:()=>0,       def:()=>0,      int:9e9, score:L=>10+3*L, passive:true},
+  boneboss:  {name:'Bone Colossus',color:'#d8c08a',hp:L=>110+15*L, atk:L=>11+1.6*L, def:L=>3+0.4*L, int:1.55,score:()=>120,   boss:true},
+  lich:      {name:'The Lich',    color:'#e5636c', hp:L=>260+17*L, atk:L=>12+1.4*L, def:L=>5+0.5*L, int:1.2, score:()=>300,   boss:true},
+};
+
+const TIER=[
+  {n:'Crude', c:'#9aa7b8'},
+  {n:'Sturdy',c:'#6fd08c'},
+  {n:'Fine',  c:'#5aa7e8'},
+  {n:'Runed', c:'#b07fe8'},
+];
+const SLOTS=['weapon','armor','ring','amulet'];
+const SLOTN={weapon:'Blade',armor:'Mail',ring:'Ring',amulet:'Amulet'};
+const SLOTIC={weapon:'W',armor:'A',ring:'R',amulet:'◈'};
+const STAT_LBL={atk:'ATK',def:'DEF',hp:'+HP',regen:'REGEN/day',spd:'SPD%',crit:'CRIT%',steal:'LIFESTEAL%',thorns:'THORNS'};
+const AFFIX={
+  crit:(L,t)=>RI(3,6)+t*2, steal:(L,t)=>RI(4,8)+t*2,
+  thorns:(L,t)=>Math.round(1+L*0.4+t), regen:(L,t)=>Math.round(2+L*0.7+t*2),
+  spd:(L,t)=>RI(3,7)+t*2, hp:(L,t)=>Math.round(6+L*2.5+t*4),
+  atk:(L,t)=>Math.round(1+L*0.5+t*1.5), def:(L,t)=>Math.round(1+L*0.35+t),
+};
+const UPGRADES={
+  pack:  {name:"Scout's Pack", cost:150,desc:'Start with an extra card'},
+  hearty:{name:'Hearty',       cost:200,desc:'+10% hero max HP'},
+  lucky: {name:'Lucky Find',   cost:250,desc:'Better gear rarity'},
+  triage:{name:'Field Triage', cost:200,desc:'Death keeps 75% of score'},
+  armory:{name:'Armory',       cost:300,desc:'Choose a starting loadout'},
+};
+
+/* ============================== meta (camp) ============================== */
+let meta=loadMeta();
+function loadMeta(){
+  try{
+    const m=JSON.parse(localStorage.getItem('loopline_meta_v2'));
+    if(m&&m.best&&m.up)return m;
+  }catch(e){}
+  let legacy={loops:0,score:0,wins:0};
+  try{const b=JSON.parse(localStorage.getItem('loopline_best_v1'));if(b&&typeof b.loops==='number')legacy=b;}catch(e){}
+  return {supplies:0,best:legacy,up:{pack:false,hearty:false,lucky:false,triage:false,armory:false},loadout:'sword'};
+}
+function saveMeta(){try{localStorage.setItem('loopline_meta_v2',JSON.stringify(meta));}catch(e){}}
+
+/* ============================== state ============================== */
+let S=null;
+let legalSet=null;
+let hoverCell=null;
+const dirty={hand:true,equip:true};
+
+/* ============================== map generation ============================== */
+function genLoop(){
+  for(let att=0;att<60;att++){
+    const w=RI(6,9),h=RI(5,6);
+    const x0=RI(3,13-w),y0=RI(3,GRID_H-3-h);
+    const path=[];
+    for(let x=x0;x<=x0+w;x++)path.push({x,y:y0});
+    for(let y=y0+1;y<=y0+h;y++)path.push({x:x0+w,y});
+    for(let x=x0+w-1;x>=x0;x--)path.push({x,y:y0+h});
+    for(let y=y0+h-1;y>=y0+1;y--)path.push({x:x0,y});
+    let want=RI(1,2);
+    while(path.length+2*want<24)want++;
+    while(path.length+2*want>34&&want>0)want--;
+    for(let b=0;b<want;b++)tryBump(path);
+    if(path.length>=24&&path.length<=34)
+      return path.map(p=>({x:p.x,y:p.y,card:null,enemies:[]}));
+  }
+  const path=[];
+  for(let x=4;x<=12;x++)path.push({x,y:3});
+  for(let y=4;y<=8;y++)path.push({x:12,y});
+  for(let x=11;x>=4;x--)path.push({x,y:8});
+  for(let y=7;y>=4;y--)path.push({x:4,y});
+  return path.map(p=>({x:p.x,y:p.y,card:null,enemies:[]}));
+}
+function tryBump(path){
+  const set=new Set(path.map(p=>key(p.x,p.y)));
+  for(const i of shuffle([...Array(path.length-2).keys()])){
+    const A=path[i],B=path[i+1],C=path[i+2];
+    const dx=B.x-A.x,dy=B.y-A.y;
+    if(C.x-B.x!==dx||C.y-B.y!==dy)continue;
+    for(const p of shuffle([{x:-dy,y:dx},{x:dy,y:-dx}])){
+      const trio=[{x:A.x+p.x,y:A.y+p.y},{x:B.x+p.x,y:B.y+p.y},{x:C.x+p.x,y:C.y+p.y}];
+      if(trio.every(c=>c.x>=1&&c.x<GRID_W-1&&c.y>=1&&c.y<GRID_H-1&&!set.has(key(c.x,c.y)))){
+        path.splice(i+1,1,...trio);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* ============================== run setup ============================== */
+function randomDropCard(){
+  let r=Math.random()*100;
+  for(const [t,w] of CARD_DROPS){if(r<w)return t;r-=w;}
+  return 'grove';
+}
+function newRun(ng){
+  const loopTiles=genLoop();
+  S={
+    phase:'title', speed:1, ng:ng||0,
+    loopTiles, roadMap:new Map(loopTiles.map((t,i)=>[key(t.x,t.y),i])),
+    placed:{},
+    heroIdx:0, moveT:0, tilesWalked:0,
+    loop:0, day:1, score:0, kills:0,
+    dmgDealt:0, dmgTaken:0, cardsPlaced:0, itemsLooted:0,
+    hero:{hp:100, flash:0},
+    stats:null,
+    equip:{weapon:null,armor:null,ring:null,amulet:null},
+    backpack:[], hand:['grove','meadow'],
+    selCard:-1, combat:null, floats:[], log:[],
+    miniSpawned:false, bossSpawned:false,
+    dawnAt:-99, time:0,
+  };
+  if(meta.up.pack)S.hand.push(randomDropCard());
+  if(meta.up.armory){
+    S.equip[meta.loadout==='shield'?'armor':'weapon']=
+      meta.loadout==='shield'
+        ?{slot:'armor',tier:1,name:'Camp Shield',stats:{def:3,hp:10},scrap:5}
+        :{slot:'weapon',tier:1,name:'Camp Sword',stats:{atk:4},scrap:5};
+  }
+  legalSet=null; hoverCell=null;
+  recomputeStats();
+  S.hero.hp=S.stats.maxHP;
+  for(let i=0;i<2;i++)spawnEnemy(choice(S.loopTiles.slice(3)),'slime');
+  dirty.hand=dirty.equip=true;
+  addLog(S.ng?('A new expedition sets out. NG+'+S.ng+': enemies harden, glory doubles.'):'A new expedition sets out.','hl');
+}
+
+/* ============================== stats ============================== */
+function riverAdj(x,y){
+  return nb4(x,y).some(([nx,ny])=>{const p=S.placed[key(nx,ny)];return p&&p.type==='river';});
+}
+function desertCount(){
+  let n=0;for(const k in S.placed)if(S.placed[k].type==='desert')n++;
+  return Math.min(5,n);
+}
+function recomputeStats(){
+  let maxHP=100,atk=9,def=2,regen=7,spd=0,crit=10,steal=0,thorns=0;
+  for(const sl of SLOTS){
+    const it=S.equip[sl]; if(!it)continue;
+    atk+=it.stats.atk||0; def+=it.stats.def||0; maxHP+=it.stats.hp||0;
+    regen+=it.stats.regen||0; spd+=it.stats.spd||0;
+    crit+=it.stats.crit||0; steal+=it.stats.steal||0; thorns+=it.stats.thorns||0;
+  }
+  for(const k in S.placed){
+    const p=S.placed[k];
+    const [x,y]=k.split(',').map(Number);
+    if(p.type==='mountain'){
+      let adj=0;
+      for(const [nx,ny] of nb8(x,y)){const q=S.placed[key(nx,ny)];if(q&&q.type==='mountain')adj++;}
+      maxHP+=(10+4*adj)*(riverAdj(x,y)?2:1);
+    }
+    if(p.type==='meadow')regen+=riverAdj(x,y)?6:3;
+  }
+  maxHP=Math.round(maxHP*(1-0.05*desertCount())*(meta.up.hearty?1.1:1));
+  S.stats={maxHP,atk,def,regen,spd,crit:Math.min(60,crit),steal:Math.min(50,steal),thorns};
+  S.hero.hp=Math.min(S.hero.hp,maxHP);
+}
+function beaconBonus(tile){
+  let b=S.stats.spd/100;
+  for(const k in S.placed){
+    if(S.placed[k].type!=='beacon')continue;
+    const [x,y]=k.split(',').map(Number);
+    if(Math.max(Math.abs(x-tile.x),Math.abs(y-tile.y))<=2)b+=riverAdj(x,y)?0.24:0.12;
+  }
+  return Math.min(b,0.9);
+}
+function gearScore(it){
+  const s=it.stats;
+  return Math.round((s.atk||0)*3+(s.def||0)*3+(s.hp||0)*0.8+(s.regen||0)*1.5+
+    (s.spd||0)*0.8+(s.crit||0)*1.2+(s.steal||0)*1.2+(s.thorns||0)*2);
+}
+
+/* ============================== cards / placement ============================== */
+function computeLegal(type){
+  const set=new Set(),place=CARDS[type].place;
+  if(place==='road'){
+    S.loopTiles.forEach((t,i)=>{if(i!==0&&!t.card)set.add(key(t.x,t.y));});
+  }else if(place==='special'){ // oblivion: any placed card
+    S.loopTiles.forEach(t=>{if(t.card)set.add(key(t.x,t.y));});
+    for(const k in S.placed)set.add(k);
+  }else{
+    for(let x=0;x<GRID_W;x++)for(let y=0;y<GRID_H;y++){
+      const k=key(x,y);
+      if(S.roadMap.has(k)||S.placed[k])continue;
+      if(place==='adj'&&!nb4(x,y).some(([nx,ny])=>S.roadMap.has(key(nx,ny))))continue;
+      set.add(k);
+    }
+  }
+  return set;
+}
+function checkMutations(){
+  for(const t of S.loopTiles){
+    if(!t.card)continue;
+    if(t.card.type==='grove'){
+      const gy=nb4(t.x,t.y).some(([nx,ny])=>{
+        const i=S.roadMap.get(key(nx,ny));
+        return i!==undefined&&S.loopTiles[i].card&&S.loopTiles[i].card.type==='graveyard';
+      });
+      if(gy){t.card.type='bloodgrove';addLog('The Grove drinks graveyard soil - Blood Grove!','syn');addFloat(t.x,t.y,'Blood Grove','#e5636c');}
+    }
+    if(t.card.type==='village'){
+      const mn=nb4(t.x,t.y).some(([nx,ny])=>{
+        const p=S.placed[key(nx,ny)];return p&&p.type==='manor';
+      });
+      if(mn){t.card.type='corruptvillage';addLog('The Manor corrupts the Village!','syn');addFloat(t.x,t.y,'Corrupted!','#b07fe8');}
+    }
+  }
+}
+function placeCard(handIdx,x,y){
+  const type=S.hand[handIdx],d=CARDS[type],k=key(x,y);
+  if(d.place==='special'){
+    const ri=S.roadMap.get(k);
+    if(ri!==undefined&&S.loopTiles[ri].card){
+      addLog('Erased '+CARDS[S.loopTiles[ri].card.type].name+'.');
+      S.loopTiles[ri].card=null;
+    }else if(S.placed[k]){
+      addLog('Erased '+CARDS[S.placed[k].type].name+'.');
+      delete S.placed[k];
+    }
+    addFloat(x,y,'Erased','#8f7fe8');
+  }else if(d.place==='road'){
+    S.loopTiles[S.roadMap.get(k)].card={type,ticks:0};
+    addFloat(x,y,d.name,d.color);
+  }else{
+    S.placed[k]={type};
+    addFloat(x,y,d.name,d.color);
+  }
+  S.hand.splice(handIdx,1);
+  S.cardsPlaced++;
+  S.selCard=-1; legalSet=null; dirty.hand=true;
+  checkMutations();
+  recomputeStats();
+  if(d.place!=='special')addLog('Placed '+d.name+'.');
+}
+function dropCard(){
+  const type=randomDropCard();
+  if(S.hand.length>=HAND_MAX){
+    S.score+=3*scoreMult();
+    addLog('Hand full - '+CARDS[type].name+' scrapped (+'+3*scoreMult()+').');
+  }else{
+    S.hand.push(type); dirty.hand=true;
+    addLog('Card gained: '+CARDS[type].name+'.','hl');
+  }
+}
+
+/* ============================== equipment ============================== */
+function makeItem(bonus){
+  const L=Math.max(1,S.loop);
+  let slot=choice(SLOTS);
+  // pity: favor slots the hero doesn't own anywhere yet
+  const empty=SLOTS.filter(s=>!S.equip[s]&&!S.backpack.some(b=>b.slot===s));
+  if(empty.length&&Math.random()<0.6)slot=choice(empty);
+  const q=Math.random()+L*0.05+(meta.up.lucky?0.15:0)+(bonus||0);
+  const tier=q>1.5?3:q>1.15?2:q>0.8?1:0;
+  const st={};
+  if(slot==='weapon'){
+    st.atk=Math.round(3+L*1.3+tier*2.5+R(0,2));
+  }else if(slot==='armor'){
+    st.def=Math.round(1+L*0.65+tier*1.4+R(0,1.5));
+    st.hp=Math.round(8+L*2.6+tier*5);
+  }else if(slot==='ring'){
+    for(const p of shuffle(['atk','def','regen','spd']).slice(0,2))st[p]=AFFIX[p](L,tier);
+  }else{ // amulet
+    if(Math.random()<0.5)st.crit=6+tier*3; else st.steal=7+tier*3;
+    st.hp=Math.round(4+L*1.5+tier*3);
+  }
+  const extras=tier>=3?2:tier>=1?1:0;
+  const pool=shuffle(Object.keys(AFFIX).filter(a=>!(a in st)));
+  for(let i=0;i<extras&&i<pool.length;i++)st[pool[i]]=AFFIX[pool[i]](L,tier);
+  return {slot,tier,name:TIER[tier].n+' '+SLOTN[slot],stats:st,scrap:3+L+tier*5};
+}
+function dropItem(bonus){
+  const it=makeItem(bonus);
+  if(S.backpack.length>=PACK_MAX){
+    S.score+=it.scrap*scoreMult();
+    addLog('Backpack full - '+it.name+' scrapped (+'+it.scrap*scoreMult()+').');
+  }else{
+    S.backpack.push(it); S.itemsLooted++; dirty.equip=true;
+    addLog('Loot: '+it.name+' ['+gearScore(it)+'].','hl');
+  }
+}
+function equipItem(i){
+  const it=S.backpack[i]; if(!it)return;
+  const cur=S.equip[it.slot];
+  S.equip[it.slot]=it;
+  S.backpack.splice(i,1);
+  if(cur)S.backpack.push(cur);
+  recomputeStats(); dirty.equip=true;
+  addLog('Equipped '+it.name+'.');
+}
+function unequipItem(slot){
+  const it=S.equip[slot]; if(!it)return;
+  if(S.backpack.length>=PACK_MAX){addLog('Backpack full.');return;}
+  S.backpack.push(it); S.equip[slot]=null;
+  recomputeStats(); dirty.equip=true;
+}
+function itemStatLines(it,compare){
+  const other=compare?S.equip[it.slot]:null;
+  const keys=new Set([...Object.keys(it.stats),...(other?Object.keys(other.stats):[])]);
+  let out='';
+  for(const k2 of ['atk','def','hp','regen','spd','crit','steal','thorns']){
+    if(!keys.has(k2))continue;
+    const v=it.stats[k2]||0,o=other?(other.stats[k2]||0):0,d2=v-o;
+    let diff='';
+    if(other&&it!==other)diff=d2>0?' <span class="up">(+'+d2+')</span>':d2<0?' <span class="dn">('+d2+')</span>':' <span class="d">(=)</span>';
+    out+='<div>'+STAT_LBL[k2]+' <b>'+v+'</b>'+diff+'</div>';
+  }
+  if(other&&it!==other){
+    const dg=gearScore(it)-gearScore(other);
+    out+='<div class="gs">Gear score <b>'+gearScore(it)+'</b> '+
+      (dg>0?'<span class="up">▲+'+dg+'</span>':dg<0?'<span class="dn">▼'+dg+'</span>':'<span class="d">=</span>')+'</div>';
+  }else{
+    out+='<div class="gs">Gear score <b>'+gearScore(it)+'</b></div>';
+  }
+  return out;
+}
+
+/* ============================== enemies / spawning ============================== */
+function scoreMult(){return Math.pow(2,S.ng);}
+function spawnEnemy(tile,type){
+  if(tile.enemies.length>=3&&!ENEMY[type].boss)return;
+  const d=ENEMY[type],L=Math.max(1,S.loop),m=Math.pow(1.5,S.ng);
+  const dm=1-0.05*desertCount();
+  const e={type,name:d.name,color:d.color,int:d.int,t:R(0,0.5),
+    lootMult:d.lootMult||1,vamp:!!d.vamp,fast:false,armored:false,
+    passive:!!d.passive,boss:!!d.boss,phase2:false,flash:0,
+    hp:Math.max(1,Math.round(d.hp(L)*m*dm)),atk:d.atk(L)*m,def:d.def(L),
+    score:Math.round(d.score(L))};
+  if(!e.boss&&!e.passive&&L>=3&&Math.random()<Math.min(0.35,L*0.045)){
+    const tr=choice(['fast','armored','vamp']);
+    if(tr==='fast'){e.fast=true;e.int*=0.7;}
+    if(tr==='armored'){e.armored=true;e.def=e.def*1.75+1;}
+    if(tr==='vamp')e.vamp=true;
+  }
+  if(!e.boss&&!e.passive&&nb4(tile.x,tile.y).some(([nx,ny])=>{
+      const p=S.placed[key(nx,ny)];return p&&p.type==='manor';})){
+    e.hp=Math.round(e.hp*1.35); e.atk*=1.25; e.lootMult=Math.max(2,e.lootMult); e.vamp=true;
+  }
+  e.maxHP=e.hp;
+  if(e.boss)tile.enemies.unshift(e); else tile.enemies.push(e);
+}
+function ambientSpawns(){
+  const n=Math.min(4,1+Math.floor(S.loop/2));
+  for(let i=0;i<n;i++){
+    const t=choice(S.loopTiles.slice(1));
+    spawnEnemy(t,S.loop<2?'slime':'wraith');
+  }
+}
+
+/* ============================== day / loop events ============================== */
+function dawn(){
+  S.day++;
+  S.dawnAt=S.time;
+  const heal=S.stats.regen;
+  S.hero.hp=Math.min(S.stats.maxHP,S.hero.hp+heal);
+  const ht=S.loopTiles[S.heroIdx];
+  addFloat(ht.x,ht.y,'Dawn +'+heal,'#6fd08c');
+  for(const t of S.loopTiles){
+    if(!t.card)continue;
+    t.card.ticks++;
+    const ty=t.card.type;
+    if(ty==='grove')spawnEnemy(t,'slime');
+    if(ty==='bloodgrove')spawnEnemy(t,'bloodslime');
+    if(ty==='graveyard'&&t.card.ticks%2===0)spawnEnemy(t,'skeleton');
+    if(ty==='corruptvillage'&&t.card.ticks%2===0)spawnEnemy(t,'vampire');
+    if(ty==='battlefield'){
+      spawnEnemy(t,'chest');
+      if(Math.random()<0.3)spawnEnemy(t,'ghost');
+    }
+  }
+}
+function onCampfire(){
+  S.loop++;
+  S.score+=(5+S.loop)*scoreMult();
+  const heal=Math.round(S.stats.maxHP*0.12);
+  S.hero.hp=Math.min(S.stats.maxHP,S.hero.hp+heal);
+  const t0=S.loopTiles[0];
+  addFloat(t0.x,t0.y,'Loop '+S.loop,'#e8b34b');
+  ambientSpawns();
+  if(S.loop>=MINI_LOOP&&!S.miniSpawned){
+    S.miniSpawned=true;
+    spawnEnemy(t0,'boneboss');
+    S.hero.hp=S.stats.maxHP;
+    addLog('The Bone Colossus blocks the campfire! The hero steels themselves (HP restored).','hl');
+  }
+  if(S.loop>=BOSS_LOOP&&!S.bossSpawned){
+    S.bossSpawned=true;
+    spawnEnemy(t0,'lich');
+    S.hero.hp=S.stats.maxHP;
+    addLog('The Lich rises at the campfire! The hero steels themselves (HP restored).','hl');
+  }
+}
+
+/* ============================== combat ============================== */
+function startCombat(tile){
+  S.combat={tile,spd:beaconBonus(tile),heroT:0,enemies:tile.enemies.splice(0,3)};
+}
+function heroHeal(amount){
+  if(amount<=0)return;
+  S.hero.hp=Math.min(S.stats.maxHP,S.hero.hp+amount);
+}
+function combatTick(dt){
+  const c=S.combat,st=S.stats;
+  S.hero.flash=Math.max(0,S.hero.flash-dt*5);
+  for(const e of c.enemies)e.flash=Math.max(0,e.flash-dt*5);
+  c.heroT+=dt*(1+c.spd);
+  while(c.heroT>=HERO_INT){
+    c.heroT-=HERO_INT;
+    const tgt=c.enemies.find(e=>e.hp>0);
+    if(tgt){
+      let dmg=Math.max(1,Math.round(st.atk-tgt.def));
+      const crit=Math.random()*100<st.crit; if(crit)dmg*=2;
+      tgt.hp-=dmg; tgt.flash=1;
+      S.dmgDealt+=dmg;
+      heroHeal(Math.round(dmg*st.steal/100));
+      addPanelFloat(c.enemies.indexOf(tgt),'-'+dmg+(crit?'!':''),crit?'#e8b34b':'#f2f2f2',crit);
+      if(tgt.hp<=0)killEnemy(tgt);
+      if(S.combat!==c||S.phase!=='run')return;
+      const lich=c.enemies.find(e=>e.type==='lich'&&e.hp>0);
+      if(lich&&!lich.phase2&&lich.hp<=lich.maxHP/2){
+        lich.phase2=true; lich.int*=0.85;
+        while(c.enemies.length<3){
+          const d=ENEMY.skeleton,L=Math.max(1,S.loop),m=Math.pow(1.5,S.ng);
+          const sk={type:'skeleton',name:'Risen Skeleton',color:d.color,int:d.int,t:0,
+            lootMult:1,vamp:false,fast:false,armored:false,passive:false,boss:false,phase2:false,flash:0,
+            hp:Math.round(d.hp(L)*m*0.45),atk:d.atk(L)*m*0.6,def:d.def(L),score:Math.round(d.score(L))};
+          sk.maxHP=sk.hp;
+          c.enemies.push(sk);
+        }
+        addLog('The Lich calls the dead - phase two!','syn');
+        addPanelFloat(0,'PHASE 2','#b07fe8',true);
+      }
+    }
+  }
+  if(S.combat!==c)return;
+  for(const e of c.enemies){
+    if(e.hp<=0||e.passive)continue;
+    e.t+=dt;
+    while(e.t>=e.int&&e.hp>0){
+      e.t-=e.int;
+      const dmg=Math.max(1,Math.round(e.atk-st.def));
+      S.hero.hp-=dmg; S.hero.flash=1; S.dmgTaken+=dmg;
+      addPanelFloat(-1,'-'+dmg,'#e5636c',false);
+      if(e.vamp){e.hp=Math.min(e.maxHP,e.hp+Math.round(dmg*0.3));}
+      if(S.hero.hp<=0){endRun('death');return;}
+      if(st.thorns>0){
+        e.hp-=st.thorns; e.flash=1;
+        addPanelFloat(c.enemies.indexOf(e),'-'+st.thorns+' thorns','#8fd06f',false);
+        if(e.hp<=0){killEnemy(e);if(S.combat!==c||S.phase!=='run')return;}
+      }
+    }
+  }
+}
+function killEnemy(e){
+  S.kills++;
+  const gain=Math.round(e.score*e.lootMult*scoreMult());
+  S.score+=gain;
+  const t=S.combat.tile;
+  addFloat(t.x,t.y,'+'+gain,'#e8b34b');
+  if(e.type==='lich'){S.combat=null;endRun('victory');return;}
+  if(e.type==='boneboss'){
+    dropItem(0.5);
+    S.score+=120*scoreMult();
+    addLog('The Colossus crumbles! Rare loot secured.','hl');
+  }else if(e.type==='chest'){
+    dropItem(0.15);
+    if(Math.random()<0.5)dropCard();
+  }else{
+    if(Math.random()<0.40*(e.lootMult>1?1.25:1))dropCard();
+    if(Math.random()<(e.type==='skeleton'?0.5:0.38)*(e.lootMult>1?1.6:1))dropItem(0);
+  }
+  if(S.combat&&S.combat.enemies.every(x=>x.hp<=0)){
+    S.combat=null;
+    addLog('Tile cleared.');
+  }
+}
+
+/* ============================== main update ============================== */
+function update(dt){
+  if(!S||S.phase!=='run')return;
+  S.time+=dt;
+  if(S.combat){combatTick(dt);}
+  else{
+    S.hero.flash=Math.max(0,S.hero.flash-dt*5);
+    S.moveT+=dt;
+    while(S.moveT>=TILE_T&&!S.combat&&S.phase==='run'){
+      S.moveT-=TILE_T;
+      S.heroIdx=(S.heroIdx+1)%S.loopTiles.length;
+      S.tilesWalked++;
+      if(S.tilesWalked%DAY_TILES===0)dawn();
+      if(S.heroIdx===0)onCampfire();
+      const t=S.loopTiles[S.heroIdx];
+      if(t.card&&t.card.type==='village'){
+        const heal=Math.round(S.stats.maxHP*0.12);
+        heroHeal(heal);
+        addFloat(t.x,t.y,'+'+heal,'#e8b34b');
+      }
+      if(t.enemies.length&&S.phase==='run')startCombat(t);
+    }
+  }
+  for(const f of S.floats)f.t+=dt;
+  S.floats=S.floats.filter(f=>f.t<f.life);
+}
+
+/* ============================== run end / screens ============================== */
+function endRun(kind){
+  if(S.phase!=='run')return;
+  S.phase='over'; S.combat=null;
+  const deathKeep=meta.up.triage?0.75:0.5;
+  const banked=Math.floor(kind==='death'?S.score*deathKeep
+             :kind==='victory'?S.score*1.5+500
+             :S.score);
+  meta.supplies+=banked;
+  if(S.loop>meta.best.loops)meta.best.loops=S.loop;
+  if(banked>meta.best.score)meta.best.score=banked;
+  if(kind==='victory')meta.best.wins++;
+  saveMeta();
+  const titles={death:'You Died',victory:'The Lich Falls - Victory!',retreat:'Retreated to Camp'};
+  const subs={
+    death:'The loop claims another hero. '+Math.round(deathKeep*100)+'% of the score reaches camp.',
+    victory:'Loop conquered'+(S.ng?' at NG+'+S.ng:'')+'. Score banked at 150% plus a 500 bonus.',
+    retreat:'A wise hero knows when to stop. Full score banked.'};
+  const st=(l,v)=>'<div><span>'+l+'</span><b>'+v+'</b></div>';
+  showScreen(
+    '<h2>'+titles[kind]+'</h2><div class="sub">'+subs[kind]+'</div>'+
+    '<div class="stats">'+
+    st('Loops',S.loop)+st('Days',S.day)+st('Kills',S.kills)+
+    st('Damage dealt',S.dmgDealt)+st('Damage taken',S.dmgTaken)+st('Cards placed',S.cardsPlaced)+
+    st('Items looted',S.itemsLooted)+st('Run score',S.score)+
+    st('Supplies earned','<i style="color:var(--gold);font-style:normal">+'+banked+'</i>')+
+    st('Camp supplies',meta.supplies)+st('Best loops',meta.best.loops)+st('Wins',meta.best.wins)+
+    '</div><div class="btnrow">'+
+    '<button data-act="again">New Run'+(S.ng?' (NG+'+S.ng+')':'')+'</button>'+
+    (kind==='victory'?'<button data-act="ng" style="border-color:var(--purple);color:var(--purple)">New Run NG+'+(S.ng+1)+'</button>':'')+
+    '<button data-act="title">Camp</button>'+
+    '</div>');
+}
+function campHTML(){
+  let ups='';
+  for(const k in UPGRADES){
+    const u=UPGRADES[k],owned=meta.up[k],poor=!owned&&meta.supplies<u.cost;
+    ups+='<button class="up'+(owned?' owned':poor?' poor':'')+'" data-act="buy:'+k+'">'+
+      u.name+' <span class="cost">'+(owned?'OWNED':u.cost+' ⌂')+'</span><small>'+u.desc+'</small></button>';
+  }
+  let load='';
+  if(meta.up.armory){
+    load='<div class="loadrow"><span class="lbl">LOADOUT</span>'+
+      '<button data-act="loadout:sword" class="'+(meta.loadout==='sword'?'active':'')+'">Camp Sword (+4 ATK)</button>'+
+      '<button data-act="loadout:shield" class="'+(meta.loadout==='shield'?'active':'')+'">Camp Shield (+3 DEF, +10 HP)</button></div>';
+  }
+  return '<div class="camp"><h3>CAMP &mdash; SUPPLIES <i>'+meta.supplies+'</i></h3>'+
+    '<div class="upgrid">'+ups+'</div>'+load+'</div>';
+}
+function showTitle(){
+  showScreen(
+    '<h1>LOOPLINE</h1><div class="sub">an idle-tactics loop roguelite</div>'+
+    '<ul>'+
+    '<li><b>The hero walks alone.</b> You control the world: click a card, then a highlighted tile.</li>'+
+    '<li><b>Spawner tiles</b> mean loot and danger; <b>scenery tiles</b> keep the hero alive. Cards react to their neighbors - read their tooltips.</li>'+
+    '<li><b>Each dawn</b> spawners trigger and regen heals. The campfire heals 12% per lap.</li>'+
+    '<li><b>Bone Colossus</b> guards loop '+MINI_LOOP+'. <b>The Lich</b> (two phases) awaits after loop '+BOSS_LOOP+'.</li>'+
+    '<li><b>Retreat</b> banks 100% of score as camp supplies. Death keeps '+(meta.up.triage?'75':'50')+'%.</li>'+
+    '</ul>'+
+    campHTML()+
+    (meta.best.loops?'<div class="sub">Best: loop '+meta.best.loops+' &middot; score '+meta.best.score+' &middot; wins '+meta.best.wins+'</div>':'')+
+    '<div class="btnrow"><button data-act="start">Start Run</button>'+
+    (meta.best.wins>0?'<button data-act="startng" style="border-color:var(--purple);color:var(--purple)">Start NG+1</button>':'')+
+    '</div>');
+}
+function showScreen(html){$('screen').innerHTML=html;$('overlay').classList.remove('hidden');}
+function hideScreen(){$('overlay').classList.add('hidden');}
+function startRun(ng){
+  newRun(ng);S.phase='run';setSpeed(1);hideScreen();
+}
+
+/* ============================== floats / log ============================== */
+function addFloat(x,y,txt,col){S.floats.push({wx:x,wy:y,txt,col,t:0,life:1.4});}
+function addPanelFloat(row,txt,col,big){S.floats.push({panel:true,row,px:R(115,195),txt,col,big:!!big,t:0,life:big?1.3:1.0});}
+function addLog(txt,cls){
+  S.log.push({txt,cls:cls||''});
+  if(S.log.length>7)S.log.shift();
+  $('log').innerHTML=S.log.map(l=>'<div class="'+l.cls+'">'+l.txt+'</div>').join('');
+}
+
+/* ============================== canvas ============================== */
+const cv=$('cv'),ctx=cv.getContext('2d');
+const view={w:0,h:0,cell:32,ox:0,oy:0};
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  view.w=r.width; view.h=r.height;
+  view.cell=Math.max(14,Math.floor(Math.min((r.width-20)/GRID_W,(r.height-20)/GRID_H)));
+  view.ox=Math.floor((r.width-view.cell*GRID_W)/2);
+  view.oy=Math.floor((r.height-view.cell*GRID_H)/2);
+}
+function cellCenter(x,y){return [view.ox+(x+0.5)*view.cell,view.oy+(y+0.5)*view.cell];}
+function cellAt(mx,my){
+  const x=Math.floor((mx-view.ox)/view.cell),y=Math.floor((my-view.oy)/view.cell);
+  return (x>=0&&x<GRID_W&&y>=0&&y<GRID_H)?{x,y}:null;
+}
+function draw(){
+  const c=view.cell;
+  ctx.clearRect(0,0,view.w,view.h);
+  ctx.fillStyle='#0d1017';ctx.fillRect(0,0,view.w,view.h);
+  ctx.fillStyle='#1a2030';
+  for(let x=0;x<=GRID_W;x++)for(let y=0;y<=GRID_H;y++)
+    ctx.fillRect(view.ox+x*c-1,view.oy+y*c-1,2,2);
+  if(!S)return;
+  for(const k in S.placed){
+    const [x,y]=k.split(',').map(Number);
+    const d=CARDS[S.placed[k].type];
+    ctx.fillStyle='#151b26';
+    roundRect(view.ox+x*c+2,view.oy+y*c+2,c-4,c-4,4);ctx.fill();
+    drawGlyph(d.glyph,d.color,x,y,c*0.5);
+  }
+  for(let i=0;i<S.loopTiles.length;i++){
+    const t=S.loopTiles[i];
+    ctx.fillStyle=i===0?'#3a2c18':'#232b3b';
+    roundRect(view.ox+t.x*c+1.5,view.oy+t.y*c+1.5,c-3,c-3,4);ctx.fill();
+    if(t.card)drawGlyph(CARDS[t.card.type].glyph,CARDS[t.card.type].color,t.x,t.y,c*0.44);
+    if(i===0)drawGlyph('♨','#e8b34b',t.x,t.y,c*0.5);
+    for(let e=0;e<Math.min(3,t.enemies.length);e++){
+      ctx.fillStyle=t.enemies[e].color;
+      ctx.beginPath();
+      ctx.arc(view.ox+t.x*c+6+e*7,view.oy+t.y*c+6,3,0,7);
+      ctx.fill();
+    }
+  }
+  if(S.selCard>=0&&legalSet){
+    const obl=S.hand[S.selCard]==='oblivion';
+    for(const k of legalSet){
+      const [x,y]=k.split(',').map(Number);
+      const hov=hoverCell&&hoverCell.x===x&&hoverCell.y===y;
+      ctx.fillStyle=obl?(hov?'#b07fe866':'#b07fe822'):(hov?'#6fd08c66':'#6fd08c22');
+      ctx.strokeStyle=obl?'#b07fe8aa':'#6fd08c88';
+      roundRect(view.ox+x*c+2,view.oy+y*c+2,c-4,c-4,4);
+      ctx.fill();ctx.stroke();
+    }
+  }
+  {
+    const t=S.loopTiles[S.heroIdx];
+    const n=S.loopTiles[(S.heroIdx+1)%S.loopTiles.length];
+    const f=S.combat?0:clamp(S.moveT/TILE_T,0,1);
+    const [ax,ay]=cellCenter(t.x,t.y),[bx,by]=cellCenter(n.x,n.y);
+    const hx=ax+(bx-ax)*f,hy=ay+(by-ay)*f;
+    ctx.fillStyle=S.hero.flash>0.4?'#ff8890':'#e8b34b';
+    ctx.beginPath();ctx.arc(hx,hy,c*0.26,0,7);ctx.fill();
+    ctx.fillStyle='#161006';
+    ctx.font='bold '+Math.round(c*0.3)+'px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('H',hx,hy+1);
+  }
+  for(const f of S.floats){
+    if(f.panel)continue;
+    const [fx,fy]=cellCenter(f.wx,f.wy);
+    ctx.globalAlpha=1-f.t/f.life;
+    ctx.fillStyle=f.col;
+    ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+    ctx.fillText(f.txt,fx,fy-c*0.4-f.t*22);
+    ctx.globalAlpha=1;
+  }
+  if(S.combat)drawCombat();
+  ctx.textAlign='center';ctx.font='bold 13px sans-serif';
+  if(S.phase==='run'&&S.speed===0){
+    ctx.fillStyle='#e8b34b';ctx.fillText('PAUSED',view.w/2,22);
+  }else if(S.phase==='run'&&!S.miniSpawned&&S.loop>=MINI_LOOP-1){
+    ctx.fillStyle='#d8c08a';
+    ctx.fillText('Something colossal stirs at the campfire (loop '+MINI_LOOP+')...',view.w/2,22);
+  }else if(S.phase==='run'&&!S.bossSpawned&&S.loop>=BOSS_LOOP-1){
+    ctx.fillStyle='#e5636c';
+    ctx.fillText('The Lich awaits at the campfire on loop '+BOSS_LOOP+'...',view.w/2,22);
+  }
+}
+function traitIcons(e){
+  let s='';
+  if(e.fast)s+=' »';
+  if(e.armored)s+=' ▣';
+  if(e.vamp)s+=' ♥';
+  return s;
+}
+function drawCombat(){
+  const c=S.combat;
+  const pw=252,px=view.w-pw-14,py=52,rowH=56;
+  const ph=66+c.enemies.length*rowH;
+  ctx.fillStyle='#0d1017ee';ctx.strokeStyle='#2a3345';
+  roundRect(px,py,pw,ph,8);ctx.fill();ctx.stroke();
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  if(S.hero.flash>0){
+    ctx.fillStyle='rgba(229,99,108,'+(S.hero.flash*0.18).toFixed(3)+')';
+    roundRect(px+4,py+6,pw-8,44,6);ctx.fill();
+  }
+  ctx.fillStyle='#e8b34b';ctx.font='bold 12px sans-serif';
+  ctx.fillText('HERO',px+12,py+20);
+  ctx.fillStyle='#7f8ba0';ctx.font='10px sans-serif';
+  ctx.fillText(Math.max(0,Math.round(S.hero.hp))+'/'+S.stats.maxHP,px+pw-58,py+20);
+  bar(px+12,py+26,pw-24,10,S.hero.hp/S.stats.maxHP,'#e5636c','#241017');
+  bar(px+12,py+40,pw-24,4,clamp(c.heroT/HERO_INT,0,1),'#e8b34b','#1b2330');
+  c.enemies.forEach((e,i)=>{
+    const ey=py+66+i*rowH;
+    if(e.flash>0&&e.hp>0){
+      ctx.fillStyle='rgba(242,242,242,'+(e.flash*0.13).toFixed(3)+')';
+      roundRect(px+4,ey,pw-8,rowH-8,6);ctx.fill();
+    }
+    ctx.fillStyle=e.hp>0?e.color:'#3a4152';
+    ctx.font='bold 12px sans-serif';
+    ctx.fillText(e.name+traitIcons(e),px+12,ey+12);
+    if(e.hp>0){
+      ctx.fillStyle='#7f8ba0';ctx.font='10px sans-serif';
+      ctx.fillText(Math.round(e.hp)+'/'+e.maxHP,px+pw-58,ey+12);
+      bar(px+12,ey+18,pw-24,8,e.hp/e.maxHP,e.color,'#141a24');
+      if(!e.passive)bar(px+12,ey+30,pw-24,3,clamp(e.t/e.int,0,1),'#7f8ba0','#1b2330');
+    }else{
+      ctx.fillStyle='#3a4152';ctx.font='11px sans-serif';
+      ctx.fillText(e.passive?'opened':'slain',px+12,ey+26);
+    }
+  });
+  for(const f of S.floats){
+    if(!f.panel)continue;
+    const fy=f.row<0?py+30:py+66+f.row*rowH+14;
+    ctx.globalAlpha=1-f.t/f.life;
+    ctx.fillStyle=f.col;ctx.font='bold '+(f.big?16:13)+'px sans-serif';
+    ctx.fillText(f.txt,px+f.px,fy-f.t*20);
+    ctx.globalAlpha=1;
+  }
+}
+function bar(x,y,w,h,f,col,bg){
+  ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=col;ctx.fillRect(x,y,w*clamp(f,0,1),h);
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function drawGlyph(g,col,x,y,size){
+  const [cx,cy]=cellCenter(x,y);
+  ctx.fillStyle=col;
+  ctx.font='bold '+Math.round(size)+'px sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(g,cx,cy+1);
+}
+
+/* ============================== DOM rendering ============================== */
+function renderHand(){
+  const el=$('hand');
+  if(!S.hand.length){el.innerHTML='<div class="empty">Kill enemies to earn cards...</div>';return;}
+  el.innerHTML=S.hand.map((t,i)=>{
+    const d=CARDS[t];
+    return '<div class="card'+(i===S.selCard?' sel':'')+'" data-i="'+i+'" data-tt="card:'+t+'">'+
+      '<span class="tag">'+(d.place==='road'?'ROAD':d.place==='adj'?'BESIDE':d.place==='special'?'ERASE':'ANY')+'</span>'+
+      '<div class="cg" style="color:'+d.color+'">'+d.glyph+'</div>'+
+      '<div class="cn">'+d.name+'</div><div class="cd">'+d.short+'</div></div>';
+  }).join('');
+}
+function renderEquip(){
+  $('equip').innerHTML=SLOTS.map(sl=>{
+    const it=S.equip[sl];
+    if(!it)return '<div class="slot">'+sl+'</div>';
+    return '<div class="slot filled" data-slot="'+sl+'" data-tt="eq:'+sl+'" style="border-color:'+TIER[it.tier].c+'55">'+
+      '<div class="ic" style="color:'+TIER[it.tier].c+';border-color:'+TIER[it.tier].c+'">'+SLOTIC[sl]+'</div>'+
+      '<div style="color:'+TIER[it.tier].c+'">'+TIER[it.tier].n+'</div></div>';
+  }).join('');
+  let bp='';
+  for(let i=0;i<PACK_MAX;i++){
+    const it=S.backpack[i];
+    bp+=it?'<div class="bslot filled" data-i="'+i+'" data-tt="bp:'+i+'" style="border-color:'+TIER[it.tier].c+'88">'+
+        '<div class="ic" style="color:'+TIER[it.tier].c+';border-color:'+TIER[it.tier].c+'">'+SLOTIC[it.slot]+'</div></div>'
+      :'<div class="bslot"></div>';
+  }
+  $('backpack').innerHTML=bp;
+  $('bp-count').textContent=S.backpack.length+'/'+PACK_MAX;
+}
+let lastDom=0;
+function domTick(now){
+  if(dirty.hand){renderHand();dirty.hand=false;}
+  if(dirty.equip){renderEquip();dirty.equip=false;}
+  if(now-lastDom<120)return;
+  lastDom=now;
+  $('hud-loop').textContent=S.loop;
+  $('hud-day').textContent=S.day;
+  $('hud-score').textContent=S.score;
+  $('hud-best').textContent=meta.best.loops?('L'+meta.best.loops+' / '+meta.best.score):'—';
+  const ngb=$('hud-ng');
+  ngb.classList.toggle('hidden',!S.ng);
+  if(S.ng)ngb.textContent='NG+'+S.ng;
+  const lf=(S.heroIdx/S.loopTiles.length)*360;
+  $('ring-loop').style.background='conic-gradient(var(--gold) '+lf+'deg,#232b3b '+lf+'deg)';
+  const df=((S.tilesWalked%DAY_TILES)/DAY_TILES)*360;
+  $('ring-day').style.background='conic-gradient(#5aa7e8 '+df+'deg,#232b3b '+df+'deg)';
+  $('ring-day').classList.toggle('flash',S.time-S.dawnAt<1.2);
+  const hp=Math.max(0,Math.round(S.hero.hp));
+  $('hpfill').style.width=(100*hp/S.stats.maxHP)+'%';
+  $('hptxt').textContent=hp+' / '+S.stats.maxHP;
+  $('st-atk').textContent=Math.round(S.stats.atk);
+  $('st-def').textContent=Math.round(S.stats.def);
+  $('st-crit').textContent=S.stats.crit+'%';
+  $('st-reg').textContent=S.stats.regen;
+  $('st-spd').textContent='+'+Math.round(beaconBonus(S.loopTiles[S.heroIdx])*100)+'%';
+  $('st-steal').textContent=S.stats.steal+'%';
+  $('st-thorn').textContent=S.stats.thorns;
+  let gs=0;for(const sl of SLOTS)if(S.equip[sl])gs+=gearScore(S.equip[sl]);
+  $('st-gear').textContent=gs;
+}
+
+/* ============================== tooltip ============================== */
+const tt=$('tt');
+function ttHTML(spec){
+  const [kind,arg]=spec.split(':');
+  if(kind==='card'){
+    const d=CARDS[arg];
+    return '<div class="t" style="color:'+d.color+'">'+d.name+'</div><div class="d">'+d.desc+'</div>'+
+      (d.syn?'<div class="syn">'+d.syn+'</div>':'');
+  }
+  let it=null,cmp=false;
+  if(kind==='bp'){it=S.backpack[+arg];cmp=true;}
+  if(kind==='eq'){it=S.equip[arg];}
+  if(!it)return '';
+  return '<div class="t" style="color:'+TIER[it.tier].c+'">'+it.name+
+    ' <span class="d" style="font-weight:400">('+it.slot+')</span></div>'+
+    itemStatLines(it,cmp)+
+    '<div class="d">scrap value '+it.scrap+(cmp&&S.equip[it.slot]?' &middot; vs equipped':'')+'</div>';
+}
+document.addEventListener('mousemove',e=>{
+  const el=e.target&&e.target.closest?e.target.closest('[data-tt]'):null;
+  if(el&&S){
+    const html=ttHTML(el.dataset.tt);
+    if(!html){tt.classList.add('hidden');return;}
+    tt.innerHTML=html;
+    tt.classList.remove('hidden');
+    const r=tt.getBoundingClientRect();
+    tt.style.left=clamp(e.clientX+14,4,innerWidth-r.width-6)+'px';
+    tt.style.top=clamp(e.clientY-r.height-10,4,innerHeight-r.height-6)+'px';
+  }else tt.classList.add('hidden');
+});
+
+/* ============================== input ============================== */
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  hoverCell=cellAt(e.clientX-r.left,e.clientY-r.top);
+});
+cv.addEventListener('click',e=>{
+  if(!S||S.phase!=='run')return;
+  const r=cv.getBoundingClientRect();
+  const c=cellAt(e.clientX-r.left,e.clientY-r.top);
+  if(S.selCard>=0&&legalSet){
+    if(c&&legalSet.has(key(c.x,c.y)))placeCard(S.selCard,c.x,c.y);
+    else{S.selCard=-1;legalSet=null;dirty.hand=true;}
+  }
+});
+$('hand').addEventListener('click',e=>{
+  if(!S||S.phase!=='run')return;
+  const el=e.target.closest('.card');if(!el)return;
+  const i=+el.dataset.i;
+  if(!S.hand[i]){S.selCard=-1;legalSet=null;dirty.hand=true;return;}
+  if(S.selCard===i){S.selCard=-1;legalSet=null;}
+  else{S.selCard=i;legalSet=computeLegal(S.hand[i]);}
+  dirty.hand=true;
+});
+$('backpack').addEventListener('click',e=>{
+  if(!S||S.phase!=='run')return;
+  const el=e.target.closest('.bslot.filled');if(!el)return;
+  equipItem(+el.dataset.i);
+});
+$('equip').addEventListener('click',e=>{
+  if(!S||S.phase!=='run')return;
+  const el=e.target.closest('.slot.filled');if(!el)return;
+  unequipItem(el.dataset.slot);
+});
+function setSpeed(v){
+  if(!S)return;
+  S.speed=v;
+  $('btn-pause').classList.toggle('active',v===0);
+  $('btn-1').classList.toggle('active',v===1);
+  $('btn-2').classList.toggle('active',v===2);
+  $('btn-3').classList.toggle('active',v===3);
+}
+$('btn-pause').addEventListener('click',()=>setSpeed(0));
+$('btn-1').addEventListener('click',()=>setSpeed(1));
+$('btn-2').addEventListener('click',()=>setSpeed(2));
+$('btn-3').addEventListener('click',()=>setSpeed(3));
+$('btn-retreat').addEventListener('click',()=>{if(S&&S.phase==='run')endRun('retreat');});
+$('overlay').addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const [act,arg]=b.dataset.act.split(':');
+  if(act==='start')startRun(0);
+  else if(act==='again')startRun(S?S.ng:0);
+  else if(act==='ng')startRun((S?S.ng:0)+1);
+  else if(act==='startng')startRun(1);
+  else if(act==='title')showTitle();
+  else if(act==='buy'){
+    const u=UPGRADES[arg];
+    if(u&&!meta.up[arg]&&meta.supplies>=u.cost){
+      meta.supplies-=u.cost; meta.up[arg]=true; saveMeta(); showTitle();
+    }
+  }
+  else if(act==='loadout'){meta.loadout=arg;saveMeta();showTitle();}
+});
+window.addEventListener('resize',resize);
+
+/* ============================== main loop ============================== */
+let last=performance.now();
+function frame(ts){
+  const dt=Math.min(0.1,(ts-last)/1000);
+  last=ts;
+  if(S&&S.phase==='run'&&S.speed>0){
+    let rem=dt*S.speed;
+    while(rem>0){const step=Math.min(rem,0.05);update(step);rem-=step;}
+  }
+  draw();
+  if(S)domTick(ts);
+  requestAnimationFrame(frame);
+}
+
+/* ============================== debug handle (state inspection only) ===== */
+window.G={
+  get S(){return S;},
+  get meta(){return meta;},
+  ff(sec){
+    let t=0;
+    while(t<sec&&S&&S.phase==='run'){update(0.05);t+=0.05;}
+  },
+};
+
+/* ============================== boot ============================== */
+resize();
+newRun(0);
+showTitle();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dungeon Deal — Card Dungeon PoC</title>
+<style>
+  :root{
+    --cw: 110px; --ch: 140px; --gap: 10px;
+    --bg0:#0b0910; --bg1:#171226;
+    --card-bg0:#241f31; --card-bg1:#191423;
+    --ink:#e8e2f2; --dim:#9a90ae; --faint:#5d5470;
+    --red:#ff5d6c; --green:#5ce88a; --gold:#ffcf5c; --blue:#6db4ff;
+    --cyan:#5fe0d8; --purple:#c07dff; --orange:#ffab5c; --pink:#ff7ac2;
+  }
+  body[data-theme="crypt"]{ --bg0:#081008; --bg1:#12241a; --card-bg0:#1f2b26; --card-bg1:#141d18; }
+  body[data-theme="forge"]{ --bg0:#120808; --bg1:#2a1512; --card-bg0:#2e201d; --card-bg1:#1e1412; }
+  body[data-theme="abyss"]{ --bg0:#0c060e; --bg1:#26102a; --card-bg0:#2b1c31; --card-bg1:#1b1220; }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(120% 120% at 50% 0%, var(--bg1) 0%, var(--bg0) 68%);
+    color: var(--ink);
+    user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column;
+    transition: background .8s;
+  }
+
+  /* ------- top bar ------- */
+  #topbar{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding: 7px 14px; gap:8px; flex-wrap:wrap;
+  }
+  .logo{ font-weight:800; letter-spacing:.06em; font-size:14px; color:var(--ink); }
+  .logo .spade{ color:var(--purple); }
+  .tb-mid{ display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .chip{
+    background:#1e1930; border:1px solid #322a4a; border-radius:9px;
+    padding:3px 9px; font-size:12.5px; font-weight:600; color:var(--dim);
+    display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .chip b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+  .gold-chip b{ color:var(--gold); }
+  .xp-chip b{ color:var(--cyan); }
+  .deckback{
+    width:13px; height:18px; border-radius:3px; display:inline-block;
+    background: repeating-linear-gradient(135deg,#4b3a78 0 3px,#3a2c5e 3px 6px);
+    border:1px solid #6c5aa8; box-shadow: 2px 2px 0 -1px #2a2144;
+  }
+  .relic-ico, .perk-ico{
+    width:27px; height:27px; border-radius:8px; background:#221a38; border:1px solid #4a3a72;
+    display:inline-flex; align-items:center; justify-content:center; font-size:14px; position:relative;
+  }
+  .relic-ico{ border-color:#7a5a2e; background:#2c2214; }
+  .perk-ico .cnt{
+    position:absolute; right:-5px; bottom:-5px; background:var(--purple); color:#1a0f2a;
+    font-size:9px; font-weight:800; border-radius:7px; padding:0 4px; line-height:12px;
+  }
+  #relic-bar{ display:inline-flex; gap:4px; }
+
+  /* ------- stage / board ------- */
+  #stage{ flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:0; }
+  #board{
+    position:relative;
+    width: calc(var(--cw)*4 + var(--gap)*3);
+    height: calc(var(--ch)*4 + var(--gap)*3);
+    perspective: 1000px;
+  }
+  .slot{
+    position:absolute; width:var(--cw); height:var(--ch); border-radius:11px;
+    border:1.5px dashed #2c2542; background:rgba(255,255,255,.014);
+    transform: translate(calc(var(--x)*(var(--cw) + var(--gap))), calc(var(--y)*(var(--ch) + var(--gap))));
+  }
+  body[data-theme] .slot{ border-color:rgba(255,255,255,.08); }
+  .slot.reachable{ border-color:#4a3f70; cursor:pointer; }
+  .slot.reachable:hover{ background:rgba(160,140,255,.06); border-color:#6b5aa4; }
+
+  .card{
+    position:absolute; width:var(--cw); height:var(--ch);
+    transform: translate(calc(var(--x)*(var(--cw) + var(--gap))), calc(var(--y)*(var(--ch) + var(--gap))));
+    transition: transform .28s cubic-bezier(.3,1.2,.4,1);
+    z-index:2; perspective:700px;
+  }
+  .card.hero{ z-index:5; }
+  .c-inner{
+    width:100%; height:100%; border-radius:11px; position:relative;
+    background: linear-gradient(165deg, var(--card-bg0), var(--card-bg1));
+    border:1.5px solid #37304e;
+    box-shadow: 0 4px 12px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1px; padding:5px;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .card.reachable{ cursor:pointer; }
+  .card.reachable .c-inner{ border-color:#4d4472; }
+  .card.reachable:hover .c-inner{
+    transform: translateY(-6px) scale(1.04);
+    box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 0 1.5px var(--acc,#7a6ab8), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  /* spell target mode */
+  .card.target{ cursor:pointer; }
+  .card.target .c-inner{
+    border-color: var(--purple);
+    box-shadow: 0 0 14px 2px rgba(192,125,255,.35), 0 4px 12px rgba(0,0,0,.45);
+  }
+  .card.target:hover .c-inner{ transform: translateY(-5px) scale(1.04); box-shadow: 0 0 20px 4px rgba(192,125,255,.55); }
+  .card.sel .c-inner{ outline:2px solid var(--purple); outline-offset:2px; }
+  /* lethal hover warning */
+  .card.danger .c-inner{ animation: dangerPulse .7s ease-in-out infinite; }
+  @keyframes dangerPulse{
+    0%,100%{ box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 0 1.5px var(--red); }
+    50%{ box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 18px 5px rgba(255,60,80,.65); }
+  }
+
+  .c-inner.dealin{ animation: dealIn .4s cubic-bezier(.25,1.1,.4,1) backwards; }
+  @keyframes dealIn{
+    0%{ transform: rotateY(95deg) scale(.65); opacity:0; }
+    60%{ opacity:1; }
+    100%{ transform: rotateY(0) scale(1); }
+  }
+  .c-inner.consume{ animation: consumeOut .28s ease-in forwards; }
+  @keyframes consumeOut{ to{ transform: rotateY(-80deg) scale(.45); opacity:0; } }
+  .c-inner.hurt{ animation: hurtShake .45s ease; }
+  @keyframes hurtShake{
+    0%,100%{ transform:translateX(0); }
+    15%{ transform:translateX(-6px) rotate(-2deg); }
+    30%{ transform:translateX(6px) rotate(2deg); }
+    45%{ transform:translateX(-4px); }
+    60%{ transform:translateX(4px); }
+    20%,50%{ box-shadow:0 0 22px 4px rgba(255,70,90,.55); }
+  }
+  .c-inner.blip{ animation: blipPop .3s ease; }
+  @keyframes blipPop{ 40%{ transform: scale(1.07); } }
+
+  .c-icon{ font-size: calc(var(--cw)*0.30); line-height:1.1; filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
+  .c-val{ font-size: calc(var(--cw)*0.23); font-weight:800; line-height:1.05; color:var(--acc,#cfc6e8); font-variant-numeric:tabular-nums; }
+  .c-name{ font-size: calc(var(--cw)*0.096); font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+  .c-sub{ font-size: calc(var(--cw)*0.085); color:var(--faint); font-weight:600; text-align:center; line-height:1.2; }
+  .c-inner::before{
+    content:""; position:absolute; inset:0 0 auto 0; height:4px; border-radius:11px 11px 0 0;
+    background: var(--acc, #55496e); opacity:.85;
+  }
+
+  .card.monster{ --acc: var(--red); }
+  .card.elite{ --acc: var(--pink); }
+  .card.elite .c-inner{ border-color:#8f4470; box-shadow: 0 0 14px rgba(255,122,194,.18), 0 4px 12px rgba(0,0,0,.5); }
+  .card.boss{ --acc: #ff3d55; }
+  .card.boss .c-inner{ box-shadow: 0 4px 18px rgba(255,50,80,.3), 0 4px 12px rgba(0,0,0,.5); }
+  .card.weapon{ --acc: var(--blue); }
+  .card.shield{ --acc: var(--cyan); }
+  .card.potion{ --acc: var(--green); }
+  .card.coin{ --acc: var(--gold); }
+  .card.gem{ --acc: #64f0c8; }
+  .card.trap{ --acc: var(--orange); }
+  .card.curse{ --acc: var(--purple); }
+  .card.chest{ --acc: #d8a05c; }
+  .card.key{ --acc: #ffe08a; }
+  .card.locked{ --acc: #caa46a; }
+  .card.spell{ --acc: #9ad0ff; }
+  .card.event{ --acc: #f2ee6c; }
+  .card.merchant{ --acc: #b48cff; }
+  .card.stairs{ --acc: #7dff9e; }
+  .card.stairs .c-inner{ animation: stairsGlow 1.6s ease-in-out infinite; }
+  @keyframes stairsGlow{
+    0%,100%{ box-shadow:0 4px 12px rgba(0,0,0,.45); }
+    50%{ box-shadow:0 0 20px 3px rgba(110,255,150,.35); }
+  }
+  .card.hero{ --acc: #e8d76a; }
+  .card.hero .c-inner{ background: linear-gradient(165deg,#322b1f,#221c14); border-color:#6b5c33; }
+  .hero-hp{ font-size: calc(var(--cw)*0.20); font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .hero-hp .max{ font-size:.6em; color:var(--dim); font-weight:700; }
+  .hero-gear{ display:flex; gap:6px; font-size:calc(var(--cw)*0.1); font-weight:700; color:var(--dim); }
+  .hero-gear .g-w{ color:var(--blue); } .hero-gear .g-s{ color:var(--cyan); }
+  .hpbar{ width:78%; height:4px; border-radius:3px; background:#3a3049; overflow:hidden; margin-top:2px; }
+  .hpbar i{ display:block; height:100%; background:linear-gradient(90deg,#ff5d6c,#ffab5c); border-radius:3px; transition:width .3s; }
+
+  /* floating numbers */
+  .float{
+    position:absolute; z-index:40; pointer-events:none; font-weight:800;
+    font-size: calc(var(--cw)*0.17); text-shadow:0 2px 6px rgba(0,0,0,.8);
+    animation: floatUp 1s ease-out forwards; white-space:nowrap; transform:translateX(-50%);
+  }
+  @keyframes floatUp{
+    0%{ opacity:0; margin-top:0; }
+    12%{ opacity:1; }
+    100%{ opacity:0; margin-top: calc(var(--ch)*-0.5); }
+  }
+  .f-red{ color:var(--red); } .f-green{ color:var(--green); } .f-gold{ color:var(--gold); }
+  .f-blue{ color:var(--blue); } .f-cyan{ color:var(--cyan); } .f-gray{ color:#cfc6e8; }
+  .f-purple{ color:var(--purple); } .f-pink{ color:var(--pink); }
+
+  /* ------- status bar ------- */
+  #statusbar{
+    flex:0 0 auto; display:flex; gap:7px; align-items:center; justify-content:center;
+    padding: 2px 10px 10px; flex-wrap:wrap; max-width:100vw;
+  }
+  .st{ font-size:12px; }
+  .st b{ font-variant-numeric:tabular-nums; }
+  .st.warn{ border-color:#6a3d8f; color:#d0a6ff; }
+  .st.frozen{ border-color:#3d6a8f; color:#a6d6ff; }
+  .spell-chip{ cursor:pointer; border-color:#3d5a8f; transition: transform .12s, box-shadow .12s; }
+  .spell-chip:hover{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(100,160,255,.3); }
+  .cancel-chip{ cursor:pointer; border-color:#8f3d4a; color:#ffa6b0; }
+  .cancel-chip:hover{ background:#3a1e26; }
+
+  /* ------- tooltip ------- */
+  #tooltip{
+    position:fixed; z-index:90; pointer-events:none; display:none;
+    background:#151020ee; border:1px solid #4a3f70; border-radius:10px;
+    padding:8px 11px; font-size:12.5px; line-height:1.45; max-width:240px;
+    box-shadow:0 8px 24px rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  }
+  #tooltip .tt-red{ color:var(--red); font-weight:700; }
+  #tooltip .tt-green{ color:var(--green); font-weight:700; }
+  #tooltip .tt-gold{ color:var(--gold); font-weight:700; }
+  #tooltip .tt-blue{ color:var(--blue); font-weight:700; }
+  #tooltip .tt-cyan{ color:var(--cyan); font-weight:700; }
+  #tooltip .tt-purple{ color:var(--purple); font-weight:700; }
+  #tooltip .tt-pink{ color:var(--pink); font-weight:700; }
+  #tooltip .tt-dim{ color:var(--dim); }
+
+  /* screen flash */
+  #flash{
+    position:fixed; inset:0; pointer-events:none; z-index:60; opacity:0;
+    background: radial-gradient(100% 100% at 50% 50%, transparent 55%, rgba(255,40,60,.4));
+  }
+  #flash.on{ animation: flashAnim .4s ease; }
+  @keyframes flashAnim{ 15%{opacity:1;} 100%{opacity:0;} }
+
+  /* ------- overlay ------- */
+  #overlay{
+    position:fixed; inset:0; z-index:70; display:none;
+    align-items:center; justify-content:center;
+    background: rgba(8,6,14,.72); backdrop-filter: blur(5px);
+  }
+  #overlay.show{ display:flex; }
+  .panel{
+    background: linear-gradient(170deg,#211a33,#151020);
+    border:1px solid #453a68; border-radius:16px; padding:20px 24px;
+    max-width: min(600px, 94vw); max-height: 94vh; overflow:auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,.7);
+    text-align:center; animation: panelIn .28s cubic-bezier(.3,1.3,.4,1);
+  }
+  @keyframes panelIn{ from{ transform: translateY(16px) scale(.96); opacity:0; } }
+  .panel h1{ font-size:25px; letter-spacing:.04em; margin-bottom:4px; }
+  .panel h2{ font-size:18px; margin-bottom:6px; }
+  .panel .sub{ color:var(--dim); font-size:13px; margin-bottom:12px; }
+  .rules{ text-align:left; font-size:12.5px; color:var(--dim); line-height:1.6; margin:8px 0 14px; }
+  .rules b{ color:var(--ink); }
+  .rules .r-ico{ display:inline-block; width:20px; text-align:center; }
+  .btn{
+    display:inline-block; background:linear-gradient(170deg,#7a5cff,#5a3fd0); color:#fff;
+    border:none; border-radius:11px; padding:10px 24px; font-size:14px; font-weight:800;
+    font-family:inherit; letter-spacing:.04em; cursor:pointer;
+    box-shadow: 0 6px 18px rgba(110,80,255,.35);
+    transition: transform .12s, box-shadow .12s;
+    margin: 2px 4px;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(110,80,255,.5); }
+  .btn.ghost{ background:#2a2340; box-shadow:none; color:var(--dim); }
+  .btn.ghost:hover{ color:var(--ink); }
+  .btn.disabled{ opacity:.35; cursor:default; }
+  .btn.disabled:hover{ transform:none; box-shadow:none; }
+  .choice-row{ display:flex; gap:11px; justify-content:center; margin:12px 0 6px; flex-wrap:wrap; }
+  .mini-card{
+    width:136px; min-height:142px; border-radius:12px; padding:11px 9px;
+    background:linear-gradient(165deg,#2a2340,#1c1730); border:1.5px solid #493d70;
+    display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer;
+    transition: transform .14s, box-shadow .14s, border-color .14s;
+  }
+  .mini-card:hover{ transform: translateY(-5px); border-color:#8a72d8; box-shadow:0 12px 26px rgba(0,0,0,.5); }
+  .mini-card .mi{ font-size:28px; }
+  .mini-card .mt{ font-weight:800; font-size:13px; }
+  .mini-card .md{ font-size:11px; color:var(--dim); line-height:1.4; }
+  .mini-card .mp{ font-weight:800; color:var(--gold); font-size:12.5px; margin-top:auto; }
+  .mini-card.sold, .mini-card.poor{ opacity:.38; cursor:default; }
+  .mini-card.sold:hover, .mini-card.poor:hover{ transform:none; border-color:#493d70; box-shadow:none; }
+  .stat-line{ font-size:13.5px; color:var(--dim); margin:3px 0; }
+  .stat-line b{ color:var(--ink); }
+  .bigicon{ font-size:42px; margin-bottom:5px; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div class="tb-left"><span class="logo"><span class="spade">♠</span> DUNGEON DEAL</span></div>
+  <div class="tb-mid">
+    <span class="chip" id="floor-chip">Floor <b>1</b>/10</span>
+    <span class="chip" id="deck-chip" data-tip="Cards left in the floor deck"><span class="deckback"></span><b id="deck-count">0</b></span>
+    <span class="chip gold-chip" data-tip="Gold — spend it at merchants. Also your score.">🪙 <b id="gold-count">0</b></span>
+    <span class="chip xp-chip" id="xp-chip" data-tip="XP from monsters & gems. Each level: +1 max HP and a boon.">Lv <b id="lvl-count">1</b> · <span id="xp-count">0/16</span></span>
+    <span id="relic-bar"></span>
+  </div>
+  <div class="tb-right"><span class="chip" id="best-chip">Best: —</span></div>
+</header>
+
+<main id="stage">
+  <div id="board"></div>
+  <div id="statusbar"></div>
+</main>
+
+<div id="tooltip"></div>
+<div id="flash"></div>
+<div id="overlay"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Dungeon Deal — a 4x4 card-grid dungeon roguelite PoC.
+   Touchpad-only: mouse move (hover previews) + left click.
+   ============================================================ */
+
+// ---------- utils ----------
+const $ = s => document.querySelector(s);
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1)); // inclusive
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const COLS = 4, CELLS = 16;
+const colOf = c => c % COLS, rowOf = c => Math.floor(c / COLS);
+const adjacent = (a, b) =>
+  (rowOf(a) === rowOf(b) && Math.abs(colOf(a) - colOf(b)) === 1) ||
+  (colOf(a) === colOf(b) && Math.abs(rowOf(a) - rowOf(b)) === 1);
+
+const CFG = { lockMs: 360, dealDelay: 200 };
+const MAX_FLOOR = 10;
+
+// ---------- definitions ----------
+const PERKS = {
+  vit:   { icon:"❤️", name:"Vitality",    desc:"+2 max HP, healed immediately." },
+  whet:  { icon:"🗡️", name:"Whetstone",   desc:"Weapons you pick up get +1 value." },
+  alch:  { icon:"🧪", name:"Alchemist",   desc:"Potions heal +2 more." },
+  greed: { icon:"🪙", name:"Greed",       desc:"Coins are worth double." },
+  bulw:  { icon:"🛡️", name:"Bulwark",     desc:"Shields you pick up last +1 hit." },
+  wind:  { icon:"🕊️", name:"Second Wind", desc:"Once per floor: survive a lethal hit at 1 HP." },
+  skin:  { icon:"🗿", name:"Stone Skin",  desc:"Take −1 damage from every monster hit." },
+};
+
+const RELICS = {
+  fang:    { icon:"🧛", name:"Vampire Fang",     desc:"Heal 1 after each monster you slay." },
+  clover:  { icon:"🍀", name:"Lucky Clover",     desc:"Coin cards give +2 gold." },
+  stone:   { icon:"🪨", name:"Sharpening Stone", desc:"Weapons you pick up get +1 value." },
+  bone:    { icon:"🦴", name:"Bone Charm",       desc:"Traps deal −2 damage." },
+  scale:   { icon:"🐲", name:"Dragon Scale",     desc:"Elite & boss hits deal −2 damage." },
+  crystal: { icon:"🔮", name:"XP Crystal",       desc:"+1 XP from every monster." },
+};
+
+const SPELLS = {
+  fire:   { icon:"🔥", name:"Fireball", desc:"Kill any one monster or elite on the board — or burn away a boss stage." },
+  freeze: { icon:"❄️", name:"Freeze",   desc:"Your next fight deals you 0 damage and spares your weapon." },
+  swap:   { icon:"🌀", name:"Swap",     desc:"Exchange the positions of any two cards (you included)." },
+};
+
+const BOONS = {
+  mend:    { icon:"🩹", name:"Mend",    desc:"Heal 6 HP." },
+  hone:    { icon:"⚒️", name:"Hone",    desc:"Current weapon +2 (or gain a 3 weapon)." },
+  gild:    { icon:"💰", name:"Gild",    desc:"+6 gold." },
+  tools:   { icon:"🧰", name:"Tools",   desc:"Gain a disarm kit and a key." },
+  guard:   { icon:"🛡️", name:"Guard",   desc:"Shield +2 hits (or gain a 2×2 shield)." },
+  scroll:  { icon:"📜", name:"Scroll",  desc:"Gain a random spell (or +5 gold if hands full)." },
+};
+
+// ---------- state ----------
+let S = null;
+let uid = 0;
+const cardEls = new Map();
+let heroEl = null;
+let dangerEl = null; // card currently pulsing red on hover
+
+function newState(){
+  return {
+    screen: "title",  // title | play | perk | merchant | event | level | dead | victory
+    lockUntil: 0,
+    floor: 1, hp: 13, maxHp: 13, gold: 0,
+    lvl: 1, xp: 0, xpNext: 16, pendingLevels: 0,
+    weapon: { v: 3 }, shield: null, kits: 0, keys: 0, curse: null, freeze: false,
+    spells: [],                 // held spell ids, max 2
+    relics: {},                 // relic id -> true
+    perks: {}, windLeft: 0,
+    deck: [], board: new Array(CELLS).fill(null), heroCell: 5,
+    stairsPlaced: false, merchOffers: null, eventKind: null,
+    targeting: null,            // { spell:'fire'|'swap', first:cell|null }
+    stats: { consumed: 0, slain: 0, goldEarned: 0 },
+  };
+}
+// Timestamp-based lock: immune to background-tab timer throttling.
+const isLocked = () => S && Date.now() < S.lockUntil;
+
+// ---------- deck building ----------
+function monsterIcon(v){ return v <= 3 ? "🦇" : v <= 5 ? "🧟" : v <= 7 ? "👹" : v <= 9 ? "👺" : "😈"; }
+
+function buildDeck(f){
+  const d = [];
+  const eliteCount = f >= 3 ? 1 + (f >= 7 ? 1 : 0) : 0;
+  const mCount = 9 + Math.ceil(f / 2) - eliteCount;
+  for(let i = 0; i < mCount; i++) d.push({ type:"monster", v: ri(1 + f, 4 + f) });
+  for(let i = 0; i < eliteCount; i++) d.push({ type:"elite", v: ri(7, 9) + Math.max(0, f - 5) });
+  for(let i = 0; i < 5; i++) d.push({ type:"weapon", v: ri(3, 5) + Math.floor((f - 1) * 0.9) });
+  const pCount = 4 + (f >= 6 ? 1 : 0);
+  for(let i = 0; i < pCount; i++) d.push({ type:"potion", v: ri(3, 5) + Math.floor(f / 3) });
+  const shCount = 2 + (f >= 5 ? 1 : 0);
+  for(let i = 0; i < shCount; i++) d.push({ type:"shield", block: 2 + Math.floor(f / 4), hits: 3 });
+  for(let i = 0; i < 4; i++) d.push({ type:"coin", v: ri(2, 4) + Math.floor(f / 2) });
+  for(let i = 0; i < 2; i++) d.push({ type:"gem", v: ri(2, 4) + Math.floor(f / 3) });
+  const tCount = Math.min(3, 1 + Math.floor(f / 3));
+  for(let i = 0; i < tCount; i++) d.push({ type:"trap", v: ri(3, 5) + Math.floor(f / 2) });
+  if(f >= 2){
+    const cCount = 1 + (f >= 6 ? 1 : 0);
+    for(let i = 0; i < cCount; i++) d.push({ type:"curse", amt: 2, fights: 3 });
+  }
+  d.push({ type:"key" }, { type:"locked" });
+  d.push({ type:"spell", spell: pick(Object.keys(SPELLS)) });
+  d.push({ type:"spell", spell: pick(Object.keys(SPELLS)) });
+  d.push({ type:"chest" }, { type:"chest" });
+  d.push({ type:"event" });
+  if(f >= 4) d.push({ type:"event" });
+  d.push({ type:"merchant" });
+  return shuffle(d);
+}
+
+function makeBoss(f){
+  if(f === 5)  return { type:"boss", kind:"mini",  name:"The Warden", icon:"🦂",
+                        stages:[{ power:8, hits:2 }], si:0, hitsLeft:2 };
+  return { type:"boss", kind:"final", name:"Depth Lord", icon:"🐉",
+           stages:[{ power:12, hits:2 }, { power:9, hits:2 }], si:0, hitsLeft:2 };
+}
+
+// ---------- combat math (pure; shared by preview + resolve) ----------
+function calcFight(power, big){ // big = elite or boss
+  const w = S.weapon ? S.weapon.v : 0;
+  if(S.freeze){
+    return { dmg:0, frozen:true, weaponBefore:w, weaponAfter:w, blocked:0, shieldUsed:false, curseActive:false, eff:w };
+  }
+  const curse = S.curse ? S.curse.amt : 0;
+  const eff = Math.max(0, w - curse);
+  let through = Math.max(0, power - eff);
+  const weaponAfter = w > 0 ? Math.max(0, w - power) : 0;
+  if(through > 0) through = Math.max(0, through - (S.perks.skin || 0));
+  if(through > 0 && big && S.relics.scale) through = Math.max(0, through - 2);
+  let blocked = 0, shieldUsed = false;
+  if(through > 0 && S.shield){
+    blocked = Math.min(S.shield.block, through);
+    through -= blocked;
+    shieldUsed = true;
+  }
+  return { dmg: through, frozen:false, weaponBefore: w, weaponAfter, blocked, shieldUsed, curseActive: curse > 0, eff };
+}
+function trapDamage(v){ return Math.max(0, v - (S.relics.bone ? 2 : 0)); }
+
+// applies the side effects of one fight (weapon wear, shield charge, curse tick, freeze burn)
+function applyFight(r){
+  if(r.frozen){
+    S.freeze = false;
+    floatText(S.heroCell, "❄️ frozen hit", "f-cyan", 80);
+    return;
+  }
+  if(S.weapon){
+    S.weapon.v = r.weaponAfter;
+    if(S.weapon.v <= 0){ S.weapon = null; floatText(S.heroCell, "🗡️ breaks!", "f-blue", 260); }
+  }
+  if(r.shieldUsed){
+    S.shield.hits--;
+    floatText(S.heroCell, `🛡️ −${r.blocked}`, "f-cyan", 120);
+    if(S.shield.hits <= 0){ S.shield = null; floatText(S.heroCell, "🛡️ shatters!", "f-cyan", 420); }
+  }
+  if(S.curse){ S.curse.fights--; if(S.curse.fights <= 0){ S.curse = null; floatText(S.heroCell, "curse lifted", "f-purple", 500); } }
+}
+
+// ---------- layout ----------
+function layout(){
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const cw = Math.max(56, Math.min(130, (vw - 32) / 4.3, (vh - 168) / 5.45));
+  const r = document.documentElement.style;
+  r.setProperty("--cw", cw.toFixed(1) + "px");
+  r.setProperty("--ch", (cw * 1.27).toFixed(1) + "px");
+  r.setProperty("--gap", (cw * 0.085).toFixed(1) + "px");
+}
+window.addEventListener("resize", layout);
+
+// ---------- rendering ----------
+const board = $("#board"), overlay = $("#overlay"), tooltip = $("#tooltip");
+
+function initSlots(){
+  for(let c = 0; c < CELLS; c++){
+    const s = document.createElement("div");
+    s.className = "slot"; s.dataset.cell = c;
+    s.style.setProperty("--x", colOf(c)); s.style.setProperty("--y", rowOf(c));
+    board.appendChild(s);
+  }
+}
+
+function setCellPos(el, cell){
+  el.dataset.cell = cell;
+  el.style.setProperty("--x", colOf(cell));
+  el.style.setProperty("--y", rowOf(cell));
+}
+
+function cardFace(c){
+  switch(c.type){
+    case "monster": return { icon: monsterIcon(c.v), val: c.v, name:"Monster", sub:`${c.v + (S.relics.crystal?1:0)} xp` };
+    case "elite":   return { icon:"🧌", val: c.v, name:"ELITE", sub:"drops a relic" };
+    case "boss":    return { icon: c.icon, val: c.stages[c.si].power, name: c.name,
+                             sub: `stage ${c.si + 1}/${c.stages.length} · ${c.hitsLeft} hit${c.hitsLeft>1?"s":""}` };
+    case "weapon":  return { icon:"🗡️", val: c.v, name:"Weapon" };
+    case "shield":  return { icon:"🛡️", val:`${c.block}×${c.hits}`, name:"Shield", sub:"block × hits" };
+    case "potion":  return { icon:"🧪", val:"+" + c.v, name:"Potion" };
+    case "coin":    return { icon:"🪙", val: c.v, name:"Gold" };
+    case "gem":     return { icon:"💎", val: c.v, name:"XP Gem" };
+    case "trap":    return { icon:"🪤", val: c.v, name:"Trap" };
+    case "curse":   return { icon:"☠️", val:"−" + c.amt, name:"Curse", sub:`weapon −${c.amt}, ${c.fights} fights` };
+    case "chest":   return { icon:"📦", val:"?", name:"Chest" };
+    case "key":     return { icon:"🗝️", val:"", name:"Key", sub:"opens locked chests" };
+    case "locked":  return { icon:"🧰", val: S.keys > 0 ? "🗝️" : "🔒", name:"Locked", sub: S.keys > 0 ? "you have a key" : "needs a key" };
+    case "spell":   return { icon: SPELLS[c.spell].icon, val:"", name: SPELLS[c.spell].name, sub:"spell scroll" };
+    case "event":   return { icon:"❓", val:"?", name:"Event" };
+    case "merchant":return { icon:"🧙", val:"$", name:"Merchant" };
+    case "stairs":  return { icon:"🪜", val:"▼", name:"Stairs", sub:"descend" };
+  }
+  return { icon:"?", val:"?", name:"?" };
+}
+
+function renderCardContent(el, c){
+  const f = cardFace(c);
+  el.querySelector(".c-inner").innerHTML =
+    `<div class="c-icon">${f.icon}</div>` +
+    (f.val !== "" ? `<div class="c-val">${f.val}</div>` : "") +
+    `<div class="c-name">${f.name}</div>` +
+    (f.sub ? `<div class="c-sub">${f.sub}</div>` : "");
+}
+
+function makeCardEl(c, cell, dealIn, delayMs){
+  const el = document.createElement("div");
+  el.className = "card " + c.type;
+  el.dataset.id = c.id;
+  setCellPos(el, cell);
+  const inner = document.createElement("div");
+  inner.className = "c-inner" + (dealIn ? " dealin" : "");
+  if(dealIn && delayMs) inner.style.animationDelay = delayMs + "ms"; // stagger via CSS, not JS timers
+  el.appendChild(inner);
+  renderCardContent(el, c);
+  if(dealIn) inner.addEventListener("animationend", () => {
+    inner.classList.remove("dealin");
+    inner.style.animationDelay = "";
+  }, { once:true });
+  board.appendChild(el);
+  cardEls.set(c.id, el);
+  return el;
+}
+
+function renderHero(){
+  if(!heroEl){
+    heroEl = document.createElement("div");
+    heroEl.className = "card hero";
+    heroEl.innerHTML = `<div class="c-inner"></div>`;
+    board.appendChild(heroEl);
+  }
+  setCellPos(heroEl, S.heroCell);
+  const w = S.weapon ? S.weapon.v : 0;
+  const sh = S.shield ? `${S.shield.block}×${S.shield.hits}` : "—";
+  heroEl.querySelector(".c-inner").innerHTML =
+    `<div class="c-icon">🥷</div>` +
+    `<div class="hero-hp">${S.hp}<span class="max">/${S.maxHp}</span></div>` +
+    `<div class="hpbar"><i style="width:${Math.max(0, S.hp / S.maxHp * 100)}%"></i></div>` +
+    `<div class="hero-gear"><span class="g-w">🗡${w || "—"}</span><span class="g-s">🛡${sh}</span></div>`;
+}
+
+function renderHUD(){
+  $("#floor-chip").innerHTML = `Floor <b>${S.floor}</b>/10`;
+  $("#deck-count").textContent = S.deck.length;
+  $("#gold-count").textContent = S.gold;
+  $("#lvl-count").textContent = S.lvl;
+  $("#xp-count").textContent = `${S.xp}/${S.xpNext}`;
+  $("#relic-bar").innerHTML = Object.keys(S.relics).map(k =>
+    `<span class="relic-ico" data-tip="${RELICS[k].name}: ${RELICS[k].desc}">${RELICS[k].icon}</span>`).join("");
+
+  const sb = $("#statusbar");
+  let h = "";
+  if(S.targeting){
+    const t = S.targeting;
+    const msg = t.spell === "fire" ? "🔥 Click a monster, elite or boss to incinerate"
+      : (t.first === null ? "🌀 Click the first card to swap (you count too)" : "🌀 Click the second card to swap");
+    h += `<span class="chip st warn"><b>${msg}</b></span>`;
+    h += `<span class="chip st cancel-chip" id="cancel-target">✖ cancel</span>`;
+  } else {
+    h += `<span class="chip st" data-tip="Your weapon absorbs monster power. It depletes by the monster's full power each fight and breaks at 0.">🗡️ <b>${S.weapon ? S.weapon.v : "—"}</b></span>`;
+    h += `<span class="chip st" data-tip="Shield blocks part of each hit that gets through your weapon. Each blocked hit uses 1 charge.">🛡️ <b>${S.shield ? S.shield.block + "×" + S.shield.hits : "—"}</b></span>`;
+    if(S.keys > 0) h += `<span class="chip st" data-tip="Keys open locked chests (guaranteed good loot).">🗝️ <b>${S.keys}</b></span>`;
+    if(S.kits > 0) h += `<span class="chip st" data-tip="Disarm kits: each one negates one trap automatically.">🧰 <b>${S.kits}</b></span>`;
+    if(S.curse) h += `<span class="chip st warn" data-tip="Cursed: your weapon counts −${S.curse.amt} for the next ${S.curse.fights} fight(s).">☠️ <b>−${S.curse.amt} (${S.curse.fights})</b></span>`;
+    if(S.freeze) h += `<span class="chip st frozen" data-tip="Freeze armed: your next fight deals you 0 damage and spares your weapon.">❄️ <b>next fight free</b></span>`;
+    if((S.perks.wind || 0) > 0) h += `<span class="chip st" data-tip="Second Wind charges left this floor.">🕊️ <b>${S.windLeft}</b></span>`;
+    S.spells.forEach((sp, i) => {
+      h += `<span class="chip st spell-chip" data-spell-i="${i}" data-tip="${SPELLS[sp].name}: ${SPELLS[sp].desc} (click to use)">${SPELLS[sp].icon} <b>${SPELLS[sp].name}</b></span>`;
+    });
+    const pkeys = Object.keys(S.perks).filter(k => S.perks[k] > 0);
+    h += pkeys.map(k =>
+      `<span class="perk-ico" data-tip="${PERKS[k].name}: ${PERKS[k].desc}${S.perks[k] > 1 ? " (×" + S.perks[k] + ")" : ""}">${PERKS[k].icon}${S.perks[k] > 1 ? `<span class="cnt">${S.perks[k]}</span>` : ""}</span>`
+    ).join("");
+  }
+  sb.innerHTML = h;
+  renderHero();
+  updateReachable();
+}
+
+function validSpellTarget(cell){
+  const t = S.targeting;
+  if(!t) return false;
+  const c = S.board[cell];
+  if(t.spell === "fire") return !!c && (c.type === "monster" || c.type === "elite" || c.type === "boss");
+  if(t.spell === "swap") return (cell === S.heroCell || !!c) && cell !== t.first;
+  return false;
+}
+
+function updateReachable(){
+  document.querySelectorAll("#board .card, #board .slot").forEach(el => {
+    const cell = +el.dataset.cell;
+    const isSlot = el.classList.contains("slot");
+    if(S.targeting){
+      el.classList.remove("reachable");
+      const tgt = !isSlot && S.screen === "play" && validSpellTarget(cell);
+      el.classList.toggle("target", tgt);
+      el.classList.toggle("sel", !isSlot && S.targeting.first === cell);
+      return;
+    }
+    el.classList.remove("target", "sel");
+    if(el === heroEl){ el.classList.remove("reachable"); return; }
+    const c = S.board[cell];
+    const ok = S.screen === "play" && !isLocked() && adjacent(cell, S.heroCell) &&
+      (!isSlot
+        ? !(c && c.type === "locked" && S.keys < 1)   // locked chest needs a key
+        : !c);                                        // slot reachable only if empty
+    el.classList.toggle("reachable", ok);
+  });
+}
+
+// ---------- storage ----------
+function loadJSON(k){ try{ return JSON.parse(localStorage.getItem(k) || "null"); }catch(e){ return null; } }
+function saveJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ /* unavailable */ } }
+function loadBest(){ return loadJSON("dd_best"); }
+function saveBest(run){
+  const b = loadBest();
+  const score = r => (r.won ? 100 : r.floor) * 1000 + r.gold;
+  if(!b || score(run) > score(b)) saveJSON("dd_best", run);
+}
+function meta(){ return loadJSON("dd_meta") || { runs: 0, wins: 0 }; }
+function renderBest(){
+  const b = loadBest(), m = meta();
+  $("#best-chip").innerHTML = (b ? `Best: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · 🪙${b.gold}` : "Best: —")
+    + (m.runs ? ` <span style="color:var(--faint)">| ${m.wins}W/${m.runs}</span>` : "");
+}
+
+// ---------- juice ----------
+function floatText(cell, text, cls, delay){
+  setTimeout(() => {
+    const el = document.createElement("div");
+    el.className = "float " + (cls || "f-gray");
+    el.textContent = text;
+    const cw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cw"));
+    const ch = cw * 1.27, gap = cw * 0.085;
+    el.style.left = (colOf(cell) * (cw + gap) + cw / 2) + "px";
+    el.style.top  = (rowOf(cell) * (ch + gap) + ch * 0.22) + "px";
+    board.appendChild(el);
+    el.addEventListener("animationend", () => el.remove(), { once:true });
+  }, delay || 0);
+}
+function heroHurtFx(){
+  const inner = heroEl && heroEl.querySelector(".c-inner");
+  if(inner){ inner.classList.remove("hurt"); void inner.offsetWidth; inner.classList.add("hurt"); }
+  const fl = $("#flash"); fl.classList.remove("on"); void fl.offsetWidth; fl.classList.add("on");
+}
+function heroBlipFx(){
+  const inner = heroEl && heroEl.querySelector(".c-inner");
+  if(inner){ inner.classList.remove("blip"); void inner.offsetWidth; inner.classList.add("blip"); }
+}
+
+// ---------- outcome preview (tooltip + danger pulse) ----------
+function predictedDamage(c){
+  if(!c) return 0;
+  if(c.type === "monster") return calcFight(c.v, false).dmg;
+  if(c.type === "elite") return calcFight(c.v, true).dmg;
+  if(c.type === "boss") return calcFight(c.stages[c.si].power, true).dmg;
+  if(c.type === "trap") return S.kits > 0 ? 0 : trapDamage(c.v);
+  return 0;
+}
+
+function previewLines(c){
+  const L = [];
+  const dmgLine = r => {
+    if(r.frozen){ L.push(`<span class="tt-cyan">❄️ frozen — no damage, weapon spared</span>`); return; }
+    if(r.curseActive && r.weaponBefore > 0) L.push(`<span class="tt-purple">☠ cursed: weapon counts ${r.eff}</span>`);
+    if(r.weaponBefore > 0) L.push(`<span class="tt-blue">weapon ${r.weaponBefore} → ${r.weaponAfter}${r.weaponAfter === 0 ? " (breaks)" : ""}</span>`);
+    if(r.shieldUsed) L.push(`<span class="tt-cyan">shield blocks ${r.blocked} (${S.shield.hits} → ${S.shield.hits - 1} hits)</span>`);
+    if(r.dmg > 0){
+      const lethal = r.dmg >= S.hp;
+      L.push(`<span class="tt-red">−${r.dmg} HP${lethal ? (S.windLeft > 0 ? " — Second Wind saves you at 1 HP" : " — LETHAL!") : ""}</span>`);
+    } else L.push(`<span class="tt-green">no damage</span>`);
+  };
+  switch(c.type){
+    case "monster": {
+      L.push(`<b>Fight</b> (power ${c.v})`);
+      dmgLine(calcFight(c.v, false));
+      L.push(`<span class="tt-cyan">+${c.v + (S.relics.crystal ? 1 : 0)} xp</span>${S.relics.fang ? ` <span class="tt-green">+1 HP (fang)</span>` : ""}`);
+      break;
+    }
+    case "elite": {
+      L.push(`<b>ELITE fight</b> (power ${c.v})`);
+      dmgLine(calcFight(c.v, true));
+      L.push(`<span class="tt-pink">drops a relic</span> · <span class="tt-cyan">+${c.v + 3 + (S.relics.crystal ? 1 : 0)} xp</span>`);
+      break;
+    }
+    case "boss": {
+      const st = c.stages[c.si];
+      L.push(`<b>Strike ${c.name}</b> — it hits for ${st.power}`);
+      dmgLine(calcFight(st.power, true));
+      L.push(`<span class="tt-dim">stage ${c.si + 1}/${c.stages.length}, ${c.hitsLeft} hit${c.hitsLeft>1?"s":""} left — 🔥 clears a stage</span>`);
+      break;
+    }
+    case "weapon": {
+      const v = c.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0);
+      L.push(`<b>Equip weapon</b>`);
+      L.push(`<span class="tt-blue">weapon ${S.weapon ? S.weapon.v : 0} → ${v}${v > c.v ? ` (incl. +${v - c.v} bonus)` : ""}</span>`);
+      if(S.weapon && S.weapon.v > v) L.push(`<span class="tt-dim">warning: worse than current!</span>`);
+      break;
+    }
+    case "shield": {
+      const hits = c.hits + (S.perks.bulw || 0);
+      L.push(`<b>Equip shield</b>`);
+      L.push(`<span class="tt-cyan">blocks ${c.block}/hit for ${hits} hits${S.shield ? " (replaces current)" : ""}</span>`);
+      break;
+    }
+    case "potion": {
+      const amt = c.v + (S.perks.alch || 0) * 2;
+      const real = Math.min(amt, S.maxHp - S.hp);
+      L.push(`<b>Drink potion</b>`);
+      L.push(`<span class="tt-green">+${real} HP</span>${real < amt ? ` <span class="tt-dim">(${amt - real} overheal wasted)</span>` : ""}`);
+      break;
+    }
+    case "coin": {
+      const g = (c.v + (S.relics.clover ? 2 : 0)) * Math.pow(2, S.perks.greed || 0);
+      L.push(`<b>Take gold</b>`, `<span class="tt-gold">+${g} gold</span>`);
+      break;
+    }
+    case "gem": L.push(`<b>XP gem</b>`, `<span class="tt-cyan">+${c.v} xp</span>`); break;
+    case "trap": {
+      L.push(`<b>Trap!</b>`);
+      if(S.kits > 0) L.push(`<span class="tt-green">disarmed with a kit (${S.kits} → ${S.kits - 1})</span>`);
+      else {
+        const d = trapDamage(c.v);
+        const lethal = d >= S.hp;
+        L.push(d > 0 ? `<span class="tt-red">−${d} HP${lethal ? (S.windLeft > 0 ? " — Second Wind saves you" : " — LETHAL!") : ""}</span>` : `<span class="tt-green">no damage</span>`);
+        L.push(`<span class="tt-dim">ignores weapon & shield — kits disarm</span>`);
+      }
+      break;
+    }
+    case "curse": {
+      L.push(`<b>Curse</b>`, `<span class="tt-purple">weapon counts −${c.amt} for next ${c.fights} fights</span>`);
+      if(S.curse) L.push(`<span class="tt-dim">extends your current curse</span>`);
+      break;
+    }
+    case "chest": L.push(`<b>Open chest</b>`, `<span class="tt-dim">gold, potion, weapon, kit, key… or a mimic 🦷</span>`); break;
+    case "key": L.push(`<b>Take the key</b>`, `<span class="tt-gold">opens a locked chest</span>`); break;
+    case "locked": {
+      L.push(`<b>Locked chest</b>`);
+      if(S.keys > 0) L.push(`<span class="tt-green">open with a key: a relic + gold, guaranteed</span>`);
+      else L.push(`<span class="tt-red">locked — find a 🗝️ first</span>`);
+      break;
+    }
+    case "spell": {
+      L.push(`<b>${SPELLS[c.spell].name} scroll</b>`);
+      if(S.spells.length >= 2) L.push(`<span class="tt-gold">hands full — burns for +4 gold</span>`);
+      else L.push(`<span class="tt-dim">${SPELLS[c.spell].desc}</span>`);
+      break;
+    }
+    case "event": L.push(`<b>Event</b>`, `<span class="tt-dim">something stirs… (shrine, fountain, imp)</span>`); break;
+    case "merchant": L.push(`<b>Merchant</b>`, `<span class="tt-gold">browse 3 offers (you have ${S.gold} gold)</span>`); break;
+    case "stairs": L.push(`<b>Descend</b>`, `<span class="tt-green">to floor ${S.floor + 1} — choose a perk</span>`); break;
+    case "hero": L.push(`<b>You</b> — ${S.hp}/${S.maxHp} HP · Lv ${S.lvl}`, `<span class="tt-dim">click an adjacent card to act</span>`); break;
+  }
+  return L;
+}
+
+function clearDanger(){
+  if(dangerEl){ dangerEl.classList.remove("danger"); dangerEl = null; }
+}
+
+function showTooltipFor(el){
+  let html = null;
+  clearDanger();
+  if(el.dataset && el.dataset.tip){
+    html = el.dataset.tip;
+  } else if(el.classList.contains("card")){
+    const c = el === heroEl ? { type:"hero" } : S.board[+el.dataset.cell];
+    if(!c) return;
+    if(S.targeting){
+      const cell = +el.dataset.cell;
+      if(validSpellTarget(cell)){
+        html = S.targeting.spell === "fire"
+          ? (c.type === "boss" ? `<b>🔥 Burn a boss stage</b>` : `<b>🔥 Incinerate</b> — dies instantly, full XP`)
+          : `<b>🌀 Swap</b> — ${S.targeting.first === null ? "select this card" : "swap with selection"}`;
+      } else html = `<span class="tt-dim">not a valid target — click ✖ to cancel</span>`;
+    } else if(el !== heroEl && !el.classList.contains("reachable") && S.screen === "play"){
+      html = previewLines(c).join("<br>") + `<br><span class="tt-dim">— not adjacent —</span>`;
+    } else {
+      html = previewLines(c).join("<br>");
+    }
+    // danger pulse: this click would kill you
+    if(!S.targeting && el !== heroEl && el.classList.contains("reachable")){
+      const dmg = predictedDamage(c);
+      if(dmg >= S.hp && S.windLeft <= 0){ el.classList.add("danger"); dangerEl = el; }
+    }
+  } else if(el.classList.contains("slot")){
+    if(!el.classList.contains("reachable")) return;
+    html = `<b>Move here</b><br><span class="tt-dim">just a step, no effect</span>`;
+  }
+  if(!html) return;
+  tooltip.innerHTML = html;
+  tooltip.style.display = "block";
+  const r = el.getBoundingClientRect(), t = tooltip.getBoundingClientRect();
+  let x = r.left + r.width / 2 - t.width / 2;
+  let y = r.top - t.height - 8;
+  x = Math.max(6, Math.min(x, window.innerWidth - t.width - 6));
+  if(y < 6) y = r.bottom + 8;
+  tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+}
+function hideTooltip(){ tooltip.style.display = "none"; clearDanger(); }
+
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest("[data-tip], #board .card, #board .slot");
+  if(el) showTooltipFor(el); else hideTooltip();
+});
+document.addEventListener("mouseout", e => {
+  if(e.target.closest("[data-tip], #board .card, #board .slot")) hideTooltip();
+});
+
+// ---------- damage / xp / death plumbing ----------
+function damageHero(amount, delay){
+  if(amount <= 0) return false;
+  S.hp -= amount;
+  floatText(S.heroCell, "−" + amount, "f-red", delay || 0);
+  heroHurtFx();
+  if(S.hp <= 0){
+    if(S.windLeft > 0){
+      S.windLeft--; S.hp = 1;
+      floatText(S.heroCell, "🕊️ SECOND WIND", "f-purple", (delay || 0) + 350);
+      return false;
+    }
+    S.hp = 0;
+    return true;
+  }
+  return false;
+}
+
+function gainXp(n, cell){
+  if(n <= 0) return;
+  S.xp += n;
+  floatText(cell != null ? cell : S.heroCell, `+${n} xp`, "f-cyan", 180);
+  while(S.xp >= S.xpNext){
+    S.xp -= S.xpNext;
+    S.lvl++;
+    S.maxHp++; S.hp++;
+    S.xpNext = 10 + S.lvl * 6;
+    S.pendingLevels++;
+  }
+}
+
+function grantRelic(cell){
+  const avail = Object.keys(RELICS).filter(k => !S.relics[k]);
+  if(avail.length === 0){
+    S.gold += 8; S.stats.goldEarned += 8;
+    floatText(cell, "+8 🪙 (relics full)", "f-gold", 220);
+    return;
+  }
+  const k = pick(avail);
+  S.relics[k] = true;
+  floatText(cell, `${RELICS[k].icon} ${RELICS[k].name}!`, "f-pink", 220);
+}
+
+function grantSpell(sp, cell){
+  if(S.spells.length >= 2){
+    S.gold += 4; S.stats.goldEarned += 4;
+    floatText(cell, "+4 🪙 (hands full)", "f-gold");
+    return;
+  }
+  S.spells.push(sp);
+  floatText(cell, `${SPELLS[sp].icon} ${SPELLS[sp].name}`, "f-blue");
+}
+
+function endRun(won){
+  S.screen = won ? "victory" : "dead";
+  S.targeting = null;
+  saveBest({ floor: S.floor, gold: S.gold, won });
+  const m = meta(); m.runs++; if(won) m.wins++; saveJSON("dd_meta", m);
+  renderBest();
+  setTimeout(() => {
+    overlay.innerHTML = `<div class="panel">
+      <div class="bigicon">${won ? "👑" : "💀"}</div>
+      <h1>${won ? "VICTORY" : "YOU DIED"}</h1>
+      <div class="sub">${won ? "The Depth Lord is slain. The dungeon is yours." : "The dungeon keeps what it takes."}</div>
+      <div class="stat-line">Floors reached: <b>${S.floor}${won ? " — cleared!" : ""}</b> · Level <b>${S.lvl}</b></div>
+      <div class="stat-line">Gold banked: <b>🪙 ${S.gold}</b> (earned ${S.stats.goldEarned})</div>
+      <div class="stat-line">Cards consumed: <b>${S.stats.consumed}</b> · Monsters slain: <b>${S.stats.slain}</b></div>
+      <div class="stat-line">${bestLine()}</div>
+      <br><button class="btn" id="btn-restart">New Run</button>
+    </div>`;
+    overlay.classList.add("show");
+  }, won ? 500 : 650);
+}
+function bestLine(){
+  const b = loadBest(), m = meta();
+  return (b ? `Best run: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · 🪙 ${b.gold}` : "")
+    + (m.runs ? ` — <b>${m.wins}</b> win${m.wins === 1 ? "" : "s"} in <b>${m.runs}</b> runs` : "");
+}
+
+// ---------- card consumption / dealing ----------
+function consumeCardEl(cell){
+  const c = S.board[cell];
+  if(!c) return;
+  S.board[cell] = null;
+  S.stats.consumed++;
+  const el = cardEls.get(c.id);
+  if(el){
+    el.querySelector(".c-inner").classList.add("consume");
+    setTimeout(() => { el.remove(); cardEls.delete(c.id); }, 290);
+  }
+}
+
+function boardHasMonsters(){
+  return S.board.some(c => c && (c.type === "monster" || c.type === "elite" || c.type === "boss"));
+}
+
+function spawnSpecialAt(cell, def, delay){
+  def.id = ++uid;
+  S.board[cell] = def;
+  makeCardEl(def, cell, true, delay || 0);
+  updateReachable();
+}
+
+function dealTo(cell, delay){
+  if(S.deck.length > 0){
+    const def = S.deck.shift();
+    def.id = ++uid;
+    S.board[cell] = def;
+    makeCardEl(def, cell, true, delay);
+  } else if(!S.stairsPlaced && !boardHasMonsters()){
+    S.stairsPlaced = true;
+    const def = (S.floor === 5 || S.floor >= MAX_FLOOR) ? makeBoss(S.floor) : { type:"stairs" };
+    spawnSpecialAt(cell, def, delay);
+    floatText(cell, def.type === "boss" ? (def.kind === "final" ? "THE DEPTH LORD AWAKENS" : "THE WARDEN STIRS") : "STAIRS REVEALED",
+      def.type === "boss" ? "f-red" : "f-green", (delay || 0) + 150);
+  }
+  renderHUD();
+}
+
+function moveHeroTo(cell){
+  const from = S.heroCell;
+  S.heroCell = cell;
+  setCellPos(heroEl, cell);
+  dealTo(from, CFG.dealDelay);
+}
+
+function lockFor(ms){
+  S.lockUntil = Date.now() + ms;
+  updateReachable();
+  setTimeout(() => renderHUD(), ms + 20);
+}
+
+// after any action settles, pop a pending level-up overlay
+function checkLevelOverlay(){
+  if(S.screen === "play" && S.pendingLevels > 0) openLevelUp();
+}
+
+// ---------- boss handling ----------
+function bossStageDown(c, cell, viaFire){
+  c.hitsLeft = viaFire ? 0 : c.hitsLeft - 1;
+  gainXp(2 + (S.relics.crystal ? 1 : 0), cell);
+  if(c.hitsLeft <= 0){
+    c.si++;
+    if(c.si >= c.stages.length){ // boss dead
+      S.stats.slain++;
+      consumeCardEl(cell);
+      floatText(cell, c.kind === "final" ? "DEPTH LORD SLAIN!" : "WARDEN SLAIN!", "f-gold", 200);
+      if(c.kind === "final"){ renderHUD(); endRun(true); return true; }
+      // mini-boss: relic + gold, then the stairs appear in its place
+      grantRelic(cell);
+      S.gold += 10; S.stats.goldEarned += 10;
+      gainXp(8, cell);
+      setTimeout(() => {
+        if(S.screen !== "dead" && S.screen !== "victory" && !S.board[cell]) spawnSpecialAt(cell, { type:"stairs" }, 0);
+      }, 420);
+      return false;
+    }
+    c.hitsLeft = c.stages[c.si].hits;
+    floatText(cell, `STAGE ${c.si + 1}!`, "f-red", 300);
+  }
+  const el = cardEls.get(c.id);
+  if(el){
+    renderCardContent(el, c);
+    const inner = el.querySelector(".c-inner");
+    inner.classList.remove("hurt"); void inner.offsetWidth; inner.classList.add("hurt");
+  }
+  return false;
+}
+
+// ---------- spell casting ----------
+function armSpell(i){
+  const sp = S.spells[i];
+  if(!sp) return;
+  if(sp === "freeze"){
+    S.spells.splice(i, 1);
+    S.freeze = true;
+    floatText(S.heroCell, "❄️ FROZEN GUARD", "f-cyan");
+    heroBlipFx();
+    renderHUD();
+    return;
+  }
+  S.targeting = { spell: sp, first: null };
+  hideTooltip();
+  renderHUD();
+}
+function cancelTargeting(){
+  S.targeting = null;
+  renderHUD();
+}
+function castOnCell(cell){
+  const t = S.targeting;
+  if(!validSpellTarget(cell)){ cancelTargeting(); return; }
+  if(t.spell === "fire"){
+    const c = S.board[cell];
+    const idx = S.spells.indexOf("fire");
+    if(idx >= 0) S.spells.splice(idx, 1);
+    S.targeting = null;
+    floatText(cell, "🔥", "f-red");
+    if(c.type === "boss"){
+      bossStageDown(c, cell, true);
+    } else {
+      S.stats.slain++;
+      gainXp(c.v + (c.type === "elite" ? 3 : 0) + (S.relics.crystal ? 1 : 0), cell);
+      if(c.type === "elite") grantRelic(cell);
+      if(S.relics.fang && S.hp < S.maxHp){ S.hp++; floatText(S.heroCell, "+1 🧛", "f-green", 350); }
+      consumeCardEl(cell);
+    }
+    lockFor(CFG.lockMs);
+    renderHUD();
+    checkLevelOverlay();
+    return;
+  }
+  if(t.spell === "swap"){
+    if(t.first === null){ t.first = cell; renderHUD(); return; }
+    const a = t.first, b = cell;
+    const idx = S.spells.indexOf("swap");
+    if(idx >= 0) S.spells.splice(idx, 1);
+    S.targeting = null;
+    if(a === S.heroCell || b === S.heroCell){
+      const other = a === S.heroCell ? b : a;
+      const card = S.board[other];
+      S.board[other] = null;
+      S.board[S.heroCell] = card;
+      const oldHero = S.heroCell;
+      S.heroCell = other;
+      setCellPos(heroEl, other);
+      if(card){ const el = cardEls.get(card.id); if(el) setCellPos(el, oldHero); }
+    } else {
+      const ca = S.board[a], cb = S.board[b];
+      S.board[a] = cb; S.board[b] = ca;
+      if(ca){ const el = cardEls.get(ca.id); if(el) setCellPos(el, b); }
+      if(cb){ const el = cardEls.get(cb.id); if(el) setCellPos(el, a); }
+    }
+    floatText(b, "🌀", "f-purple");
+    lockFor(CFG.lockMs);
+    renderHUD();
+    return;
+  }
+}
+
+// ---------- resolving a clicked card ----------
+function resolveCard(cell){
+  const c = S.board[cell];
+
+  if(!c){ moveHeroTo(cell); lockFor(CFG.lockMs); renderHUD(); return; }
+
+  switch(c.type){
+    case "monster": case "elite": {
+      const big = c.type === "elite";
+      const r = calcFight(c.v, big);
+      applyFight(r);
+      floatText(cell, "⚔️", big ? "f-pink" : "f-gray");
+      const died = damageHero(r.dmg, 100);
+      S.stats.slain++;
+      consumeCardEl(cell);
+      if(died){ renderHUD(); endRun(false); return; }
+      gainXp(c.v + (big ? 3 : 0) + (S.relics.crystal ? 1 : 0), cell);
+      if(big) grantRelic(cell);
+      if(S.relics.fang && S.hp < S.maxHp){ S.hp++; floatText(S.heroCell, "+1 🧛", "f-green", 500); }
+      moveHeroTo(cell);
+      break;
+    }
+    case "boss": {
+      const st = c.stages[c.si];
+      const r = calcFight(st.power, true);
+      applyFight(r);
+      floatText(cell, "⚔️", "f-red");
+      const died = damageHero(r.dmg, 100);
+      if(died){ renderHUD(); endRun(false); return; }
+      if(bossStageDown(c, cell, false)) return; // victory handled inside
+      break; // hero does NOT move during boss fight
+    }
+    case "weapon": {
+      S.weapon = { v: c.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) };
+      floatText(cell, "🗡️ " + S.weapon.v, "f-blue");
+      heroBlipFx();
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "shield": {
+      S.shield = { block: c.block, hits: c.hits + (S.perks.bulw || 0) };
+      floatText(cell, `🛡️ ${S.shield.block}×${S.shield.hits}`, "f-cyan");
+      heroBlipFx();
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "potion": {
+      const amt = c.v + (S.perks.alch || 0) * 2;
+      const real = Math.min(amt, S.maxHp - S.hp);
+      S.hp += real;
+      floatText(cell, "+" + real + " HP", "f-green");
+      heroBlipFx();
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "coin": {
+      const g = (c.v + (S.relics.clover ? 2 : 0)) * Math.pow(2, S.perks.greed || 0);
+      S.gold += g; S.stats.goldEarned += g;
+      floatText(cell, "+" + g + " 🪙", "f-gold");
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "gem": {
+      gainXp(c.v, cell);
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "trap": {
+      if(S.kits > 0){
+        S.kits--;
+        floatText(cell, "🧰 disarmed", "f-green");
+      } else {
+        const died = damageHero(trapDamage(c.v), 60);
+        if(died){ consumeCardEl(cell); renderHUD(); endRun(false); return; }
+      }
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "curse": {
+      if(S.curse){ S.curse.fights += c.fights; S.curse.amt = Math.max(S.curse.amt, c.amt); }
+      else S.curse = { amt: c.amt, fights: c.fights };
+      floatText(cell, "☠️ cursed", "f-purple");
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "chest": {
+      openChest(cell);
+      consumeCardEl(cell);
+      if(S.hp <= 0){ renderHUD(); endRun(false); return; }
+      moveHeroTo(cell);
+      break;
+    }
+    case "key": {
+      S.keys++;
+      floatText(cell, "🗝️ key", "f-gold");
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "locked": {
+      if(S.keys < 1) return; // double guard (not reachable without key)
+      S.keys--;
+      grantRelic(cell);
+      const g = 4 + S.floor;
+      S.gold += g; S.stats.goldEarned += g;
+      floatText(cell, `+${g} 🪙`, "f-gold", 500);
+      heroBlipFx();
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "spell": {
+      grantSpell(c.spell, cell);
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "event": {
+      consumeCardEl(cell); moveHeroTo(cell);
+      setTimeout(openEvent, 320);
+      break;
+    }
+    case "merchant": {
+      consumeCardEl(cell); moveHeroTo(cell);
+      setTimeout(openMerchant, 320);
+      break;
+    }
+    case "stairs": {
+      consumeCardEl(cell); moveHeroTo(cell);
+      setTimeout(openPerkChoice, 360);
+      break;
+    }
+  }
+  lockFor(CFG.lockMs);
+  renderHUD();
+  checkLevelOverlay();
+}
+
+function openChest(cell){
+  const f = S.floor;
+  const roll = pick(["gold", "gold", "potion", "weapon", "kit", "key", "mimic"]);
+  switch(roll){
+    case "gold": {
+      const g = (4 + f) * Math.pow(2, S.perks.greed || 0);
+      S.gold += g; S.stats.goldEarned += g;
+      floatText(cell, `📦 +${g} 🪙`, "f-gold"); break;
+    }
+    case "potion": {
+      const real = Math.min(4 + (S.perks.alch || 0) * 2, S.maxHp - S.hp);
+      S.hp += real; floatText(cell, `📦 +${real} HP`, "f-green"); break;
+    }
+    case "weapon": {
+      S.weapon = { v: 4 + Math.floor(f / 2) + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) };
+      floatText(cell, `📦 🗡️ ${S.weapon.v}`, "f-blue"); break;
+    }
+    case "kit": { S.kits++; floatText(cell, "📦 🧰 kit", "f-green"); break; }
+    case "key": { S.keys++; floatText(cell, "📦 🗝️ key", "f-gold"); break; }
+    case "mimic": {
+      let dmg = 2 + Math.floor(f / 2);
+      dmg = Math.max(0, dmg - (S.perks.skin || 0));
+      if(dmg > 0 && S.shield){
+        const b = Math.min(S.shield.block, dmg); dmg -= b; S.shield.hits--;
+        if(S.shield.hits <= 0) S.shield = null;
+      }
+      floatText(cell, "MIMIC! 🦷", "f-red");
+      damageHero(dmg, 150);
+      break;
+    }
+  }
+}
+
+// ---------- events ----------
+function openEvent(){
+  S.eventKind = pick(["shrine", "fountain", "imp"]);
+  S.screen = "event";
+  const k = S.eventKind;
+  let body = "";
+  if(k === "shrine"){
+    const can = S.hp > 3;
+    body = `<div class="bigicon">⛩️</div><h2>Blood Shrine</h2>
+      <div class="sub">An altar hungers. It pays well.</div>
+      <button class="btn ${can ? "" : "disabled"}" data-ev="pray">Bleed: −3 HP → +12 🪙</button>
+      <button class="btn ghost" data-ev="leave">Walk away</button>`;
+  } else if(k === "fountain"){
+    body = `<div class="bigicon">⛲</div><h2>Cold Fountain</h2>
+      <div class="sub">Clear water glows faintly.</div>
+      <button class="btn" data-ev="drink">Drink: +5 HP</button>
+      <button class="btn ghost" data-ev="leave">Leave it</button>`;
+  } else {
+    const can = S.gold >= 4;
+    body = `<div class="bigicon">👿</div><h2>Toll Imp</h2>
+      <div class="sub">"Pay the toll or I help myself!"</div>
+      <button class="btn ${can ? "" : "disabled"}" data-ev="pay">Pay 4 🪙</button>
+      <button class="btn ghost" data-ev="refuse">Refuse (it steals 9 🪙)</button>`;
+  }
+  overlay.innerHTML = `<div class="panel">${body}</div>`;
+  overlay.classList.add("show");
+  updateReachable();
+}
+function resolveEvent(choice){
+  const k = S.eventKind;
+  if(k === "shrine" && choice === "pray"){
+    if(S.hp <= 3) return;
+    S.hp -= 3; S.gold += 12; S.stats.goldEarned += 12;
+    heroHurtFx();
+  } else if(k === "fountain" && choice === "drink"){
+    S.hp = Math.min(S.maxHp, S.hp + 5);
+  } else if(k === "imp"){
+    if(choice === "pay"){
+      if(S.gold < 4) return;
+      S.gold -= 4;
+    } else {
+      S.gold = Math.max(0, S.gold - 9);
+    }
+  }
+  S.eventKind = null;
+  S.screen = "play";
+  overlay.classList.remove("show");
+  renderHUD();
+  checkLevelOverlay();
+}
+
+// ---------- merchant ----------
+function merchOfferPool(f){
+  return [
+    { id:"heal",   icon:"🧪", name:"Elixir",       desc:"Heal 6 HP right now.", price:6 },
+    { id:"weapon", icon:"🗡️", name:"Steel Sword",  desc:`Weapon of value ${6 + Math.floor(f * 0.8)}.`, price:9, v: 6 + Math.floor(f * 0.8) },
+    { id:"shield", icon:"🛡️", name:"Tower Shield", desc:`Blocks ${3 + Math.floor(f / 4)}/hit for 3 hits.`, price:8, block: 3 + Math.floor(f / 4) },
+    { id:"kit",    icon:"🧰", name:"Disarm Kit",   desc:"Negates one trap.", price:4 },
+    { id:"key",    icon:"🗝️", name:"Skeleton Key", desc:"Opens a locked chest.", price:3 },
+    { id:"spell",  icon:"📜", name:"Spell Scroll", desc:"A random spell (needs a free hand).", price:7, spell: pick(Object.keys(SPELLS)) },
+    { id:"amulet", icon:"❤️", name:"Heart Amulet", desc:"+2 max HP (healed too).", price:12 },
+  ];
+}
+function openMerchant(){
+  S.merchOffers = shuffle(merchOfferPool(S.floor)).slice(0, 3).map(o => ({ ...o, sold:false }));
+  S.screen = "merchant";
+  renderMerchant();
+  overlay.classList.add("show");
+  updateReachable();
+}
+function renderMerchant(){
+  overlay.innerHTML = `<div class="panel">
+    <h2>🧙 The Merchant</h2>
+    <div class="sub">You carry <b style="color:var(--gold)">🪙 ${S.gold}</b> — click an offer to buy</div>
+    <div class="choice-row">
+      ${S.merchOffers.map((o, i) => {
+        const full = o.id === "spell" && S.spells.length >= 2;
+        const cls = o.sold ? "sold" : (S.gold < o.price || full ? "poor" : "");
+        return `<div class="mini-card ${cls}" data-buy="${i}">
+          <div class="mi">${o.icon}</div><div class="mt">${o.name}</div>
+          <div class="md">${o.desc}${full && !o.sold ? "<br>(hands full)" : ""}</div>
+          <div class="mp">${o.sold ? "SOLD" : "🪙 " + o.price}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="btn ghost" id="btn-leave">Leave shop</button>
+  </div>`;
+}
+function buyOffer(i){
+  const o = S.merchOffers[i];
+  if(!o || o.sold || S.gold < o.price) return;
+  if(o.id === "spell" && S.spells.length >= 2) return;
+  S.gold -= o.price; o.sold = true;
+  switch(o.id){
+    case "heal":   S.hp = Math.min(S.maxHp, S.hp + 6); break;
+    case "weapon": S.weapon = { v: o.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) }; break;
+    case "shield": S.shield = { block: o.block, hits: 3 + (S.perks.bulw || 0) }; break;
+    case "kit":    S.kits++; break;
+    case "key":    S.keys++; break;
+    case "spell":  S.spells.push(o.spell); break;
+    case "amulet": S.maxHp += 2; S.hp += 2; break;
+  }
+  renderMerchant(); renderHUD();
+}
+function closeMerchant(){
+  S.screen = "play";
+  overlay.classList.remove("show");
+  renderHUD();
+  checkLevelOverlay();
+}
+
+// ---------- level-ups ----------
+function openLevelUp(){
+  S.screen = "level";
+  const opts = shuffle(Object.keys(BOONS)).slice(0, 2);
+  overlay.innerHTML = `<div class="panel">
+    <div class="bigicon">⬆️</div>
+    <h2>Level ${S.lvl}!</h2>
+    <div class="sub">+1 max HP — and pick a boon</div>
+    <div class="choice-row">
+      ${opts.map(k => `<div class="mini-card boon-choice" data-boon="${k}">
+        <div class="mi">${BOONS[k].icon}</div><div class="mt">${BOONS[k].name}</div>
+        <div class="md">${BOONS[k].desc}</div>
+      </div>`).join("")}
+    </div>
+  </div>`;
+  overlay.classList.add("show");
+  updateReachable();
+}
+function chooseBoon(k){
+  switch(k){
+    case "mend":  S.hp = Math.min(S.maxHp, S.hp + 6); break;
+    case "hone":  if(S.weapon) S.weapon.v += 2; else S.weapon = { v: 3 }; break;
+    case "gild":  S.gold += 6; S.stats.goldEarned += 6; break;
+    case "tools": S.kits++; S.keys++; break;
+    case "guard": if(S.shield) S.shield.hits += 2; else S.shield = { block: 2, hits: 2 }; break;
+    case "scroll": grantSpell(pick(Object.keys(SPELLS)), S.heroCell); break;
+  }
+  S.pendingLevels--;
+  if(S.pendingLevels > 0){ openLevelUp(); return; }
+  S.screen = "play";
+  overlay.classList.remove("show");
+  renderHUD();
+}
+
+// ---------- perks / floors ----------
+function openPerkChoice(){
+  S.screen = "perk";
+  const opts = shuffle(Object.keys(PERKS)).slice(0, 3);
+  overlay.innerHTML = `<div class="panel">
+    <h2>Floor ${S.floor} cleared!</h2>
+    <div class="sub">Choose a perk for the depths below</div>
+    <div class="choice-row">
+      ${opts.map(k => `<div class="mini-card perk-choice" data-perk="${k}">
+        <div class="mi">${PERKS[k].icon}</div><div class="mt">${PERKS[k].name}</div>
+        <div class="md">${PERKS[k].desc}</div>
+        ${S.perks[k] ? `<div class="mp">owned ×${S.perks[k]}</div>` : ""}
+      </div>`).join("")}
+    </div>
+  </div>`;
+  overlay.classList.add("show");
+  updateReachable();
+}
+function choosePerk(k){
+  S.perks[k] = (S.perks[k] || 0) + 1;
+  if(k === "vit"){ S.maxHp += 2; S.hp += 2; }
+  overlay.classList.remove("show");
+  S.floor++;
+  startFloor();
+}
+
+function clearBoardEls(){
+  cardEls.forEach(el => el.remove());
+  cardEls.clear();
+  S.board.fill(null);
+}
+
+function themeFor(f){ return f <= 3 ? "" : f <= 6 ? "crypt" : f <= 9 ? "forge" : "abyss"; }
+
+function startFloor(){
+  clearBoardEls();
+  S.deck = buildDeck(S.floor);
+  S.stairsPlaced = false;
+  S.windLeft = S.perks.wind || 0;
+  S.heroCell = 5;
+  S.screen = "play";
+  S.targeting = null;
+  document.body.dataset.theme = themeFor(S.floor);
+  if(heroEl){
+    heroEl.style.transition = "none";
+    setCellPos(heroEl, 5);
+    void heroEl.offsetWidth;
+    heroEl.style.transition = "";
+  }
+  const stag = Math.min(55, CFG.lockMs);
+  let d = 0;
+  for(let c = 0; c < CELLS; c++){
+    if(c === 5) continue;
+    dealTo(c, 100 + d * stag);
+    d++;
+  }
+  lockFor(Math.min(CFG.lockMs * 2, 100 + d * stag + 320));
+  renderHUD();
+  checkLevelOverlay();
+}
+
+function newRun(){
+  S = Object.assign(newState(), { screen: "play" });
+  overlay.classList.remove("show");
+  startFloor();
+}
+
+// ---------- title screen ----------
+function showTitle(){
+  S = newState();
+  document.body.dataset.theme = "";
+  overlay.innerHTML = `<div class="panel">
+    <div class="bigicon">♠️</div>
+    <h1>DUNGEON DEAL</h1>
+    <div class="sub">a 4×4 card dungeon — touchpad only</div>
+    <div class="rules">
+      <span class="r-ico">🖱️</span> <b>Click a card next to you</b> (4 directions) to take it — you move onto it. <b>Hover</b> previews the exact outcome; lethal picks pulse red.<br>
+      <span class="r-ico">👹</span> <b>Monsters</b> hit for their power; your <b>🗡️ weapon</b> absorbs it but wears down. Kills give <b>XP</b> — each level: +1 max HP and a boon. <b>🧌 Elites</b> drop relics.<br>
+      <span class="r-ico">📜</span> <b>Spells</b> (max 2) wait in your bar — click to cast: 🔥 kill a monster, ❄️ free next fight, 🌀 swap two cards.<br>
+      <span class="r-ico">🗝️</span> <b>Keys</b> open <b>locked chests</b> (relic inside). <b>❓ Events</b> offer deals. <b>🪤 Traps</b> ignore gear. <b>🧙 Merchants</b> take gold.<br>
+      <span class="r-ico">🪜</span> Use up the deck & slay every monster → <b>stairs</b> + a perk. <b>10 floors</b>, a 🦂 warden at 5, the 🐉 <b>Depth Lord</b> (2 stages) at 10.<br>
+    </div>
+    <button class="btn" id="btn-start">Deal me in</button>
+  </div>`;
+  overlay.classList.add("show");
+  renderHUD(); renderBest();
+}
+
+// ---------- input (real DOM listeners) ----------
+board.addEventListener("click", e => {
+  if(!S || S.screen !== "play") return;
+  const el = e.target.closest("#board .card, #board .slot");
+  if(!el) return;
+  const cell = +el.dataset.cell;
+  if(S.targeting){
+    // spell targeting mode: clicks pick targets, invalid clicks cancel
+    if(el.classList.contains("slot") && (S.board[cell] || cell === S.heroCell)) return; // covered by a card el
+    castOnCell(cell);
+    return;
+  }
+  if(isLocked()) return;
+  if(el === heroEl) return;
+  if(!adjacent(cell, S.heroCell)) return;
+  if(el.classList.contains("slot") && S.board[cell]) return;
+  const c = S.board[cell];
+  if(c && c.type === "locked" && S.keys < 1) return; // locked without a key
+  hideTooltip();
+  resolveCard(cell);
+});
+
+$("#statusbar").addEventListener("click", e => {
+  if(!S || S.screen !== "play") return;
+  if(e.target.closest("#cancel-target")){ cancelTargeting(); return; }
+  const sc = e.target.closest("[data-spell-i]");
+  if(sc && !S.targeting && !isLocked()) armSpell(+sc.dataset.spellI);
+});
+
+overlay.addEventListener("click", e => {
+  if(!S) return;
+  if(e.target.closest("#btn-start") || e.target.closest("#btn-restart")){ newRun(); return; }
+  if(S.screen === "perk"){
+    const p = e.target.closest(".perk-choice");
+    if(p) choosePerk(p.dataset.perk);
+    return;
+  }
+  if(S.screen === "level"){
+    const b = e.target.closest(".boon-choice");
+    if(b) chooseBoon(b.dataset.boon);
+    return;
+  }
+  if(S.screen === "event"){
+    const b = e.target.closest("[data-ev]");
+    if(b && !b.classList.contains("disabled")) resolveEvent(b.dataset.ev);
+    return;
+  }
+  if(S.screen === "merchant"){
+    if(e.target.closest("#btn-leave")){ closeMerchant(); return; }
+    const b = e.target.closest("[data-buy]");
+    if(b) buyOffer(+b.dataset.buy);
+  }
+});
+
+// ---------- boot ----------
+layout();
+initSlots();
+showTitle();
+
+// Debug/test handle (reads state; all input still flows through real listeners)
+window.DD = {
+  get state(){ return S; },
+  cfg: CFG,
+  debug: {
+    setHp(v){ S.hp = v; S.maxHp = Math.max(S.maxHp, v); renderHUD(); },
+    setGold(v){ S.gold = v; renderHUD(); },
+    gotoFloor(f){ S.floor = f; startFloor(); },
+    drainDeck(){ S.deck.length = 0; renderHUD(); },
+    give(what){
+      if(what === "key") S.keys++;
+      else if(what === "kit") S.kits++;
+      else if(SPELLS[what] && S.spells.length < 2) S.spells.push(what);
+      else if(RELICS[what]) S.relics[what] = true;
+      renderHUD();
+    },
+  },
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warband — Auto-Battler PoC</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#161d27; --panel2:#1b2431; --card:#232d3d; --card2:#2a3546;
+  --line:#36445a; --tx:#dfe7f1; --dim:#8b99ad; --gold:#f1c40f; --ice:#6ec6ff;
+  --atk:#d94838; --hp:#2eae5f; --bad:#ff5b4d; --good:#4cd97b;
+  --cw:clamp(66px, min(8.2vw, 11.5vh), 106px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;overflow:hidden}
+body{
+  background:radial-gradient(1200px 700px at 50% -10%, #16202e 0%, var(--bg) 60%);
+  color:var(--tx); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+#app{height:100vh;display:flex;flex-direction:column}
+.scr{flex:1;display:flex;flex-direction:column;min-height:0}
+.hidden{display:none !important}
+button{font-family:inherit}
+.btn{
+  background:var(--card2); border:1px solid var(--line); color:var(--tx);
+  padding:7px 14px; border-radius:9px; cursor:pointer; font-weight:700;
+  font-size:clamp(11px,1.3vw,14px); transition:background .15s, transform .1s, box-shadow .15s;
+}
+.btn:hover:not(:disabled){background:#37455c}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.primary{background:var(--gold);border-color:#c9a40c;color:#1c1608}
+.btn.primary:hover:not(:disabled){background:#ffd42e}
+.btn.danger{background:#5d2a26;border-color:#8a4038}
+.btn.danger:hover:not(:disabled){background:#78352e}
+.btn.armed{border-color:var(--gold);box-shadow:0 0 10px #f1c40f55}
+
+/* ============ HUD ============ */
+#hud{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:nowrap;
+}
+#hud .pill{
+  background:var(--panel2);border:1px solid var(--line);border-radius:20px;
+  padding:3px 11px;font-weight:800;font-size:clamp(11px,1.35vw,15px);white-space:nowrap;
+}
+#hud .sp{flex:1}
+#hud .phase{color:var(--dim);font-weight:700;letter-spacing:.12em;font-size:11px}
+#hud .pill .fc{color:var(--dim);font-weight:600;font-size:.85em}
+
+/* ============ cards ============ */
+.row{display:flex;gap:clamp(4px,.7vw,9px);justify-content:center;align-items:stretch}
+.card{
+  width:var(--cw); height:calc(var(--cw)*1.36); position:relative; flex:0 0 auto;
+  background:linear-gradient(180deg,var(--card) 0%,#1d2635 100%);
+  border:2px solid var(--line); border-radius:11px; cursor:pointer;
+  display:flex;flex-direction:column;justify-content:space-between;
+  transition:transform .16s, border-color .16s, box-shadow .16s, opacity .4s;
+  padding:3px 0 0;
+}
+.card:hover{border-color:#5a6f92}
+.card .em{font-size:calc(var(--cw)*.40);text-align:center;line-height:1.15;filter:drop-shadow(0 3px 4px #0008);pointer-events:none}
+.card .nm{
+  text-align:center;font-size:clamp(8.5px,calc(var(--cw)*.105),12px);font-weight:700;color:#b9c6d8;
+  white-space:nowrap;overflow:hidden;pointer-events:none;padding:0 2px;
+}
+.card .st{display:flex;justify-content:space-between;padding:3px 4px 4px;pointer-events:none}
+.b{
+  min-width:calc(var(--cw)*.33);text-align:center;border-radius:7px;font-weight:900;
+  font-size:clamp(12px,calc(var(--cw)*.165),19px);color:#fff;padding:2px 3px;
+  text-shadow:0 1px 2px #0009;
+}
+.b.atk{background:var(--atk)} .b.hp{background:var(--hp)}
+.card .stars{
+  position:absolute;top:-9px;left:50%;transform:translateX(-50%);color:var(--gold);
+  font-size:12px;letter-spacing:1px;text-shadow:0 1px 3px #000;pointer-events:none;z-index:3;white-space:nowrap;
+}
+.card .fac{position:absolute;top:2px;left:4px;font-size:calc(var(--cw)*.15);pointer-events:none;filter:grayscale(.15)}
+.card .itemB{
+  position:absolute;bottom:calc(var(--cw)*.32);right:2px;font-size:calc(var(--cw)*.17);
+  background:#0009;border:1px solid var(--line);border-radius:6px;padding:1px 3px;z-index:4;cursor:help;
+}
+.card.sel{border-color:var(--gold);transform:translateY(-7px);box-shadow:0 6px 18px #f1c40f44, 0 0 0 1px var(--gold)}
+.card.mergeable{border-color:var(--good);box-shadow:0 0 10px #4cd97b55}
+.card.slotEmpty{
+  background:transparent;border-style:dashed;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:#3d4d66;font-size:24px;font-weight:300;
+}
+.card.slotEmpty:hover{border-color:#5a6f92;color:#5a6f92}
+.card.slotEmpty.dropOk{border-color:var(--gold);color:var(--gold)}
+.card.frozen{border-color:var(--ice);background:linear-gradient(180deg,#1d3346 0%,#16283a 100%);box-shadow:0 0 10px #6ec6ff33}
+.frz{
+  position:absolute;top:2px;right:2px;z-index:4;background:#0006;border:1px solid transparent;
+  border-radius:6px;color:#7ea6c4;font-size:12px;line-height:1;padding:3px 4px;cursor:pointer;
+}
+.frz:hover{border-color:var(--ice);color:var(--ice)}
+.frozen .frz{color:var(--ice);background:#6ec6ff2b;border-color:var(--ice)}
+.cost{
+  position:absolute;bottom:calc(100% - 8px);right:-4px;background:var(--gold);color:#1c1608;
+  font-size:10px;font-weight:900;border-radius:9px;padding:1px 5px;pointer-events:none;z-index:3;
+}
+.shieldB{
+  position:absolute;top:15px;right:3px;background:#3b6ea5;color:#fff;border-radius:7px;
+  font-size:10px;font-weight:900;padding:1px 4px;pointer-events:none;z-index:3;
+}
+.poisB{
+  position:absolute;top:15px;left:3px;background:#4a7a3a;color:#dfffcf;border-radius:7px;
+  font-size:10px;font-weight:900;padding:1px 4px;pointer-events:none;z-index:3;
+}
+/* battle anims */
+.brow{display:flex;gap:clamp(4px,.6vw,8px)}
+.brow.rev{flex-direction:row-reverse}
+.lungeR{transform:translateX(calc(var(--cw)*.28)) scale(1.06)!important;z-index:5}
+.lungeL{transform:translateX(calc(var(--cw)*-.28)) scale(1.06)!important;z-index:5}
+.dead{opacity:0;transform:scale(.5) rotate(18deg)!important}
+.pop{
+  position:absolute;left:50%;top:14%;font-weight:900;font-size:clamp(14px,calc(var(--cw)*.21),22px);
+  pointer-events:none;z-index:9;text-shadow:0 2px 5px #000;
+  animation:popA .85s ease-out forwards;
+}
+.pop.dmg{color:var(--bad)} .pop.heal{color:var(--good)} .pop.buff{color:var(--gold)} .pop.shield{color:#7fb8ff} .pop.pois{color:#9be564}
+@keyframes popA{
+  0%{opacity:0;transform:translate(-50%,8px) scale(.7)}
+  18%{opacity:1;transform:translate(-50%,0) scale(1.15)}
+  100%{opacity:0;transform:translate(-50%,-38px) scale(1)}
+}
+/* ============ synergy chips ============ */
+.chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.chip{
+  background:var(--panel2);border:1px solid var(--line);border-radius:16px;
+  padding:2px 9px;font-size:clamp(10px,1.1vw,12.5px);font-weight:700;color:var(--dim);
+  display:flex;align-items:center;gap:4px;cursor:help;
+}
+.chip.on2{border-color:#5f7ca6;color:var(--tx)}
+.chip.on4{border-color:var(--gold);color:var(--gold);box-shadow:0 0 8px #f1c40f33}
+.chip .dots{font-size:8px;letter-spacing:1px}
+/* ============ stash / items ============ */
+.itemSlot{
+  width:34px;height:34px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--panel2);
+  transition:border-color .15s, transform .12s;
+}
+.itemSlot.full{border-style:solid;background:var(--card)}
+.itemSlot:hover{border-color:#5a6f92}
+.itemSlot.sel{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 0 10px #f1c40f55}
+#stashWrap{display:flex;align-items:center;gap:6px}
+#stashWrap .zl{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.1em}
+/* drop / patron overlays */
+#patronOv{
+  position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;background:#0d1117d9;backdrop-filter:blur(3px);
+}
+#patronOv h3{color:var(--gold);font-size:clamp(16px,2.2vw,24px);letter-spacing:.06em}
+#patronOv .sub2{color:var(--dim);font-size:13px;text-align:center;line-height:1.5}
+#patronOv .dropItem .id{font-size:10px}
+#dropOv{
+  position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;background:#0d1117d9;backdrop-filter:blur(3px);
+}
+#dropOv h3{color:var(--gold);font-size:clamp(16px,2.2vw,24px);letter-spacing:.06em}
+#dropOv .sub2{color:var(--dim);font-size:13px}
+.dropRow{display:flex;gap:16px}
+.dropItem{
+  background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:12px 16px;width:190px;
+  text-align:center;cursor:pointer;transition:border-color .15s, transform .12s;
+}
+.dropItem:hover:not(.off){border-color:var(--gold);transform:translateY(-4px)}
+.dropItem.off{opacity:.4;cursor:default}
+.dropItem .ie{font-size:34px}
+.dropItem .in{font-weight:900;margin:4px 0 2px}
+.dropItem .id{font-size:11px;color:var(--dim);line-height:1.4}
+/* ============ shop phase layout ============ */
+#shopPhase{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;min-height:0;padding:3px 10px;position:relative}
+.zone{display:flex;flex-direction:column;align-items:center;gap:4px}
+.zlabel{color:var(--dim);font-size:clamp(9px,1vw,12px);font-weight:800;letter-spacing:.13em}
+.zlabel b{color:#b9c6d8}
+#scout{
+  display:flex;align-items:center;justify-content:center;gap:14px;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:0 auto;max-width:98%;
+}
+#scoutCards{--cw:clamp(46px,7vh,66px)}
+#scoutLeft{display:flex;flex-direction:column;gap:5px;max-width:330px}
+#scoutInfo{font-size:clamp(10px,1.1vw,13px);color:var(--dim);line-height:1.35}
+#scoutInfo b{color:var(--tx)}
+#scoutInfo .cnt{color:var(--gold)}
+.ctlRow{display:flex;gap:8px;align-items:center;justify-content:center;min-height:34px;flex-wrap:wrap}
+#hint{color:var(--gold);font-size:clamp(10px,1.15vw,13px);font-weight:600;min-width:0;text-align:center;transition:opacity .3s}
+#ecoNote{color:#5f7089;font-size:clamp(9px,1vw,11.5px);text-align:center}
+/* ============ battle layout ============ */
+#battlePhase{flex:1;display:flex;flex-direction:column;min-height:0;position:relative;padding:5px 10px}
+#bChips{display:flex;justify-content:center;gap:26px;padding:2px 0}
+#arena{flex:1;display:flex;align-items:center;justify-content:center;gap:clamp(6px,2vw,30px);min-height:0}
+#vs{font-size:clamp(15px,2.4vw,28px);font-weight:900;color:#54637c;letter-spacing:.05em}
+#battleBar{display:flex;justify-content:center;gap:10px;padding:2px 0 5px}
+#blog{
+  height:clamp(76px,13vh,110px);overflow:hidden;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:5px 12px;font-size:clamp(10px,1.2vw,13px);line-height:1.45;
+  display:flex;flex-direction:column;justify-content:flex-end;
+}
+#blog div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
+#blog div:last-child{color:var(--tx);font-weight:600}
+#banner{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:clamp(32px,5.6vw,68px);font-weight:900;letter-spacing:.08em;z-index:20;
+  background:#0d111799;backdrop-filter:blur(2px);text-shadow:0 4px 20px #000;
+  animation:bannerIn .35s ease-out;
+}
+@keyframes bannerIn{from{opacity:0;transform:scale(1.25)}to{opacity:1;transform:scale(1)}}
+#banner.win{color:var(--good)} #banner.lose{color:var(--bad)} #banner.draw{color:var(--dim)}
+/* ============ title / cmd / end screens ============ */
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(6px,1.3vh,15px);padding:10px;overflow-y:auto;min-height:0}
+.center>*{flex:0 0 auto}
+h1.logo{font-size:clamp(24px,min(5vw,7vh),56px);font-weight:900;letter-spacing:.04em;text-shadow:0 4px 24px #f1c40f33}
+h1.logo span{color:var(--gold)}
+h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
+.sub{color:var(--dim);font-size:clamp(11px,1.3vw,15px);margin-top:-4px;text-align:center}
+.rules{display:flex;gap:clamp(6px,1.2vw,14px);flex-wrap:wrap;justify-content:center;max-width:960px}
+.rules div{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;
+  font-size:clamp(9px,min(1.05vw,1.7vh),12px);color:var(--dim);max-width:185px;line-height:1.35;
+}
+.rules b{color:var(--tx)}
+#metaShop{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:940px}
+.mItem{
+  background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:6px 10px;
+  width:150px;cursor:pointer;text-align:center;transition:border-color .15s, transform .12s;
+}
+.mItem:hover:not(.owned):not(.locked){border-color:var(--gold);transform:translateY(-2px)}
+.mItem .mi{font-size:clamp(15px,3vh,22px)}
+.mItem .mn{font-weight:800;font-size:11.5px;margin:1px 0}
+.mItem .md{font-size:9.5px;color:var(--dim);line-height:1.3}
+.mItem .mc{font-weight:900;color:var(--gold);font-size:11px;margin-top:3px}
+.mItem.owned{border-color:var(--good);cursor:default}
+.mItem.owned .mc{color:var(--good)}
+.mItem.locked{opacity:.45;cursor:default}
+.statline{color:var(--dim);font-size:clamp(11px,1.3vw,14px)}
+.statline b{color:var(--gold)}
+/* commander cards */
+#cmdRow{display:flex;gap:clamp(10px,2vw,22px);flex-wrap:wrap;justify-content:center}
+.cmdCard{
+  background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:16px 18px;width:220px;
+  text-align:center;cursor:pointer;transition:border-color .15s, transform .14s, box-shadow .15s;
+}
+.cmdCard:hover{border-color:var(--gold);transform:translateY(-5px);box-shadow:0 8px 24px #f1c40f22}
+.cmdCard .ce{font-size:clamp(30px,6vh,46px)}
+.cmdCard .cn{font-weight:900;font-size:clamp(14px,1.7vw,18px);margin:6px 0 4px;color:var(--gold)}
+.cmdCard .cd{font-size:clamp(10px,1.15vw,13px);color:var(--dim);line-height:1.45}
+.endStats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.endStats .pill{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:6px 15px;font-weight:700}
+.endStats b{color:var(--gold)}
+#endTitle{font-size:clamp(28px,4.6vw,54px);font-weight:900}
+#endTitle.win{color:var(--gold)} #endTitle.lose{color:var(--bad)}
+.trophyBig{font-size:clamp(44px,8vw,96px);filter:drop-shadow(0 6px 24px #f1c40f55);animation:bounceIn .6s ease-out}
+@keyframes bounceIn{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+/* tooltip */
+#tip{
+  position:fixed;z-index:100;pointer-events:none;background:#0b0f16f2;border:1px solid var(--line);
+  border-radius:9px;padding:8px 11px;max-width:250px;font-size:12px;line-height:1.45;color:var(--tx);
+  box-shadow:0 8px 24px #000a;
+}
+#tip .tn{font-weight:900;color:var(--gold)} #tip .tt{color:var(--dim);font-size:10.5px}
+#tip .ta{margin-top:4px} #tip .ti{margin-top:4px;color:#9fd0ff}
+#tip .tc{margin-top:4px;color:#e5a08c;font-size:11px}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ============ TITLE ============ -->
+  <section id="scr-title" class="scr">
+    <div class="center">
+      <h1 class="logo">⚔️ WAR<span>BAND</span></h1>
+      <div class="sub">Auto-battler roguelite — draft factions, arm your units, out-think 10 scouted foes</div>
+      <div class="rules">
+        <div><b>🛒 Shop:</b> units & training cost <b>3🪙</b>, reroll 1🪙, ❄ freezes. Bank 3🪙 for <b>+1 interest</b> next round (max +3, pool caps at 12).</div>
+        <div><b>🖱️ Click-click:</b> click a shop unit → click a slot to place or a same unit to <b>merge</b>. Click 🎓 Train → a unit to level (max ★★★). Click a lineup unit → swap or Sell.</div>
+        <div><b>⚜️🐾💀🔮 Factions:</b> field <b>3 / 5</b> of a faction for doctrine bonuses — half-measures pay nothing. From round 3, pick a <b>patron</b> to flood the shop with its faction.</div>
+        <div><b>🎒 Items:</b> won battles drop gear — click an item, then a unit to equip (1 each). Sold units return gear to a 2-slot stash.</div>
+        <div><b>🔭 Scouting:</b> the next enemy band is fully revealed — position and draft against it.</div>
+        <div><b>❤️ 5 lives.</b> A loss costs 1 (2 after round 5). Survive round 10 for the 🏆. Medals buy permanent unlocks.</div>
+      </div>
+      <div class="statline">🎖️ Medals: <b id="mMedals">0</b> &nbsp;·&nbsp; 🏆 Trophies: <b id="mTrophies">0</b> &nbsp;·&nbsp; ⚔️ Battles won: <b id="mWins">0</b></div>
+      <div id="metaShop"></div>
+      <button class="btn primary" data-act="start-run" style="font-size:clamp(14px,1.7vw,19px);padding:11px 40px">▶ NEW RUN</button>
+    </div>
+  </section>
+
+  <!-- ============ COMMANDER PICK ============ -->
+  <section id="scr-cmd" class="scr hidden">
+    <div class="center">
+      <h2 class="pickT">CHOOSE YOUR COMMANDER</h2>
+      <div class="sub">Your commander shapes the whole run — pick a doctrine.</div>
+      <div id="cmdRow"></div>
+      <button class="btn" data-act="to-title">← Back</button>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="scr-game" class="scr hidden">
+    <header id="hud">
+      <span class="pill">Round <span id="hRound">1</span>/10</span>
+      <span class="pill" id="hLives">❤️❤️❤️❤️❤️</span>
+      <span class="pill">🪙 <span id="hGold">10</span> <span class="fc" id="hInt"></span></span>
+      <span class="pill">⚔️ Wins <span id="hWins">0</span></span>
+      <span class="pill" id="hCmd">🎯</span>
+      <span class="pill hidden" id="hPatron"></span>
+      <span class="sp"></span>
+      <span class="phase" id="hPhase">SHOP PHASE</span>
+    </header>
+
+    <div id="shopPhase">
+      <div id="scout">
+        <div id="scoutLeft">
+          <div id="scoutInfo"></div>
+          <div class="chips" id="eChips"></div>
+        </div>
+        <div id="scoutCards" class="row"></div>
+      </div>
+      <div class="zone">
+        <div class="chips" id="pChips"></div>
+        <div class="zlabel">YOUR WARBAND — <b>◀ FRONT</b> &nbsp;···&nbsp; BACK</div>
+        <div id="lineup" class="row"></div>
+        <div class="ctlRow">
+          <div id="stashWrap"><span class="zl">STASH</span><span id="stashRow" style="display:flex;gap:5px"></span></div>
+          <button class="btn danger" data-act="sell" id="sellBtn" disabled>Sell</button>
+          <span id="hint"></span>
+        </div>
+      </div>
+      <div class="zone">
+        <div class="zlabel">SHOP — UNITS 3🪙 · TRAIN 3🪙</div>
+        <div id="shopRow" class="row"></div>
+        <div class="ctlRow">
+          <button class="btn" data-act="reroll" id="rerollBtn">🎲 Reroll — 1🪙</button>
+          <button class="btn" data-act="train" id="trainBtn">🎓 Train +1★ — 3🪙</button>
+          <button class="btn primary" data-act="fight" id="fightBtn">⚔️ START BATTLE</button>
+        </div>
+        <div id="ecoNote">💰 Bank 3🪙 → +1🪙 interest next round (max +3 · gold pool caps at 12)</div>
+      </div>
+      <div id="dropOv" class="hidden"></div>
+      <div id="patronOv" class="hidden"></div>
+    </div>
+
+    <div id="battlePhase" class="hidden">
+      <div id="bChips"><span class="chips" id="bpChips"></span><span class="chips" id="beChips"></span></div>
+      <div id="arena">
+        <div id="pRow" class="brow rev"></div>
+        <div id="vs">VS</div>
+        <div id="eRow" class="brow"></div>
+      </div>
+      <div id="battleBar"><button class="btn" data-act="speed" id="speedBtn">▶ Speed 1×</button></div>
+      <div id="blog"></div>
+      <div id="banner" class="hidden"></div>
+    </div>
+  </section>
+
+  <!-- ============ END ============ -->
+  <section id="scr-end" class="scr hidden">
+    <div class="center">
+      <div id="endEmoji" class="trophyBig">🏆</div>
+      <div id="endTitle">VICTORY</div>
+      <div id="endBlurb" class="sub"></div>
+      <div class="endStats" id="endStats"></div>
+      <div class="ctlRow">
+        <button class="btn primary" data-act="start-run">▶ NEW RUN</button>
+        <button class="btn" data-act="to-title">🏰 Title</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip" class="hidden"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   WARBAND — auto-battler roguelite PoC. Mouse-only (click-click).
+   Systems: commanders, factions+synergies, equipment, full scouting,
+   interest economy, XP training, procedural faction-focused opponents.
+   ===================================================================== */
+
+// ---------------------------- factions -------------------------------
+const FACTIONS = {
+  Order : {i:'⚜️', t3:'Order allies gain +1 armor and 2 shield at battle start.',
+           t5:'PHALANX: all allies gain +2 armor, and enemies take 3 damage whenever they strike your units.',
+           counter:'Counter: armor blunts many small hits — bring big single strikes; poison ignores armor entirely.'},
+  Beast : {i:'🐾', t3:'Beasts gain +1/+1 at battle start, plus +1/+1 for each Beast past the third.',
+           t5:'PACK ALPHA: your front Beast revives once at half HP.',
+           counter:'Counter: Beasts snowball — burst their carries early; Wraith curses steal their ATK.'},
+  Undead: {i:'💀', t3:'Undead faint effects trigger twice.',
+           t5:'LEGION: every ally deals 3 damage to the front enemy when it faints, and Undead gain +2/+2 on any ally faint.',
+           counter:'Counter: faint chains fuel them — Tower Shields and armor blunt the chip damage.'},
+  Arcane: {i:'🔮', t3:'Arcane ability damage +1, plus +1 for each Arcane past the third.',
+           t5:'CHAIN MAGIC: Arcane snipes and bombs ripple to the enemy behind each target for half damage.',
+           counter:'Counter: Arcane splash punishes wide lineups — field fewer, tougher units against it.'},
+};
+
+// ---------------------------- unit pool (20, 4 factions) -------------
+const UNITS = {
+  // Order ⚜️ — armor & buffs
+  squire  : {n:'Squire',       e:'🛡️', f:'Order',  t:1, a:2, h:3, ab:'faintBuff', v:2, d:'On faint: give +{v}/+{v} to the unit behind'},
+  healer  : {n:'Healer',       e:'✨', f:'Order',  t:1, a:1, h:3, ab:'heal',      v:1, d:'After each exchange: restore {v} HP to adjacent allies'},
+  knight  : {n:'Knight',       e:'🤺', f:'Order',  t:2, a:4, h:4, ab:'armor',     v:1, d:'Armor: takes {v} less damage (min 1)'},
+  banner  : {n:'Banner Bearer',e:'🚩', f:'Order',  t:2, a:2, h:4, ab:'rally',     v:1, d:'Battle start: give +{v}/+{v} to all allies'},
+  golem   : {n:'Golem',        e:'🗿', f:'Order',  t:3, a:3, h:9, ab:'armor',     v:2, d:'Armor: takes {v} less damage (min 1)'},
+  // Beast 🐾 — stat snowball
+  rat     : {n:'Rat',          e:'🐀', f:'Beast',  t:1, a:1, h:2, ab:'faintDmg',  v:1, d:'On faint: deal {v} damage to the front enemy'},
+  turtle  : {n:'Turtle',       e:'🐢', f:'Beast',  t:1, a:1, h:4, ab:'shield',    v:4, d:'Battle start: gain {v} shield'},
+  bear    : {n:'Bear',         e:'🐻', f:'Beast',  t:2, a:3, h:5, ab:'enrage',    v:3, d:'When hurt: gain +{v} ATK'},
+  wolf    : {n:'Wolf',         e:'🐺', f:'Beast',  t:2, a:4, h:3, ab:'kill',      v:2, d:'On kill: gain +{v}/+{v}'},
+  mammoth : {n:'Mammoth',      e:'🦣', f:'Beast',  t:3, a:5, h:8, ab:'pack',      v:1, d:'Battle start: gain +{v}/+{v} for each other Beast ally'},
+  // Undead 💀 — faint engine
+  zombie  : {n:'Zombie',       e:'🧟', f:'Undead', t:1, a:1, h:4, ab:'faintDmg',  v:2, d:'On faint: deal {v} damage to the front enemy'},
+  skeleton: {n:'Skeleton',     e:'☠️', f:'Undead', t:1, a:2, h:2, ab:'faintAtk',  v:2, d:'On faint: give +{v} ATK to the unit behind'},
+  ghoul   : {n:'Ghoul',        e:'🧛', f:'Undead', t:2, a:3, h:4, ab:'feast',     v:3, d:'On kill: restore {v} HP'},
+  wraith  : {n:'Wraith',       e:'👻', f:'Undead', t:2, a:4, h:2, ab:'curse',     v:2, d:'Battle start: the front enemy loses {v} ATK'},
+  lich    : {n:'Lich',         e:'🧙', f:'Undead', t:3, a:5, h:7, ab:'deathBolt', v:3, d:'When an ally faints: deal {v} damage to the front enemy'},
+  // Arcane 🔮 — splash & tricks
+  mage    : {n:'Mage',         e:'🪄', f:'Arcane', t:1, a:2, h:2, ab:'snipeBack', v:2, d:'Battle start: deal {v} damage to the last enemy'},
+  imp     : {n:'Imp',          e:'😈', f:'Arcane', t:1, a:2, h:1, ab:'faintSplash',v:1,d:'On faint: deal {v} damage to ALL enemies'},
+  bomber  : {n:'Bomber',       e:'💣', f:'Arcane', t:2, a:2, h:3, ab:'bomb',      v:3, d:'On faint: deal {v} damage to the two front enemies'},
+  phoenix : {n:'Phoenix',      e:'🔥', f:'Arcane', t:3, a:4, h:4, ab:'revive',    v:1, d:'On faint: revive once with {v} HP'},
+  dragon  : {n:'Dragon',       e:'🐉', f:'Arcane', t:3, a:6, h:6, ab:'breath',    v:2, d:'Battle start: deal {v} damage to all enemies'},
+};
+const ARCANE_DMG_ABS = ['snipeBack','faintSplash','bomb','breath']; // boosted by Arcane synergy
+
+// ---------------------------- items ----------------------------------
+const ITEMS = {
+  spear  : {n:'Spear',        e:'🔱', d:'Attacks also deal half damage to the enemy behind the target'},
+  tshield: {n:'Tower Shield', e:'🧱', d:'Blocks the first 2 enemy attacks completely'},
+  vial   : {n:'Poison Vial',  e:'🧪', d:'Attacks poison the victim: +1 damage every exchange (stacks, ignores armor & shield)'},
+  horn   : {n:'Warhorn',      e:'📯', d:'Battle start: adjacent allies gain +1/+1'},
+  lifegem: {n:'Lifegem',      e:'💎', d:'On kill: restore 3 HP'},
+  cleaver: {n:'Cleaver',      e:'🪓', d:'+2 ATK in battle'},
+  plate  : {n:'Plate Armor',  e:'🦺', d:'+4 HP in battle'},
+  orb    : {n:'Focus Orb',    e:'🧿', d:'Ability values +1'},
+};
+
+// ---------------------------- commanders -----------------------------
+const COMMANDERS = {
+  necro  : {n:'Necromancer', e:'🕯️', d:'The first allied faint each battle is undone — the unit revives at 1 HP. Pairs with faint-hungry Undead drafts.'},
+  tact   : {n:'Tactician',   e:'🎯', d:'Your shop has +1 slot and the first reroll each round is free. See more, spend less, out-draft the foe.'},
+  warlord: {n:'Warlord',     e:'⚔️', d:'At battle start your front unit gains +2/+2. Reward a true vanguard — position it deliberately.'},
+};
+
+const META_ITEMS = [
+  {id:'turtle', icon:'🐢', name:'Old Turtle',   desc:'Start every run with a Turtle already in your warband', cost:6},
+  {id:'banner', icon:'🚩', name:'War Standard', desc:'Start every run with a Banner Bearer in your warband',  cost:14},
+  {id:'wolf',   icon:'🐺', name:'Wolf Pup',     desc:'Start every run with a Wolf in your warband',           cost:24},
+  {id:'gold1',  icon:'🪙', name:'War Chest I',  desc:'+1 gold every shop phase, forever',                     cost:10},
+  {id:'gold2',  icon:'💰', name:'War Chest II', desc:'+1 more gold every shop phase (needs War Chest I)',     cost:30, req:'gold1'},
+];
+const STARTER_UNITS = ['turtle','banner','wolf'];
+const COST_UNIT = 3, COST_TRAIN = 3, COST_REROLL = 1, MAX_ROUND = 10, START_LIVES = 5, MAX_LVL = 3, GOLD_CAP = 12, STASH_MAX = 2;
+
+// ---------------------------- helpers --------------------------------
+const $  = s => document.querySelector(s);
+const rnd = n => Math.floor(Math.random()*n);
+const pick = a => a[rnd(a.length)];
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+// ---------------------------- meta (localStorage) --------------------
+const META_KEY = 'wb_meta_v1';
+function loadMeta(){
+  try{
+    const m = JSON.parse(localStorage.getItem(META_KEY));
+    if(m && typeof m === 'object') return Object.assign({medals:0,trophies:0,battleWins:0,runs:0,owned:{}}, m);
+  }catch(e){}
+  return {medals:0, trophies:0, battleWins:0, runs:0, owned:{}};
+}
+function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(meta)); }catch(e){} }
+let meta = loadMeta();
+
+// ---------------------------- run state ------------------------------
+let S = null;
+let sel = null;   // {type:'shop'|'line'|'stash'|'xp', i}
+let bt = {speed:1, running:false, P:[], E:[], syn:null, necroUsed:false};
+let hintTimer = null;
+
+function goldBonus(){ return (meta.owned.gold1?1:0) + (meta.owned.gold2?1:0); }
+function newUnit(key){ return {key, lvl:1, atk:UNITS[key].a, hp:UNITS[key].h, item:null}; }
+function levelUp(u){ if(u.lvl >= MAX_LVL) return false; u.lvl++; u.atk += UNITS[u.key].a + 1; u.hp += UNITS[u.key].h + 1; return true; }
+function stars(lvl){ return lvl > 1 ? '★'.repeat(lvl) : ''; }
+function uname(u){ return UNITS[u.key].n + (u.lvl > 1 ? ' ' + stars(u.lvl) : ''); }
+function abVal(u){ return UNITS[u.key].v * u.lvl + (u.item === 'orb' ? 1 : 0); }
+function abText(u){ return UNITS[u.key].d.replaceAll('{v}', abVal(u)); }
+
+// faction synergy tiers for a list of units/fighters (nulls ok)
+function synOf(list){
+  const cnt = {Order:0, Beast:0, Undead:0, Arcane:0};
+  for(const u of list) if(u) cnt[UNITS[u.key].f]++;
+  const tier = {};
+  for(const f in cnt) tier[f] = cnt[f] >= 5 ? 5 : cnt[f] >= 3 ? 3 : 0;
+  return {cnt, tier};
+}
+
+function startRun(cmd){
+  S = {
+    round:1, lives:START_LIVES, gold:0, wins:0, phase:'shop', commander:cmd,
+    lineup:[null,null,null,null,null], shop:[], enemy:[], stash:[], saved:0,
+    freeReroll:false, dropChoices:null, patron:null, patronChosen:false,
+  };
+  let slot = 0;
+  for(const id of STARTER_UNITS) if(meta.owned[id] && slot < 5) S.lineup[slot++] = newUnit(id);
+  sel = null;
+  startRound();
+  showScreen('game');
+}
+
+function shopSize(r){ return (r < 3 ? 3 : r < 6 ? 4 : 5) + (S.commander === 'tact' ? 1 : 0); }
+function rollShopUnit(r){
+  let t = 1;
+  const x = Math.random();
+  if(r >= 6)      t = x < .32 ? 3 : x < .68 ? 2 : 1;
+  else if(r >= 3) t = x < .45 ? 2 : 1;
+  let keys = Object.keys(UNITS).filter(k => UNITS[k].t === t);
+  if(S && S.patron && Math.random() < .6){
+    const pk = keys.filter(k => UNITS[k].f === S.patron);
+    if(pk.length) keys = pk;
+  }
+  return {key:pick(keys), frozen:false};
+}
+function fillShop(){
+  const size = shopSize(S.round);
+  while(S.shop.length < size) S.shop.push(null);
+  S.shop.length = size;
+  for(let i = 0; i < size; i++)
+    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit(S.round);
+}
+function startRound(){
+  S.phase = 'shop';
+  const interest = Math.min(3, Math.floor((S.saved || 0) / 3));
+  S.gold = Math.min(GOLD_CAP + goldBonus(), 10 + goldBonus() + interest);
+  S.lastInterest = interest;
+  S.freeReroll = S.commander === 'tact';
+  fillShop();
+  S.enemy = genEnemy(S.round);
+  sel = null;
+  if(S.round >= 3 && !S.patronChosen){
+    S.phase = 'patron';
+    renderShopPhase();
+    showPatronOv();
+    return;
+  }
+  renderShopPhase();
+  if(interest > 0) hint(`💰 Banked gold pays off: +${interest} interest`);
+}
+
+// ---------------------------- patron (round 3 fork) -------------------
+function showPatronOv(){
+  const ov = $('#patronOv');
+  ov.classList.remove('hidden');
+  $('#shopPhase').classList.remove('hidden');
+  $('#battlePhase').classList.add('hidden');
+  ov.innerHTML = `<h3>🏛️ CHOOSE A PATRON</h3>` +
+    `<div class="sub2">A patron floods your shop with its faction (~60% of offers) — the road to 3- and 5-piece doctrines.<br>Or stay a Sellsword: flexible, unaligned, no bias.</div>` +
+    `<div class="dropRow">` +
+    Object.keys(FACTIONS).map(f =>
+      `<div class="dropItem" data-act="pick-patron" data-f="${f}">` +
+      `<div class="ie">${FACTIONS[f].i}</div><div class="in">${f}</div>` +
+      `<div class="id"><b>3:</b> ${FACTIONS[f].t3}<br><b>5:</b> ${FACTIONS[f].t5}</div></div>`
+    ).join('') +
+    `</div><button class="btn" data-act="pick-patron" data-f="none">🪙 Stay a Sellsword (no bias)</button>`;
+}
+function pickPatron(f){
+  if(!S || S.phase !== 'patron') return;
+  S.patron = (f && FACTIONS[f]) ? f : null;
+  S.patronChosen = true;
+  S.phase = 'shop';
+  fillShop();               // re-deal unfrozen offers under the new patron
+  renderShopPhase();
+  hint(S.patron ? `${FACTIONS[S.patron].i} The ${S.patron} patron now stocks your shop.` : '🪙 Sellsword — your shop stays unaligned.');
+}
+
+// ---------------------------- enemy generation -----------------------
+function genEnemy(round){
+  const focus = pick(Object.keys(FACTIONS));
+  const maxTier = round >= 6 ? 3 : round >= 3 ? 2 : 1;
+  const pool = Object.keys(UNITS).filter(k => UNITS[k].t <= maxTier);
+  const focusPool = pool.filter(k => UNITS[k].f === focus);
+  const count = clamp(2 + Math.floor(round/2), 2, 5);
+  const bAtk = Math.floor(round/3), bHp = Math.floor(round*3/5);
+  const band = [];
+  for(let i = 0; i < count; i++){
+    const key = (Math.random() < .7 && focusPool.length) ? pick(focusPool) : pick(pool);
+    const u = newUnit(key);
+    let lvl = 1;
+    if(Math.random() < (round - 2) * 0.13) lvl++;
+    if(Math.random() < (round - 6) * 0.16) lvl++;
+    while(u.lvl < Math.min(lvl, MAX_LVL)) levelUp(u);
+    u.atk += bAtk; u.hp += bHp;
+    if(round >= 4 && Math.random() < 0.18 + round * 0.03) u.item = pick(Object.keys(ITEMS));
+    band.push(u);
+  }
+  const score = u => {
+    const U = UNITS[u.key];
+    if(['heal','rally','snipeBack','revive','deathBolt'].includes(U.ab)) return u.hp - 100;
+    return u.hp + (U.ab === 'armor' ? 4 : 0) + (U.ab === 'shield' ? 3 : 0);
+  };
+  band.sort((a,b) => score(b) - score(a));
+  band.focus = focus;
+  return band;
+}
+
+// ---------------------------- DOM: cards & chips ----------------------
+function tipData(u){
+  const U = UNITS[u.key];
+  let s = `<span class="tn">${U.e} ${uname(u)}</span> <span class="tt">· ${FACTIONS[U.f].i} ${U.f} · Tier ${U.t}</span><div class="ta">${abText(u)}</div>`;
+  if(u.item) s += `<div class="ti">${ITEMS[u.item].e} ${ITEMS[u.item].n}: ${ITEMS[u.item].d}</div>`;
+  return s;
+}
+function facTip(f, cnt, tier){
+  const F = FACTIONS[f];
+  return `<span class="tn">${F.i} ${f}</span> <span class="tt">· fielded: ${cnt}</span>` +
+    `<div class="ta">${tier>=3?'✅':'○'} <b>3:</b> ${F.t3}<br>${tier>=5?'✅':'○'} <b>5:</b> ${F.t5}</div>` +
+    `<div class="tc">${F.counter}</div>`;
+}
+function mkCard(u, opts = {}){
+  const d = document.createElement('div');
+  const U = UNITS[u.key];
+  d.className = 'card t' + U.t + (opts.cls ? ' ' + opts.cls : '');
+  if(opts.act !== undefined){ d.dataset.act = opts.act; d.dataset.i = opts.i; }
+  d.dataset.tip = tipData(u);
+  d.innerHTML =
+    (u.lvl > 1 ? `<div class="stars">${stars(u.lvl)}</div>` : '') +
+    `<div class="fac">${FACTIONS[U.f].i}</div>` +
+    (opts.cost ? `<div class="cost">3🪙</div>` : '') +
+    `<div class="em">${U.e}</div><div class="nm">${U.n}</div>` +
+    `<div class="st"><span class="b atk">${u.atk}</span><span class="b hp">${Math.max(0,u.hp)}</span></div>`;
+  if(u.item){
+    const ib = document.createElement('div');
+    ib.className = 'itemB'; ib.textContent = ITEMS[u.item].e;
+    ib.dataset.tip = `<span class="tn">${ITEMS[u.item].e} ${ITEMS[u.item].n}</span><div class="ta">${ITEMS[u.item].d}</div>`;
+    d.appendChild(ib);
+  }
+  if(opts.freeze){
+    const fz = document.createElement('button');
+    fz.className = 'frz'; fz.dataset.act = 'freeze'; fz.dataset.i = opts.i;
+    fz.textContent = '❄'; fz.title = 'Freeze — keep for next round';
+    d.appendChild(fz);
+  }
+  return d;
+}
+function mkEmptySlot(i){
+  const d = document.createElement('div');
+  d.className = 'card slotEmpty' + (sel && sel.type === 'shop' ? ' dropOk' : '');
+  d.dataset.act = 'line'; d.dataset.i = i;
+  d.textContent = '+';
+  return d;
+}
+function renderChips(el, list){
+  el.innerHTML = '';
+  const syn = synOf(list);
+  for(const f of Object.keys(FACTIONS)){
+    if(syn.cnt[f] === 0) continue;
+    const c = document.createElement('span');
+    const tier = syn.tier[f];
+    c.className = 'chip' + (tier === 5 ? ' on4' : tier === 3 ? ' on2' : '');
+    c.innerHTML = `${FACTIONS[f].i} ${syn.cnt[f]} <span class="dots">${tier>=3?'●':'○'}${tier>=5?'●':'○'}</span>`;
+    c.dataset.tip = facTip(f, syn.cnt[f], tier);
+    el.appendChild(c);
+  }
+  return syn;
+}
+
+// ---------------------------- render: shop phase ---------------------
+function renderHUD(){
+  $('#hRound').textContent = S.round;
+  $('#hGold').textContent = S.gold;
+  $('#hInt').textContent = S.phase === 'shop' && Math.floor(S.gold/3) > 0
+    ? `(+${Math.min(3, Math.floor(S.gold/3))} if banked)` : '';
+  $('#hWins').textContent = S.wins;
+  $('#hLives').textContent = '❤️'.repeat(Math.max(0, S.lives)) + '🖤'.repeat(Math.max(0, START_LIVES - S.lives));
+  $('#hPhase').textContent = S.phase === 'shop' ? 'SHOP PHASE' : 'BATTLE';
+  const C = COMMANDERS[S.commander];
+  const cp = $('#hCmd');
+  cp.textContent = `${C.e} ${C.n}`;
+  cp.dataset.tip = `<span class="tn">${C.e} ${C.n}</span><div class="ta">${C.d}</div>`;
+  const pp = $('#hPatron');
+  if(S.patronChosen){
+    pp.classList.remove('hidden');
+    pp.textContent = S.patron ? `🏛️ ${FACTIONS[S.patron].i} ${S.patron}` : '🏛️ Sellsword';
+    pp.dataset.tip = S.patron
+      ? `<span class="tn">🏛️ Patron: ${S.patron}</span><div class="ta">~60% of shop offers are ${S.patron} units.</div>`
+      : `<span class="tn">🏛️ Sellsword</span><div class="ta">No patron — the shop stays unaligned.</div>`;
+  } else pp.classList.add('hidden');
+}
+function renderShopPhase(){
+  $('#shopPhase').classList.remove('hidden');
+  $('#battlePhase').classList.add('hidden');
+  $('#dropOv').classList.add('hidden');
+  if(S.phase !== 'patron') $('#patronOv').classList.add('hidden');
+  renderHUD();
+  // full enemy scout
+  const sc = $('#scoutCards'); sc.innerHTML = '';
+  for(const u of S.enemy) sc.appendChild(mkCard(u));
+  renderChips($('#eChips'), S.enemy);
+  $('#scoutInfo').innerHTML =
+    `🔭 <b>Scouting</b> — round-${S.round} foe: <span class="cnt">${S.enemy.length} units</span>, ` +
+    `${FACTIONS[S.enemy.focus].i} <b>${S.enemy.focus}</b>-focused. ${FACTIONS[S.enemy.focus].counter}`;
+  // player synergies + lineup
+  renderChips($('#pChips'), S.lineup);
+  const lr = $('#lineup'); lr.innerHTML = '';
+  for(let i = 0; i < 5; i++){
+    const u = S.lineup[i];
+    if(!u){ lr.appendChild(mkEmptySlot(i)); continue; }
+    const opts = {act:'line', i};
+    if(sel && sel.type === 'shop' && S.shop[sel.i] && S.shop[sel.i].key === u.key && u.lvl < MAX_LVL) opts.cls = 'mergeable';
+    if(sel && sel.type === 'xp' && u.lvl < MAX_LVL) opts.cls = 'mergeable';
+    const c = mkCard(u, opts);
+    if(sel && sel.type === 'line' && sel.i === i) c.classList.add('sel');
+    lr.appendChild(c);
+  }
+  // stash
+  const stR = $('#stashRow'); stR.innerHTML = '';
+  for(let i = 0; i < STASH_MAX; i++){
+    const it = S.stash[i];
+    const d = document.createElement('div');
+    d.className = 'itemSlot' + (it ? ' full' : '');
+    d.dataset.act = 'stash'; d.dataset.i = i;
+    if(it){
+      d.textContent = ITEMS[it].e;
+      d.dataset.tip = `<span class="tn">${ITEMS[it].e} ${ITEMS[it].n}</span><div class="ta">${ITEMS[it].d}</div><div class="ti">Click, then click a unit to equip</div>`;
+      if(sel && sel.type === 'stash' && sel.i === i) d.classList.add('sel');
+    } else d.textContent = '·';
+    stR.appendChild(d);
+  }
+  // shop
+  const sr = $('#shopRow'); sr.innerHTML = '';
+  const size = shopSize(S.round);
+  for(let i = 0; i < size; i++){
+    const s = S.shop[i];
+    if(!s){
+      const d = document.createElement('div');
+      d.className = 'card slotEmpty'; d.style.cursor = 'default'; d.textContent = '·';
+      sr.appendChild(d); continue;
+    }
+    const c = mkCard(newUnit(s.key), {act:'shop', i, freeze:true, cost:true});
+    if(s.frozen) c.classList.add('frozen');
+    if(sel && sel.type === 'shop' && sel.i === i) c.classList.add('sel');
+    sr.appendChild(c);
+  }
+  $('#sellBtn').disabled = !(sel && sel.type === 'line');
+  $('#sellBtn').textContent = sel && sel.type === 'line'
+    ? `Sell ${UNITS[S.lineup[sel.i].key].n} (+${S.lineup[sel.i].lvl}🪙)` : 'Sell';
+  $('#rerollBtn').disabled = !S.freeReroll && S.gold < COST_REROLL;
+  $('#rerollBtn').textContent = S.freeReroll ? '🎲 Reroll — FREE' : '🎲 Reroll — 1🪙';
+  $('#trainBtn').disabled = S.gold < COST_TRAIN || !S.lineup.some(u => u && u.lvl < MAX_LVL);
+  $('#trainBtn').classList.toggle('armed', !!(sel && sel.type === 'xp'));
+  $('#fightBtn').disabled = !S.lineup.some(Boolean);
+}
+function hint(msg){
+  const h = $('#hint');
+  h.textContent = msg; h.style.opacity = 1;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { h.style.opacity = 0; }, 3000);
+}
+
+// ---------------------------- shop actions ---------------------------
+function clickShop(i){
+  if(S.phase !== 'shop' || !S.shop[i]) return;
+  if(sel && sel.type === 'shop' && sel.i === i) sel = null;
+  else {
+    sel = {type:'shop', i};
+    hint(S.gold < COST_UNIT ? 'Not enough gold — units cost 3🪙' :
+      'Click an empty slot to place — or a matching unit to merge (+1★)');
+  }
+  renderShopPhase();
+}
+function clickLine(i){
+  if(S.phase !== 'shop') return;
+  if(sel && sel.type === 'shop'){
+    const s = S.shop[sel.i];
+    if(!s){ sel = null; renderShopPhase(); return; }
+    if(S.gold < COST_UNIT){ hint('Not enough gold — units cost 3🪙'); return; }
+    const target = S.lineup[i];
+    if(!target){
+      S.lineup[i] = newUnit(s.key);
+      S.gold -= COST_UNIT; S.shop[sel.i] = null; sel = null;
+      hint(`${UNITS[S.lineup[i].key].n} joins the warband!`);
+    } else if(target.key === s.key && target.lvl < MAX_LVL){
+      levelUp(target);
+      S.gold -= COST_UNIT; S.shop[sel.i] = null; sel = null;
+      hint(`✨ ${uname(target)} — merged! Ability values scale with ★.`);
+    } else if(target.key === s.key){
+      hint('Already ★★★ — max level'); return;
+    } else {
+      hint('Occupied — pick an empty slot or a matching unit to merge'); return;
+    }
+  } else if(sel && sel.type === 'stash'){
+    const it = S.stash[sel.i];
+    const u = S.lineup[i];
+    if(!it){ sel = null; renderShopPhase(); return; }
+    if(!u){ hint('Equip onto a unit — that slot is empty'); return; }
+    const old = u.item;
+    u.item = it;
+    if(old) S.stash[sel.i] = old; else S.stash.splice(sel.i, 1);
+    sel = null;
+    hint(`${ITEMS[u.item].e} ${ITEMS[u.item].n} equipped on ${uname(u)}` + (old ? ` (${ITEMS[old].n} back to stash)` : ''));
+  } else if(sel && sel.type === 'xp'){
+    const u = S.lineup[i];
+    if(!u){ hint('Train a unit — that slot is empty'); return; }
+    if(u.lvl >= MAX_LVL){ hint('Already ★★★ — max level'); return; }
+    if(S.gold < COST_TRAIN){ hint('Not enough gold — training costs 3🪙'); sel = null; renderShopPhase(); return; }
+    S.gold -= COST_TRAIN;
+    levelUp(u);
+    sel = null;
+    hint(`🎓 ${uname(u)} trained to ${stars(u.lvl)}!`);
+  } else if(sel && sel.type === 'line'){
+    if(sel.i === i) sel = null;
+    else { const t = S.lineup[i]; S.lineup[i] = S.lineup[sel.i]; S.lineup[sel.i] = t; sel = null; }
+  } else if(S.lineup[i]){
+    sel = {type:'line', i};
+    hint('Click another slot to swap, or Sell');
+  }
+  renderShopPhase();
+}
+function clickStash(i){
+  if(S.phase !== 'shop' || !S.stash[i]) return;
+  sel = (sel && sel.type === 'stash' && sel.i === i) ? null : {type:'stash', i};
+  if(sel) hint('Now click a unit to equip (its old item returns to stash)');
+  renderShopPhase();
+}
+function armTrain(){
+  if(S.phase !== 'shop') return;
+  if(S.gold < COST_TRAIN){ hint('Not enough gold — training costs 3🪙'); return; }
+  sel = (sel && sel.type === 'xp') ? null : {type:'xp'};
+  if(sel) hint('🎓 Click a unit to give it +1★ (3🪙)');
+  renderShopPhase();
+}
+function sellSelected(){
+  if(S.phase !== 'shop' || !sel || sel.type !== 'line') return;
+  const u = S.lineup[sel.i];
+  S.gold += u.lvl;
+  let msg = `Sold ${uname(u)} for ${u.lvl}🪙`;
+  if(u.item){
+    if(S.stash.length < STASH_MAX){ S.stash.push(u.item); msg += ` — ${ITEMS[u.item].n} to stash`; }
+    else msg += ` — stash full, ${ITEMS[u.item].n} lost!`;
+  }
+  hint(msg);
+  S.lineup[sel.i] = null; sel = null;
+  renderShopPhase();
+}
+function toggleFreeze(i){
+  if(S.phase !== 'shop' || !S.shop[i]) return;
+  S.shop[i].frozen = !S.shop[i].frozen;
+  renderShopPhase();
+}
+function reroll(){
+  if(S.phase !== 'shop') return;
+  if(S.freeReroll) S.freeReroll = false;
+  else if(S.gold >= COST_REROLL) S.gold -= COST_REROLL;
+  else return;
+  for(let i = 0; i < S.shop.length; i++)
+    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit(S.round);
+  if(sel && (sel.type === 'shop')) sel = null;
+  renderShopPhase();
+}
+
+// ---------------------------- item drops ------------------------------
+function showDrop(){
+  S.phase = 'drop';
+  const keys = Object.keys(ITEMS);
+  const a = pick(keys); let b = pick(keys);
+  while(b === a) b = pick(keys);
+  S.dropChoices = [a, b];
+  const ov = $('#dropOv');
+  ov.classList.remove('hidden');
+  $('#shopPhase').classList.remove('hidden');
+  $('#battlePhase').classList.add('hidden');
+  const full = S.stash.length >= STASH_MAX;
+  ov.innerHTML = `<h3>🎁 SPOILS OF VICTORY — pick one</h3>` +
+    `<div class="sub2">${full ? '⚠️ Stash full — skip, or lose the spoils' : 'Your pick goes to the stash; equip it in the shop'}</div>` +
+    `<div class="dropRow">` +
+    S.dropChoices.map((k, i) =>
+      `<div class="dropItem${full ? ' off' : ''}" ${full ? '' : `data-act="pick-drop" data-i="${i}"`}>` +
+      `<div class="ie">${ITEMS[k].e}</div><div class="in">${ITEMS[k].n}</div><div class="id">${ITEMS[k].d}</div></div>`
+    ).join('') +
+    `</div><button class="btn" data-act="skip-drop">Skip</button>`;
+}
+function pickDrop(i){
+  if(S.phase !== 'drop' || !S.dropChoices) return;
+  if(S.stash.length >= STASH_MAX) return;
+  S.stash.push(S.dropChoices[i]);
+  S.dropChoices = null;
+  nextRound();
+}
+function skipDrop(){
+  if(S.phase !== 'drop') return;
+  S.dropChoices = null;
+  nextRound();
+}
+function nextRound(){
+  S.round++;
+  startRound();
+}
+
+// ---------------------------- battle ----------------------------------
+function wait(ms){ return new Promise(r => setTimeout(r, ms / bt.speed)); }
+function log(msg){
+  const b = $('#blog');
+  const d = document.createElement('div');
+  d.textContent = msg;
+  b.appendChild(d);
+  while(b.children.length > 8) b.removeChild(b.firstChild);
+}
+function mkFighter(u, side){
+  const U = UNITS[u.key];
+  const f = {
+    key:u.key, lvl:u.lvl, atk:u.atk, hp:u.hp, maxhp:u.hp, item:u.item || null,
+    shield:0, armor:0, alive:true, revived:false, poison:0, blockLeft:0,
+    alphaRevive:false, alphaUsed:false, side, el:null,
+  };
+  if(U.ab === 'armor') f.armor += abVal(f);
+  if(f.item === 'cleaver') f.atk += 2;
+  if(f.item === 'plate'){ f.hp += 4; f.maxhp += 4; }
+  if(f.item === 'tshield') f.blockLeft = 2;
+  return f;
+}
+function fLabel(f){ return UNITS[f.key].n + (f.lvl > 1 ? ' ' + stars(f.lvl) : ''); }
+function synBonusDmg(f){
+  if(!bt.syn) return 0;
+  if(UNITS[f.key].f !== 'Arcane' || !ARCANE_DMG_ABS.includes(UNITS[f.key].ab)) return 0;
+  const syn = bt.syn[f.side];
+  return syn.tier.Arcane >= 3 ? 1 + Math.max(0, syn.cnt.Arcane - 3) : 0;
+}
+function abilityDmg(f){ return abVal(f) + synBonusDmg(f); }
+// Arcane 5: single-target arcane hits (snipe/bomb) ripple to the enemy behind for half
+function arcaneHit(f, target, n, foes){
+  dealDamage(target, n);
+  if(bt.syn && bt.syn[f.side].tier.Arcane >= 5 && UNITS[f.key].f === 'Arcane'){
+    const behind = nextAliveAfter(foes, target);
+    if(behind){ dealDamage(behind, Math.ceil(n / 2)); }
+  }
+}
+function pop(f, text, cls){
+  if(!f.el) return;
+  const p = document.createElement('span');
+  p.className = 'pop ' + cls; p.textContent = text;
+  f.el.appendChild(p);
+  setTimeout(() => p.remove(), 900);
+}
+function updateF(f){
+  if(!f.el) return;
+  f.el.querySelector('.b.atk').textContent = f.atk;
+  f.el.querySelector('.b.hp').textContent = Math.max(0, f.hp);
+  let sb = f.el.querySelector('.shieldB');
+  if(f.shield > 0 || f.blockLeft > 0){
+    if(!sb){ sb = document.createElement('div'); sb.className = 'shieldB'; f.el.appendChild(sb); }
+    sb.textContent = (f.blockLeft > 0 ? '🧱' + f.blockLeft + ' ' : '') + (f.shield > 0 ? '🛡' + f.shield : '');
+  } else if(sb) sb.remove();
+  let pb = f.el.querySelector('.poisB');
+  if(f.poison > 0){
+    if(!pb){ pb = document.createElement('div'); pb.className = 'poisB'; f.el.appendChild(pb); }
+    pb.textContent = '☠' + f.poison;
+  } else if(pb) pb.remove();
+  f.el.dataset.tip = tipData(f);
+  if(!f.alive) f.el.classList.add('dead');
+}
+function alive(arr){ return arr.some(f => f.alive); }
+function front(arr){ return arr.find(f => f.alive); }
+function lastAlive(arr){ for(let i = arr.length - 1; i >= 0; i--) if(arr[i].alive) return arr[i]; return null; }
+function nextAliveAfter(arr, f){
+  const i = arr.indexOf(f);
+  for(let j = i + 1; j < arr.length; j++) if(arr[j].alive) return arr[j];
+  return null;
+}
+
+// damage. opts: {attack:true, attacker} — tower shield only blocks attacks.
+function dealDamage(f, amount, opts = {}){
+  if(!f || !f.alive || amount <= 0) return 0;
+  if(opts.attack && f.blockLeft > 0){
+    f.blockLeft--;
+    pop(f, 'BLOCK', 'shield');
+    updateF(f);
+    return 0;
+  }
+  let n = amount;
+  if(f.armor > 0) n = Math.max(1, n - f.armor);
+  if(f.shield > 0){
+    const s = Math.min(f.shield, n);
+    f.shield -= s; n -= s;
+    if(s > 0) pop(f, '🛡-' + s, 'shield');
+  }
+  if(n > 0){
+    f.hp -= n;
+    pop(f, '-' + n, 'dmg');
+    if(f.hp > 0 && UNITS[f.key].ab === 'enrage'){
+      f.atk += abVal(f);
+      pop(f, '+' + abVal(f) + '⚔', 'buff');
+      log(`${fLabel(f)} enrages — now ${f.atk} ATK!`);
+    }
+  }
+  updateF(f);
+  return n;
+}
+function buff(f, a, h, silent){
+  if(!f || !f.alive) return;
+  f.atk += a; f.hp += h; f.maxhp += h;
+  if(!silent) pop(f, `+${a}/+${h}`, 'buff');
+  updateF(f);
+}
+function healF(f, n){
+  if(!f || !f.alive || n <= 0) return;
+  const real = Math.min(n, f.maxhp - f.hp);
+  if(real <= 0) return;
+  f.hp += real;
+  pop(f, '+' + real, 'heal');
+  updateF(f);
+}
+function killCredit(killer, victim){
+  if(!killer || killer.hp <= 0 || !killer.alive) return;
+  if(UNITS[killer.key].ab === 'kill'){
+    buff(killer, abVal(killer), abVal(killer));
+    log(`${fLabel(killer)} slays ${fLabel(victim)}, grows to ${killer.atk}/${killer.hp}!`);
+  }
+  if(UNITS[killer.key].ab === 'feast'){
+    healF(killer, abVal(killer));
+    log(`${fLabel(killer)} feasts on ${fLabel(victim)}.`);
+  }
+  if(killer.item === 'lifegem') healF(killer, 3);
+}
+
+function faintEffect(f, arr, foes){
+  const U = UNITS[f.key];
+  switch(U.ab){
+    case 'faintBuff': {
+      const behind = nextAliveAfter(arr, f);
+      if(behind){ buff(behind, abVal(f), abVal(f)); log(`${fLabel(f)}'s last stand: ${fLabel(behind)} +${abVal(f)}/+${abVal(f)}!`); }
+      break; }
+    case 'faintAtk': {
+      const behind = nextAliveAfter(arr, f);
+      if(behind){ buff(behind, abVal(f), 0); log(`${fLabel(f)} passes its blade: ${fLabel(behind)} +${abVal(f)} ATK!`); }
+      break; }
+    case 'faintDmg': {
+      const t = front(foes);
+      if(t){ log(`${fLabel(f)} strikes from beyond for ${abVal(f)}!`); dealDamage(t, abVal(f)); }
+      break; }
+    case 'faintSplash': {
+      const n = abilityDmg(f);
+      log(`${fLabel(f)} bursts — ${n} damage to ALL enemies! 💥`);
+      for(const t of foes.filter(x => x.alive)) dealDamage(t, n);
+      break; }
+    case 'bomb': {
+      const n = abilityDmg(f);
+      const ts = foes.filter(x => x.alive).slice(0, 2);
+      if(ts.length) log(`${fLabel(f)} explodes for ${n}! 💥`);
+      for(const t of ts) arcaneHit(f, t, n, foes);
+      break; }
+  }
+}
+
+async function processDeaths(P, E){
+  let changed = true;
+  while(changed){
+    changed = false;
+    for(const arr of [P, E]){
+      const foes = arr === P ? E : P;
+      for(const f of arr){
+        if(!f.alive || f.hp > 0) continue;
+        const U = UNITS[f.key];
+        // Necromancer: first allied faint each battle is undone
+        if(f.side === 'P' && S.commander === 'necro' && !bt.necroUsed){
+          bt.necroUsed = true;
+          f.hp = 1; f.poison = 0;
+          pop(f, '🕯️SAVED', 'buff');
+          log(`🕯️ The Necromancer denies death — ${fLabel(f)} stands at 1 HP!`);
+          updateF(f); changed = true; await wait(420); continue;
+        }
+        // Beast 5: the Pack Alpha revives once at half HP
+        if(f.alphaRevive && !f.alphaUsed){
+          f.alphaUsed = true; f.hp = Math.max(1, Math.ceil(f.maxhp / 2)); f.poison = 0;
+          pop(f, '🐾ALPHA', 'buff');
+          log(`🐾🐾 The Pack Alpha refuses to fall — ${fLabel(f)} rises at ${f.hp} HP!`);
+          updateF(f); changed = true; await wait(420); continue;
+        }
+        if(U.ab === 'revive' && !f.revived){
+          f.revived = true; f.hp = abVal(f); f.poison = 0;
+          pop(f, '🔥REBORN', 'buff');
+          log(`${fLabel(f)} is reborn with ${f.hp} HP!`);
+          updateF(f); changed = true; await wait(420); continue;
+        }
+        f.alive = false; changed = true;
+        log(`${fLabel(f)} faints.`);
+        updateF(f);
+        const times = (U.f === 'Undead' && bt.syn[f.side].tier.Undead >= 3) ? 2 : 1;
+        for(let t = 0; t < times; t++){
+          faintEffect(f, arr, foes);
+          if(t === 1) log(`💀 Undead synergy: ${fLabel(f)}'s faint effect echoes!`);
+        }
+        // Undead 5 LEGION: every allied faint strikes the front enemy and feeds the dead
+        if(bt.syn[f.side].tier.Undead >= 5){
+          const t3 = front(foes);
+          if(t3){ log(`💀💀 The Legion answers: 3 damage to ${fLabel(t3)}.`); dealDamage(t3, 3); }
+          let n = 0;
+          for(const u of arr) if(u.alive && UNITS[u.key].f === 'Undead'){ buff(u, 2, 2, true); n++; }
+          if(n) log(`💀💀 The dead grow stronger: ${n} Undead gain +2/+2.`);
+        }
+        // Lich: on ally faint, death bolt
+        for(const u of arr){
+          if(u.alive && u !== f && UNITS[u.key].ab === 'deathBolt'){
+            const t2 = front(foes);
+            if(t2){ log(`${fLabel(u)} hurls a death bolt for ${abVal(u)}!`); dealDamage(t2, abVal(u)); }
+          }
+        }
+        await wait(360);
+      }
+    }
+  }
+}
+
+async function startAbility(f, allies, foes){
+  const U = UNITS[f.key];
+  const v = abVal(f);
+  switch(U.ab){
+    case 'snipeBack': {
+      const t = lastAlive(foes);
+      const n = abilityDmg(f);
+      if(t){ log(`${fLabel(f)} snipes ${fLabel(t)} for ${n}!`); arcaneHit(f, t, n, foes); await wait(320); }
+      break; }
+    case 'shield':
+      f.shield += v; pop(f, '🛡+' + v, 'shield'); updateF(f);
+      log(`${fLabel(f)} shells up (+${v} shield).`); await wait(280); break;
+    case 'rally':
+      for(const a of allies) if(a.alive) buff(a, v, v, a === f);
+      log(`${fLabel(f)} rallies the warband: +${v}/+${v} to all!`); await wait(360); break;
+    case 'curse': {
+      const t = front(foes);
+      if(t){
+        const s = Math.min(v, t.atk);
+        t.atk -= s;
+        pop(t, '-' + s + '⚔', 'dmg'); updateF(t);
+        log(`${fLabel(f)} curses ${fLabel(t)}: -${s} ATK.`); await wait(320);
+      }
+      break; }
+    case 'pack': {
+      const n = allies.filter(x => x.alive && x !== f && UNITS[x.key].f === 'Beast').length;
+      if(n > 0){ buff(f, v * n, v * n); log(`${fLabel(f)} leads the pack: +${v*n}/+${v*n}!`); await wait(340); }
+      break; }
+    case 'breath': {
+      const n = abilityDmg(f);
+      log(`${fLabel(f)} breathes fire — ${n} to all enemies! 🔥`);
+      for(const t of foes.filter(x => x.alive)) dealDamage(t, n);
+      await wait(400); break; }
+  }
+}
+
+function applySynergyStart(arr, side){
+  const syn = bt.syn[side];
+  const who = side === 'P' ? 'Your' : 'Enemy';
+  if(syn.tier.Beast >= 3){
+    const b = 1 + Math.max(0, syn.cnt.Beast - 3);   // +1/+1, +1/+1 per Beast past the third
+    let n = 0;
+    for(const f of arr) if(f.alive && UNITS[f.key].f === 'Beast'){ buff(f, b, b, true); n++; }
+    if(n) log(`🐾 ${who} pack stirs: ${n} Beasts +${b}/+${b}.`);
+    if(syn.tier.Beast >= 5){
+      const alpha = arr.find(f => f.alive && UNITS[f.key].f === 'Beast');
+      if(alpha){ alpha.alphaRevive = true; log(`🐾🐾 ${fLabel(alpha)} is the PACK ALPHA — it will not die easily.`); }
+    }
+  }
+  if(syn.tier.Order >= 3){
+    let n = 0;
+    for(const f of arr) if(f.alive && UNITS[f.key].f === 'Order'){ f.armor += 1; f.shield += 2; updateF(f); n++; }
+    if(n) log(`⚜️ ${who} Order forms up: ${n} units +1 armor, +2 shield.`);
+  }
+  if(syn.tier.Order >= 5){
+    for(const f of arr) if(f.alive) f.armor += 2;
+    log(`⚜️⚜️ ${who} PHALANX: all allies +2 armor — attackers bleed for 3.`);
+  }
+  if(syn.tier.Arcane >= 3) log(`🔮 ${who} Arcane resonance: ability damage +${1 + Math.max(0, syn.cnt.Arcane - 3)}${syn.tier.Arcane >= 5 ? ', chaining to units behind' : ''}.`);
+  if(syn.tier.Undead >= 3) log(`💀 ${who} grave pact: faint effects echo twice${syn.tier.Undead >= 5 ? ' — and the LEGION rises with every death' : ''}.`);
+}
+
+function renderBattle(){
+  $('#shopPhase').classList.add('hidden');
+  $('#battlePhase').classList.remove('hidden');
+  $('#banner').classList.add('hidden');
+  $('#blog').innerHTML = '';
+  renderHUD();
+  renderChips($('#bpChips'), bt.P);
+  renderChips($('#beChips'), bt.E);
+  const pr = $('#pRow'), er = $('#eRow');
+  pr.innerHTML = ''; er.innerHTML = '';
+  for(const f of bt.P){ f.el = mkCard(f); pr.appendChild(f.el); }
+  for(const f of bt.E){ f.el = mkCard(f); er.appendChild(f.el); }
+  for(const f of [...bt.P, ...bt.E]) updateF(f);
+}
+
+// one unit attacking another (handles spear + poison), returns kills [[killer,victim],...]
+function strike(att, def, foes){
+  const kills = [];
+  const dealt = dealDamage(def, att.atk, {attack:true, attacker:att});
+  if(att.item === 'vial' && dealt > 0){ def.poison++; pop(def, '☠', 'pois'); updateF(def); }
+  if(def.hp <= 0 && def.alive) kills.push([att, def]);
+  // Order 5 PHALANX: attackers bleed for striking the formation
+  if(bt.syn && bt.syn[def.side].tier.Order >= 5 && att.alive && att.hp > 0){
+    dealDamage(att, 3);
+  }
+  if(att.item === 'spear'){
+    const behind = nextAliveAfter(foes, def);
+    if(behind){
+      const d2 = dealDamage(behind, Math.ceil(att.atk / 2), {attack:true, attacker:att});
+      if(att.item === 'vial' && d2 > 0){ behind.poison++; updateF(behind); }
+      if(behind.hp <= 0 && behind.alive) kills.push([att, behind]);
+      log(`${fLabel(att)}'s spear pierces through to ${fLabel(behind)}!`);
+    }
+  }
+  return kills;
+}
+
+async function runBattle(){
+  S.saved = S.gold;                 // banked gold earns interest next round
+  S.phase = 'battle';
+  bt.running = true;
+  bt.necroUsed = false;
+  bt.P = S.lineup.filter(Boolean).map(u => mkFighter(u, 'P'));
+  bt.E = S.enemy.map(u => mkFighter(u, 'E'));
+  bt.syn = {P:synOf(bt.P), E:synOf(bt.E)};
+  renderBattle();
+  log(`⚔️ Round ${S.round}: your warband meets a ${S.enemy.focus}-sworn band of ${bt.E.length}!`);
+  await wait(600);
+
+  // commander (player only)
+  if(S.commander === 'warlord'){
+    const fr = front(bt.P);
+    if(fr){ buff(fr, 2, 2); log(`⚔️ The Warlord anoints ${fLabel(fr)}: +2/+2.`); await wait(320); }
+  }
+  // items: warhorn
+  for(const arr of [bt.P, bt.E]){
+    for(let i = 0; i < arr.length; i++){
+      if(arr[i].item !== 'horn') continue;
+      let blown = false;
+      for(const j of [i-1, i+1]) if(arr[j] && arr[j].alive){ buff(arr[j], 1, 1); blown = true; }
+      if(blown) log(`📯 ${fLabel(arr[i])}'s warhorn: adjacent allies +1/+1.`);
+    }
+  }
+  // faction synergies
+  applySynergyStart(bt.P, 'P');
+  applySynergyStart(bt.E, 'E');
+  await wait(400);
+  // battle-start abilities, interleaved by position
+  for(let i = 0; i < 5; i++){
+    if(bt.P[i] && bt.P[i].alive) await startAbility(bt.P[i], bt.P, bt.E);
+    if(bt.E[i] && bt.E[i].alive) await startAbility(bt.E[i], bt.E, bt.P);
+  }
+  await processDeaths(bt.P, bt.E);
+
+  // exchanges
+  let turns = 0;
+  while(alive(bt.P) && alive(bt.E) && ++turns <= 60){
+    const a = front(bt.P), b = front(bt.E);
+    a.el.classList.add('lungeR'); b.el.classList.add('lungeL');
+    await wait(230);
+    a.el.classList.remove('lungeR'); b.el.classList.remove('lungeL');
+    log(`${fLabel(a)} and ${fLabel(b)} clash! (${a.atk} ⚔ ${b.atk})`);
+    const kills = [...strike(a, b, bt.E), ...strike(b, a, bt.P)];
+    for(const [k, v] of kills) killCredit(k, v);
+    await wait(280);
+    await processDeaths(bt.P, bt.E);
+    // exchange end: poison ticks (ignores armor & shield)
+    let poisoned = false;
+    for(const f of [...bt.P, ...bt.E]){
+      if(f.alive && f.poison > 0){
+        f.hp -= f.poison;
+        pop(f, '-' + f.poison + '☠', 'pois');
+        updateF(f); poisoned = true;
+      }
+    }
+    if(poisoned){ await wait(240); await processDeaths(bt.P, bt.E); }
+    // healers
+    for(const arr of [bt.P, bt.E]){
+      const alv = arr.filter(f => f.alive);
+      for(let i = 0; i < alv.length; i++){
+        if(UNITS[alv[i].key].ab !== 'heal') continue;
+        for(const j of [i-1, i+1]) if(alv[j]) healF(alv[j], abVal(alv[i]));
+      }
+    }
+    await wait(240);
+  }
+
+  // result
+  const pAlive = alive(bt.P), eAlive = alive(bt.E);
+  let result = 'draw';
+  if(pAlive && !eAlive) result = 'win';
+  else if(!pAlive && eAlive) result = 'lose';
+  bt.running = false;
+  await wait(380);
+  const ban = $('#banner');
+  ban.classList.remove('hidden', 'win', 'lose', 'draw');
+  if(result === 'win'){
+    S.wins++; meta.battleWins++; saveMeta();
+    ban.textContent = '🏅 VICTORY'; ban.classList.add('win');
+    log('🏅 Your warband stands victorious!');
+  } else if(result === 'lose'){
+    const cost = S.round > 5 ? 2 : 1;
+    S.lives -= cost;
+    ban.textContent = '💔 DEFEAT'; ban.classList.add('lose');
+    log(`💔 Defeat — you lose ${cost} ${cost > 1 ? 'lives' : 'life'}.`);
+  } else {
+    ban.textContent = '🤝 DRAW'; ban.classList.add('draw');
+    log('🤝 A bloody draw. No lives lost.');
+  }
+  renderHUD();
+  await wait(1300);
+  afterBattle(result);
+}
+
+function afterBattle(result){
+  if(S.lives <= 0){ endRun(false); return; }
+  if(S.round >= MAX_ROUND){ endRun(true); return; }
+  if(result === 'win') showDrop();
+  else nextRound();
+}
+
+// ---------------------------- run end / meta --------------------------
+function endRun(victory){
+  const earned = S.round + (victory ? 5 : 0);
+  meta.medals += earned;
+  meta.runs++;
+  if(victory) meta.trophies++;
+  saveMeta();
+  $('#endEmoji').textContent = victory ? '🏆' : '☠️';
+  $('#endTitle').textContent = victory ? 'TROPHY CLAIMED!' : 'RUN OVER';
+  $('#endTitle').className = victory ? 'win' : 'lose';
+  $('#endBlurb').textContent = victory
+    ? `The ${COMMANDERS[S.commander].n}'s warband conquered all ten rounds. Legends will be sung.`
+    : `The ${COMMANDERS[S.commander].n}'s warband fell in round ${S.round}. The medals remember.`;
+  $('#endStats').innerHTML =
+    `<span class="pill">Rounds: <b>${S.round}/10</b></span>` +
+    `<span class="pill">Battles won: <b>${S.wins}</b></span>` +
+    `<span class="pill">Medals earned: <b>+${earned}🎖️</b></span>` +
+    `<span class="pill">Total medals: <b>${meta.medals}🎖️</b></span>`;
+  S.phase = 'over';
+  showScreen('end');
+}
+
+function renderTitle(){
+  $('#mMedals').textContent = meta.medals;
+  $('#mTrophies').textContent = meta.trophies;
+  $('#mWins').textContent = meta.battleWins;
+  const ms = $('#metaShop'); ms.innerHTML = '';
+  for(const it of META_ITEMS){
+    const owned = !!meta.owned[it.id];
+    const locked = it.req && !meta.owned[it.req];
+    const d = document.createElement('div');
+    d.className = 'mItem' + (owned ? ' owned' : locked ? ' locked' : '');
+    if(!owned && !locked){ d.dataset.act = 'meta-buy'; d.dataset.item = it.id; }
+    d.innerHTML = `<div class="mi">${it.icon}</div><div class="mn">${it.name}</div>` +
+      `<div class="md">${it.desc}</div>` +
+      `<div class="mc">${owned ? '✔ OWNED' : locked ? '🔒 LOCKED' : it.cost + ' 🎖️'}</div>`;
+    ms.appendChild(d);
+  }
+}
+function renderCmdPick(){
+  const cr = $('#cmdRow'); cr.innerHTML = '';
+  for(const id of Object.keys(COMMANDERS)){
+    const C = COMMANDERS[id];
+    const d = document.createElement('div');
+    d.className = 'cmdCard';
+    d.dataset.act = 'pick-cmd'; d.dataset.cmd = id;
+    d.innerHTML = `<div class="ce">${C.e}</div><div class="cn">${C.n}</div><div class="cd">${C.d}</div>`;
+    cr.appendChild(d);
+  }
+}
+function metaBuy(id){
+  const it = META_ITEMS.find(x => x.id === id);
+  if(!it || meta.owned[id]) return;
+  if(it.req && !meta.owned[it.req]) return;
+  if(meta.medals < it.cost){ flashTitleMedals(); return; }
+  meta.medals -= it.cost;
+  meta.owned[id] = true;
+  saveMeta();
+  renderTitle();
+}
+function flashTitleMedals(){
+  const el = $('#mMedals');
+  el.style.color = 'var(--bad)';
+  setTimeout(() => { el.style.color = ''; }, 700);
+}
+function showScreen(name){
+  for(const n of ['title','cmd','game','end'])
+    $('#scr-' + n).classList.toggle('hidden', n !== name);
+  if(name === 'title') renderTitle();
+  if(name === 'cmd') renderCmdPick();
+}
+
+// ---------------------------- input (mouse only) ----------------------
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-act]');
+  if(!t) return;
+  const act = t.dataset.act, i = t.dataset.i !== undefined ? +t.dataset.i : -1;
+  switch(act){
+    case 'start-run': showScreen('cmd'); break;
+    case 'pick-cmd':  startRun(t.dataset.cmd); break;
+    case 'to-title':  showScreen('title'); break;
+    case 'meta-buy':  metaBuy(t.dataset.item); break;
+    case 'shop':      clickShop(i); break;
+    case 'line':      clickLine(i); break;
+    case 'stash':     clickStash(i); break;
+    case 'train':     armTrain(); break;
+    case 'freeze':    toggleFreeze(i); break;
+    case 'reroll':    reroll(); break;
+    case 'sell':      sellSelected(); break;
+    case 'pick-drop': pickDrop(i); break;
+    case 'skip-drop': skipDrop(); break;
+    case 'pick-patron': pickPatron(t.dataset.f === 'none' ? null : t.dataset.f); break;
+    case 'fight':
+      if(S && S.phase === 'shop' && S.lineup.some(Boolean)) runBattle();
+      else hint('Recruit at least one unit first!');
+      break;
+    case 'speed':
+      bt.speed = bt.speed >= 2 ? 1 : 2;
+      $('#speedBtn').textContent = bt.speed >= 2 ? '⏩ Speed 2×' : '▶ Speed 1×';
+      break;
+  }
+});
+
+// tooltip follows mouse over any [data-tip]
+const tip = $('#tip');
+let tipTarget = null;
+document.addEventListener('mousemove', ev => {
+  const c = ev.target.closest ? ev.target.closest('[data-tip]') : null;
+  if(c){
+    if(tipTarget !== c || tip.classList.contains('hidden')){
+      tipTarget = c;
+      tip.innerHTML = c.dataset.tip;
+      tip.classList.remove('hidden');
+    } else {
+      tip.innerHTML = c.dataset.tip;
+    }
+    const pad = 14;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    const r = tip.getBoundingClientRect();
+    if(x + r.width > innerWidth - 6)  x = ev.clientX - r.width - pad;
+    if(y + r.height > innerHeight - 6) y = ev.clientY - r.height - pad;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  } else if(tipTarget){
+    tipTarget = null;
+    tip.classList.add('hidden');
+  }
+});
+window.addEventListener('resize', () => { /* fluid layout: flex + clamp() */ });
+
+// ---------------------------- debug handle ----------------------------
+window.__wb = {
+  get state(){ return S; },
+  get meta(){ return meta; },
+  get battle(){ return bt; },
+  get sel(){ return sel; },
+  UNITS, ITEMS, FACTIONS, COMMANDERS, META_ITEMS, synOf,
+  startRun, startRound, genEnemy, runBattle, endRun, reroll, sellSelected,
+  clickShop, clickLine, clickStash, armTrain, toggleFreeze, metaBuy, showScreen, saveMeta,
+  pickDrop, skipDrop, pickPatron, levelUp,
+  fast(mult = 60){ bt.speed = mult; },
+  setShop(keys){ S.shop = keys.map(k => k ? {key:k, frozen:false} : null); renderShopPhase(); },
+  give(gold){ S.gold += gold; renderShopPhase(); },
+  giveItem(k){ if(S.stash.length < STASH_MAX){ S.stash.push(k); renderShopPhase(); } },
+  resetMeta(){ meta = {medals:0, trophies:0, battleWins:0, runs:0, owned:{}}; saveMeta(); renderTitle(); },
+};
+
+// ---------------------------- boot ------------------------------------
+showScreen('title');
+</script>
+</body>
+</html>

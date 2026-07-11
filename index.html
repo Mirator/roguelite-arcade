@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roguelite PoC Arcade</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0f14;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+  }
+  h1 {
+    font-size: 2.2rem;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, #f5c453, #e86a5c);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .sub { color: #8a8f9c; margin-bottom: 40px; font-size: 1rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 1100px;
+  }
+  a.card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: #161a22;
+    border: 1px solid #262c38;
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  a.card:hover {
+    transform: translateY(-4px);
+    border-color: #f5c45366;
+    box-shadow: 0 8px 30px rgba(0,0,0,.45);
+  }
+  .icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+  .card h2 { font-size: 1.15rem; margin-bottom: 6px; color: #f5c453; }
+  .genre { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: #6f7685; margin-bottom: 10px; }
+  .card p { font-size: .88rem; color: #aab0bd; line-height: 1.45; margin-bottom: 12px; }
+  .ctrl { font-size: .78rem; color: #7ec8a5; }
+  footer { margin-top: 48px; color: #565c68; font-size: .8rem; }
+</style>
+</head>
+<body>
+  <h1>Roguelite PoC Arcade</h1>
+  <p class="sub">Five prototypes · 100% touchpad — move, click, drag. No keyboard needed.</p>
+  <div class="grid">
+    <a class="card" href="games/depths.html">
+      <span class="icon">🕯️</span>
+      <div class="genre">Classic roguelike RPG</div>
+      <h2>Depths</h2>
+      <p>Pick a class — Warrior, Ranger, Alchemist — and dive for the Amulet on depth 10. Abilities, level-up boons, cursed gear, shops, champions, and a Soul Shrine that upgrades every future run.</p>
+      <div class="ctrl">Click a tile to walk · click monsters to fight · click abilities</div>
+    </a>
+    <a class="card" href="games/swarm.html">
+      <span class="icon">🌀</span>
+      <div class="genre">Survivors / auto-shooter</div>
+      <h2>Swarm</h2>
+      <p>Your hero chases the cursor, weapons fire on their own — now with sound, evolutions, artillery that shells campers, elite walls, and double bosses. Surviving 30:00 must be earned.</p>
+      <div class="ctrl">Move cursor to steer · dodge the red circles · click upgrades</div>
+    </a>
+    <a class="card" href="games/loopline.html">
+      <span class="icon">♻️</span>
+      <div class="genre">Idle tactics</div>
+      <h2>Loopline</h2>
+      <p>Your hero walks the loop alone — you shape the world. Adjacency synergies (Blood Grove, River, corrupted Villages), gear rarities, a fair Colossus at loop 4, a two-phase Lich at 8, NG+ and a camp meta-shop.</p>
+      <div class="ctrl">Click a card, click a tile · click gear to equip</div>
+    </a>
+    <a class="card" href="games/warband.html">
+      <span class="icon">⚔️</span>
+      <div class="genre">Strategic auto-battler</div>
+      <h2>Warband</h2>
+      <p>Pick a commander, draft around four faction synergies, equip spoils on your units, and scout the exact enemy lineup before every fight. Economy with interest — every gold is a decision.</p>
+      <div class="ctrl">Click a unit, click a slot · train, freeze, reroll, equip</div>
+    </a>
+    <a class="card" href="games/dungeondeal.html">
+      <span class="icon">🂠</span>
+      <div class="genre">Card dungeon</div>
+      <h2>Dungeon Deal</h2>
+      <p>A 4×4 grid of fate — you move into every card you take. Keys, spells with targeting, relics, level-ups, events, a mini-boss on floor 5 and a two-stage Depth Lord on floor 10.</p>
+      <div class="ctrl">Click adjacent cards · hover to preview exact outcomes</div>
+    </a>
+  </div>
+  <footer>Built as single-file HTML prototypes — no dependencies, no build step.</footer>
+</body>
+</html>
