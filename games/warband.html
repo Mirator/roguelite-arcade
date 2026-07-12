@@ -252,6 +252,47 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 #endTitle.win{color:var(--gold)} #endTitle.lose{color:var(--bad)}
 .trophyBig{font-size:clamp(44px,8vw,96px);filter:drop-shadow(0 6px 24px #f1c40f55);animation:bounceIn .6s ease-out}
 @keyframes bounceIn{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+/* ============ arcade nav + menu ============ */
+#navBtns{position:fixed;top:8px;right:10px;z-index:80;display:flex;gap:6px}
+.navB{
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--dim);
+  font-size:17px;line-height:1;cursor:pointer;text-decoration:none;
+  transition:color .15s, border-color .15s, background .15s;
+}
+.navB:hover{color:var(--gold);border-color:var(--gold);background:#232d3d}
+#menuOv{
+  position:fixed;inset:0;z-index:85;display:flex;align-items:center;justify-content:center;
+  background:#0d1117d9;backdrop-filter:blur(3px);
+}
+#menuPanel{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 26px;
+  display:flex;flex-direction:column;gap:10px;min-width:240px;box-shadow:0 12px 40px #000a;
+  animation:bannerIn .25s ease-out;
+}
+#menuPanel h3{text-align:center;font-size:20px;letter-spacing:.06em;margin-bottom:4px}
+.mBtn{text-align:center;text-decoration:none}
+.mNote{color:#5f7089;font-size:10.5px;text-align:center;margin-top:2px}
+/* affordance details */
+.btn:disabled{cursor:not-allowed}
+.mItem.locked{cursor:not-allowed}
+.dropItem.off{cursor:not-allowed}
+.card.swapOk{border-color:#5f7ca6;box-shadow:0 0 8px #5f7ca655}
+#hud{padding-right:88px}
+#hud .goldPill{border-color:#c9a40c66;background:linear-gradient(180deg,#2a2716 0%,var(--panel2) 80%)}
+#hud .goldPill .fc{color:#cdb45e}
+/* enemy scout panel: visually hostile territory */
+#scout{
+  border-color:#6a3a44;
+  background:linear-gradient(180deg,#241a20 0%,#1a161d 100%);
+  box-shadow:inset 0 0 24px #d9483811;
+}
+#scout::before{
+  content:'⚔️ ENEMY — NEXT BATTLE';
+  position:absolute;top:-8px;left:14px;background:#472a32;color:#e8b4ab;
+  font-size:9px;font-weight:900;letter-spacing:.14em;border-radius:8px;padding:2px 8px;
+}
+#scout{position:relative}
 /* tooltip */
 #tip{
   position:fixed;z-index:100;pointer-events:none;background:#0b0f16f2;border:1px solid var(--line);
@@ -299,7 +340,7 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
     <header id="hud">
       <span class="pill">Round <span id="hRound">1</span>/10</span>
       <span class="pill" id="hLives">❤️❤️❤️❤️❤️</span>
-      <span class="pill">🪙 <span id="hGold">10</span> <span class="fc" id="hInt"></span></span>
+      <span class="pill goldPill">🪙 <span id="hGold">10</span> <span class="fc" id="hInt"></span></span>
       <span class="pill">⚔️ Wins <span id="hWins">0</span></span>
       <span class="pill" id="hCmd">🎯</span>
       <span class="pill hidden" id="hPatron"></span>
@@ -362,9 +403,23 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
       <div class="ctlRow">
         <button class="btn primary" data-act="start-run">▶ NEW RUN</button>
         <button class="btn" data-act="to-title">🏰 Title</button>
+        <a class="btn" href="../index.html">⌂ Back to Arcade</a>
       </div>
     </div>
   </section>
+</div>
+<div id="navBtns">
+  <button id="menuBtn" class="navB" data-act="menu-open" title="Menu (Esc)">☰</button>
+  <a id="homeBtn" class="navB" href="../index.html" title="Back to Arcade">⌂</a>
+</div>
+<div id="menuOv" class="hidden">
+  <div id="menuPanel">
+    <h3>⚔️ WAR<span style="color:var(--gold)">BAND</span></h3>
+    <button class="btn primary mBtn" data-act="menu-close">▶ Resume</button>
+    <button class="btn danger mBtn" data-act="menu-abandon" id="abandonBtn">🏳️ Abandon Run</button>
+    <a class="btn mBtn" href="../index.html">⌂ Back to Arcade</a>
+    <div class="mNote">Esc toggles this menu</div>
+  </div>
 </div>
 <div id="tip" class="hidden"></div>
 
@@ -471,7 +526,7 @@ let meta = loadMeta();
 // ---------------------------- run state ------------------------------
 let S = null;
 let sel = null;   // {type:'shop'|'line'|'stash'|'xp', i}
-let bt = {speed:1, running:false, P:[], E:[], syn:null, necroUsed:false};
+let bt = {speed:1, running:false, paused:false, abort:false, P:[], E:[], syn:null, necroUsed:false};
 let hintTimer = null;
 
 function goldBonus(){ return (meta.owned.gold1?1:0) + (meta.owned.gold2?1:0); }
@@ -582,11 +637,11 @@ function genEnemy(round){
     const key = (Math.random() < .7 && focusPool.length) ? pick(focusPool) : pick(pool);
     const u = newUnit(key);
     let lvl = 1;
-    if(Math.random() < (round - 2) * 0.13) lvl++;
-    if(Math.random() < (round - 6) * 0.16) lvl++;
+    if(Math.random() < (round - 2) * 0.17) lvl++;
+    if(Math.random() < (round - 5) * 0.18) lvl++;
     while(u.lvl < Math.min(lvl, MAX_LVL)) levelUp(u);
     u.atk += bAtk; u.hp += bHp;
-    if(round >= 4 && Math.random() < 0.18 + round * 0.03) u.item = pick(Object.keys(ITEMS));
+    if(round >= 4 && Math.random() < 0.22 + round * 0.03) u.item = pick(Object.keys(ITEMS));
     band.push(u);
   }
   const score = u => {
@@ -639,8 +694,9 @@ function mkCard(u, opts = {}){
   return d;
 }
 function mkEmptySlot(i){
+  // highlight empty slots as valid targets when placing (shop sel) or moving (line sel)
   const d = document.createElement('div');
-  d.className = 'card slotEmpty' + (sel && sel.type === 'shop' ? ' dropOk' : '');
+  d.className = 'card slotEmpty' + (sel && (sel.type === 'shop' || sel.type === 'line') ? ' dropOk' : '');
   d.dataset.act = 'line'; d.dataset.i = i;
   d.textContent = '+';
   return d;
@@ -704,6 +760,8 @@ function renderShopPhase(){
     const opts = {act:'line', i};
     if(sel && sel.type === 'shop' && S.shop[sel.i] && S.shop[sel.i].key === u.key && u.lvl < MAX_LVL) opts.cls = 'mergeable';
     if(sel && sel.type === 'xp' && u.lvl < MAX_LVL) opts.cls = 'mergeable';
+    if(sel && sel.type === 'stash' && S.stash[sel.i]) opts.cls = 'mergeable';        // valid equip target
+    if(sel && sel.type === 'line' && sel.i !== i) opts.cls = 'swapOk';               // valid swap target
     const c = mkCard(u, opts);
     if(sel && sel.type === 'line' && sel.i === i) c.classList.add('sel');
     lr.appendChild(c);
@@ -893,13 +951,19 @@ function nextRound(){
 }
 
 // ---------------------------- battle ----------------------------------
-function wait(ms){ return new Promise(r => setTimeout(r, ms / bt.speed)); }
+function wait(ms){
+  return new Promise(r => setTimeout(async () => {
+    while(bt.paused && !bt.abort) await new Promise(p => setTimeout(p, 120));
+    r();
+  }, ms / bt.speed));
+}
 function log(msg){
   const b = $('#blog');
   const d = document.createElement('div');
   d.textContent = msg;
   b.appendChild(d);
   while(b.children.length > 8) b.removeChild(b.firstChild);
+  b.scrollTop = b.scrollHeight;
 }
 function mkFighter(u, side){
   const U = UNITS[u.key];
@@ -1210,6 +1274,7 @@ async function runBattle(){
   S.phase = 'battle';
   bt.running = true;
   bt.necroUsed = false;
+  bt.abort = false;
   bt.P = S.lineup.filter(Boolean).map(u => mkFighter(u, 'P'));
   bt.E = S.enemy.map(u => mkFighter(u, 'E'));
   bt.syn = {P:synOf(bt.P), E:synOf(bt.E)};
@@ -1241,10 +1306,11 @@ async function runBattle(){
     if(bt.E[i] && bt.E[i].alive) await startAbility(bt.E[i], bt.E, bt.P);
   }
   await processDeaths(bt.P, bt.E);
+  if(bt.abort){ bt.running = false; return; }
 
   // exchanges
   let turns = 0;
-  while(alive(bt.P) && alive(bt.E) && ++turns <= 60){
+  while(!bt.abort && alive(bt.P) && alive(bt.E) && ++turns <= 60){
     const a = front(bt.P), b = front(bt.E);
     a.el.classList.add('lungeR'); b.el.classList.add('lungeL');
     await wait(230);
@@ -1276,6 +1342,7 @@ async function runBattle(){
   }
 
   // result
+  if(bt.abort){ bt.running = false; return; }
   const pAlive = alive(bt.P), eAlive = alive(bt.E);
   let result = 'draw';
   if(pAlive && !eAlive) result = 'win';
@@ -1381,6 +1448,36 @@ function showScreen(name){
   if(name === 'cmd') renderCmdPick();
 }
 
+// ---------------------------- pause menu -------------------------------
+let menuOpen = false, abandonArmed = false;
+function refreshMenu(){
+  const ab = $('#abandonBtn');
+  const active = S && S.phase !== 'over' && !$('#scr-game').classList.contains('hidden');
+  ab.disabled = !active;
+  ab.textContent = abandonArmed ? '⚠️ Really abandon? Click again' : '🏳️ Abandon Run';
+}
+function openMenu(){
+  if(menuOpen) return;
+  menuOpen = true; abandonArmed = false;
+  if(S && S.phase === 'battle') bt.paused = true;
+  refreshMenu();
+  $('#menuOv').classList.remove('hidden');
+}
+function closeMenu(){
+  if(!menuOpen) return;
+  menuOpen = false; abandonArmed = false;
+  bt.paused = false;
+  $('#menuOv').classList.add('hidden');
+}
+function toggleMenu(){ menuOpen ? closeMenu() : openMenu(); }
+function abandonRun(){
+  if(!S || S.phase === 'over') return;
+  if(!abandonArmed){ abandonArmed = true; refreshMenu(); return; }
+  if(S.phase === 'battle'){ bt.abort = true; }
+  closeMenu();
+  endRun(false);   // counts as a fallen run — medals for rounds reached, meta stays consistent
+}
+
 // ---------------------------- input (mouse only) ----------------------
 document.addEventListener('click', ev => {
   const t = ev.target.closest('[data-act]');
@@ -1401,6 +1498,9 @@ document.addEventListener('click', ev => {
     case 'pick-drop': pickDrop(i); break;
     case 'skip-drop': skipDrop(); break;
     case 'pick-patron': pickPatron(t.dataset.f === 'none' ? null : t.dataset.f); break;
+    case 'menu-open':  openMenu(); break;
+    case 'menu-close': closeMenu(); break;
+    case 'menu-abandon': abandonRun(); break;
     case 'fight':
       if(S && S.phase === 'shop' && S.lineup.some(Boolean)) runBattle();
       else hint('Recruit at least one unit first!');
@@ -1437,6 +1537,10 @@ document.addEventListener('mousemove', ev => {
   }
 });
 window.addEventListener('resize', () => { /* fluid layout: flex + clamp() */ });
+// Esc toggles the pause menu (bonus convenience; the game itself stays mouse-only)
+document.addEventListener('keydown', ev => {
+  if(ev.key === 'Escape'){ ev.preventDefault(); toggleMenu(); }
+});
 
 // ---------------------------- debug handle ----------------------------
 window.__wb = {

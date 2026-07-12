@@ -48,6 +48,16 @@
     border-color: #f5c45366;
     box-shadow: 0 8px 30px rgba(0,0,0,.45);
   }
+  a.card:active { transform: translateY(-1px); transition-duration: .05s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .grid a.card { animation: rise .45s ease backwards; }
+  .grid a.card:nth-child(1) { animation-delay: .03s; }
+  .grid a.card:nth-child(2) { animation-delay: .09s; }
+  .grid a.card:nth-child(3) { animation-delay: .15s; }
+  .grid a.card:nth-child(4) { animation-delay: .21s; }
+  .grid a.card:nth-child(5) { animation-delay: .27s; }
+  footer a { color: #8a8f9c; text-decoration: none; border-bottom: 1px solid #2a303c; }
+  footer a:hover { color: #f5c453; border-color: #f5c45366; }
   .icon { font-size: 2rem; margin-bottom: 10px; display: block; }
   .card h2 { font-size: 1.15rem; margin-bottom: 6px; color: #f5c453; }
   .genre { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: #6f7685; margin-bottom: 10px; }
@@ -96,6 +106,6 @@
       <div class="ctrl">Click adjacent cards · hover to preview exact outcomes</div>
     </a>
   </div>
-  <footer>Built as single-file HTML prototypes — no dependencies, no build step.</footer>
+  <footer>Built as single-file HTML prototypes — no dependencies, no build step. · <a href="https://github.com/Mirator/roguelite-arcade">GitHub</a></footer>
 </body>
 </html>

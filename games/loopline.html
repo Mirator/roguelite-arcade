@@ -42,7 +42,7 @@
   /* ---- middle ---- */
   #mid{flex:1; display:flex; min-height:0;}
   #cvwrap{flex:1; position:relative; min-width:0;}
-  #cv{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:pointer;}
+  #cv{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:default;}
   #side{width:276px; flex:0 0 auto; background:var(--panel); border-left:1px solid var(--edge);
     padding:10px 12px; display:flex; flex-direction:column; gap:6px; overflow:hidden;}
   .sect{font-size:10px; letter-spacing:2px; color:var(--dim); margin-top:4px;}
@@ -125,6 +125,33 @@
   .loadrow{display:flex; gap:8px; margin-top:8px; align-items:center;}
   .loadrow .lbl{font-size:10px; color:var(--dim); letter-spacing:1px;}
   .loadrow button{font-size:11px; padding:4px 10px;}
+  /* ---- arcade nav / pause menu / affordance polish ---- */
+  #homebtn{position:fixed; top:9px; right:10px; z-index:70; width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center; background:var(--panel2);
+    border:1px solid var(--edge); border-radius:8px; color:var(--dim); font-size:17px;
+    text-decoration:none; line-height:1;}
+  #homebtn:hover{border-color:var(--gold); color:var(--gold);}
+  #topbar{padding-right:56px;}
+  #btn-pause,#btn-1,#btn-2,#btn-3,#btn-menu{min-width:42px; padding:5px 8px; text-align:center;}
+  button.primary,a.btn.primary{background:var(--gold); color:#161006; border-color:var(--gold); font-weight:700;}
+  button.primary:hover,a.btn.primary:hover{color:#161006; filter:brightness(1.08);}
+  a.btn{display:inline-block; background:var(--panel2); border:1px solid var(--edge); border-radius:6px;
+    padding:9px 18px; font-weight:700; font-size:13px; color:var(--text); text-decoration:none; text-align:center;}
+  a.btn:hover{border-color:var(--gold); color:var(--gold);}
+  #menuov{position:fixed; inset:0; z-index:65; background:#070a10d9; display:flex;
+    align-items:center; justify-content:center;}
+  #menuov.hidden{display:none;}
+  #menu{width:280px; background:var(--panel); border:1px solid var(--edge); border-radius:12px;
+    padding:22px 22px 18px; display:flex; flex-direction:column; gap:9px; box-shadow:0 10px 60px #000;}
+  #menu h2{font-size:16px; letter-spacing:1px; margin-bottom:4px;}
+  #menu .sub{color:var(--dim); font-size:12px; margin-bottom:4px;}
+  #menu button,#menu a.btn{width:100%; padding:10px;}
+  #side .sect{border-top:1px solid var(--edge); padding-top:7px;}
+  #side .sect:first-child{border-top:none; padding-top:0;}
+  .card{will-change:transform;}
+  .card.sel{background:#242e42; border-color:var(--gold);
+    box-shadow:0 6px 16px #e8b34b40, inset 0 1px 0 #e8b34b55;}
+  .card.sel .cn{color:var(--gold);}
 </style>
 </head>
 <body>
@@ -141,6 +168,7 @@
     <button id="btn-2">2x</button>
     <button id="btn-3">3x</button>
     <button id="btn-retreat" class="warn">Retreat to camp</button>
+    <button id="btn-menu" title="Menu (Esc)">☰</button>
   </div>
   <div id="mid">
     <div id="cvwrap"><canvas id="cv"></canvas></div>
@@ -171,6 +199,8 @@
   </div>
   <div id="tt" class="hidden"></div>
   <div id="overlay"><div id="screen"></div></div>
+  <div id="menuov" class="hidden"><div id="menu"></div></div>
+  <a id="homebtn" href="../index.html" title="Back to Arcade">⌂</a>
 
 <script>
 'use strict';
@@ -790,9 +820,10 @@ function endRun(kind){
     st('Supplies earned','<i style="color:var(--gold);font-style:normal">+'+banked+'</i>')+
     st('Camp supplies',meta.supplies)+st('Best loops',meta.best.loops)+st('Wins',meta.best.wins)+
     '</div><div class="btnrow">'+
-    '<button data-act="again">New Run'+(S.ng?' (NG+'+S.ng+')':'')+'</button>'+
+    '<button data-act="again" class="primary">New Run'+(S.ng?' (NG+'+S.ng+')':'')+'</button>'+
     (kind==='victory'?'<button data-act="ng" style="border-color:var(--purple);color:var(--purple)">New Run NG+'+(S.ng+1)+'</button>':'')+
     '<button data-act="title">Camp</button>'+
+    '<a class="btn" href="../index.html">Back to Arcade</a>'+
     '</div>');
 }
 function campHTML(){
@@ -823,8 +854,9 @@ function showTitle(){
     '</ul>'+
     campHTML()+
     (meta.best.loops?'<div class="sub">Best: loop '+meta.best.loops+' &middot; score '+meta.best.score+' &middot; wins '+meta.best.wins+'</div>':'')+
-    '<div class="btnrow"><button data-act="start">Start Run</button>'+
+    '<div class="btnrow"><button data-act="start" class="primary">Start Run</button>'+
     (meta.best.wins>0?'<button data-act="startng" style="border-color:var(--purple);color:var(--purple)">Start NG+1</button>':'')+
+    '<a class="btn" href="../index.html">Back to Arcade</a>'+
     '</div>');
 }
 function showScreen(html){$('screen').innerHTML=html;$('overlay').classList.remove('hidden');}
@@ -954,8 +986,8 @@ function drawCombat(){
   }
   ctx.fillStyle='#e8b34b';ctx.font='bold 12px sans-serif';
   ctx.fillText('HERO',px+12,py+20);
-  ctx.fillStyle='#7f8ba0';ctx.font='10px sans-serif';
-  ctx.fillText(Math.max(0,Math.round(S.hero.hp))+'/'+S.stats.maxHP,px+pw-58,py+20);
+  ctx.fillStyle='#c6d0dd';ctx.font='bold 12px sans-serif';
+  ctx.fillText(Math.max(0,Math.round(S.hero.hp))+'/'+S.stats.maxHP,px+pw-72,py+20);
   bar(px+12,py+26,pw-24,10,S.hero.hp/S.stats.maxHP,'#e5636c','#241017');
   bar(px+12,py+40,pw-24,4,clamp(c.heroT/HERO_INT,0,1),'#e8b34b','#1b2330');
   c.enemies.forEach((e,i)=>{
@@ -968,8 +1000,8 @@ function drawCombat(){
     ctx.font='bold 12px sans-serif';
     ctx.fillText(e.name+traitIcons(e),px+12,ey+12);
     if(e.hp>0){
-      ctx.fillStyle='#7f8ba0';ctx.font='10px sans-serif';
-      ctx.fillText(Math.round(e.hp)+'/'+e.maxHP,px+pw-58,ey+12);
+      ctx.fillStyle='#c6d0dd';ctx.font='bold 12px sans-serif';
+      ctx.fillText(Math.round(e.hp)+'/'+e.maxHP,px+pw-72,ey+12);
       bar(px+12,ey+18,pw-24,8,e.hp/e.maxHP,e.color,'#141a24');
       if(!e.passive)bar(px+12,ey+30,pw-24,3,clamp(e.t/e.int,0,1),'#7f8ba0','#1b2330');
     }else{
@@ -1100,6 +1132,10 @@ document.addEventListener('mousemove',e=>{
 cv.addEventListener('mousemove',e=>{
   const r=cv.getBoundingClientRect();
   hoverCell=cellAt(e.clientX-r.left,e.clientY-r.top);
+  // affordance: pointer over legal tiles while a card is selected
+  if(S&&S.phase==='run'&&S.selCard>=0&&legalSet){
+    cv.style.cursor=(hoverCell&&legalSet.has(key(hoverCell.x,hoverCell.y)))?'pointer':'crosshair';
+  }else cv.style.cursor='default';
 });
 cv.addEventListener('click',e=>{
   if(!S||S.phase!=='run')return;
@@ -1142,6 +1178,46 @@ $('btn-1').addEventListener('click',()=>setSpeed(1));
 $('btn-2').addEventListener('click',()=>setSpeed(2));
 $('btn-3').addEventListener('click',()=>setSpeed(3));
 $('btn-retreat').addEventListener('click',()=>{if(S&&S.phase==='run')endRun('retreat');});
+/* ---- pause menu (UI only) ---- */
+let menuPrevSpeed=1;
+function menuMainHTML(){
+  return '<h2>Paused</h2>'+
+    '<button data-mact="resume" class="primary">Resume</button>'+
+    '<button data-mact="newrun">New Run</button>'+
+    '<a class="btn" href="../index.html">Back to Arcade</a>';
+}
+function menuConfirmHTML(){
+  return '<h2>Abandon run?</h2>'+
+    '<div class="sub">Current progress is lost - nothing is banked.</div>'+
+    '<button data-mact="confirmyes" class="warn">Yes, abandon &amp; restart</button>'+
+    '<button data-mact="confirmno">Cancel</button>';
+}
+function openMenu(){
+  if(!S||S.phase!=='run')return;
+  menuPrevSpeed=S.speed>0?S.speed:menuPrevSpeed;
+  setSpeed(0);
+  $('menu').innerHTML=menuMainHTML();
+  $('menuov').classList.remove('hidden');
+}
+function closeMenu(resume){
+  $('menuov').classList.add('hidden');
+  if(resume!==false&&S&&S.phase==='run')setSpeed(menuPrevSpeed||1);
+}
+$('btn-menu').addEventListener('click',openMenu);
+$('menuov').addEventListener('click',e=>{
+  if(e.target===$('menuov')){closeMenu();return;}
+  const b=e.target.closest('[data-mact]');if(!b)return;
+  const act=b.dataset.mact;
+  if(act==='resume')closeMenu();
+  else if(act==='newrun')$('menu').innerHTML=menuConfirmHTML();
+  else if(act==='confirmno')$('menu').innerHTML=menuMainHTML();
+  else if(act==='confirmyes'){closeMenu(false);startRun(S?S.ng:0);}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if(!$('menuov').classList.contains('hidden'))closeMenu();
+  else openMenu();
+});
 $('overlay').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const [act,arg]=b.dataset.act.split(':');

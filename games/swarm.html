@@ -147,12 +147,27 @@
     color: #9db3d0; font-size: 13px; cursor: pointer; letter-spacing: 1px;
   }
   .topbtn:hover { border-color: #6ea8ff; color: #e8eefb; }
-  #pauseBtn { right: 14px; }
-  #muteBtn { right: 58px; font-size: 15px; }
-  #dmgBtn { right: 102px; font-size: 10px; font-weight: 700; }
+  #homeBtn { right: 14px; z-index: 20; font-size: 16px; }
+  #pauseBtn { right: 58px; }
+  #muteBtn { right: 102px; font-size: 15px; }
+  #dmgBtn { right: 146px; font-size: 10px; font-weight: 700; }
   .topbtn.off { opacity: 0.45; }
   .clickhint { margin-top: 14px; font-size: 14px; color: #8fa0bd; animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+  .sectlabel { font-size: 10px; letter-spacing: 3px; color: #66748e; text-transform: uppercase; margin: 2px 0 -6px; }
+  #startBtn { animation: btnglow 2.2s ease-in-out infinite; }
+  @keyframes btnglow {
+    0%, 100% { box-shadow: 0 0 14px rgba(110, 168, 255, 0.25); }
+    50% { box-shadow: 0 0 30px rgba(110, 168, 255, 0.55); }
+  }
+  .btnrow { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .btnrow button.small { margin-top: 0; }
+  .pausemenu { display: flex; flex-direction: column; gap: 10px; width: 240px; margin-top: 18px; }
+  .pausemenu button.small { margin-top: 0; padding: 11px 18px; font-size: 13px; }
+  .startw:hover:not(.locked):not(.sel) { border-color: #3d5d9e; color: #e8eefb; }
+  .startw.locked { cursor: not-allowed; }
+  .tnode:hover:not(.locked):not(.owned):not(.root) { border-color: #6ea8ff; }
+  .tnode.locked { cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -160,6 +175,7 @@
 <button id="pauseBtn" class="topbtn hidden" title="Pause">❚❚</button>
 <button id="muteBtn" class="topbtn hidden" title="Sound on/off">♪</button>
 <button id="dmgBtn" class="topbtn hidden" title="Damage numbers on/off">DMG</button>
+<button id="homeBtn" class="topbtn" title="Back to Arcade">⌂</button>
 
 <div id="titleScreen" class="overlay">
   <h1>SWARM</h1>
@@ -174,6 +190,7 @@
         the upgrade tree. Die, buy, go again.<br>
         <span style="color:#7f8ca3;font-size:12px">Touchpad only: move the cursor to steer. Clicks are just for menus.</span>
       </div>
+      <div class="sectlabel">Loadout — starting weapon</div>
       <div class="startrow" id="startRow"></div>
       <button class="big" id="startBtn">START RUN</button>
       <div class="clickhint" id="bestHint"></div>
@@ -214,6 +231,11 @@
   <h2>PAUSED</h2>
   <div class="sub">Take a breath</div>
   <button class="big" id="resumeBtn">RESUME</button>
+  <div class="pausemenu">
+    <button class="small" id="pauseNewRunBtn">New Run</button>
+    <button class="small" id="pauseMuteBtn">Sound: ON</button>
+    <button class="small" id="pauseHomeBtn">⌂ Back to Arcade</button>
+  </div>
 </div>
 
 <div id="deathScreen" class="overlay hidden">
@@ -223,7 +245,10 @@
   <div class="best" id="coinLine" style="color:#57e6b7"></div>
   <div class="dmgtable" id="dmgTable"></div>
   <div class="sparkwrap"><canvas id="dpsCanvas" width="340" height="56"></canvas><div class="sparklabel">damage per second</div></div>
-  <button class="big" id="newRunBtn">NEW RUN</button>
+  <div class="btnrow">
+    <button class="big" id="newRunBtn">NEW RUN</button>
+    <button class="small" id="deathHomeBtn">⌂ Back to Arcade</button>
+  </div>
 </div>
 
 <div id="winScreen" class="overlay hidden">
@@ -231,7 +256,10 @@
   <div class="stats" id="winStats"></div>
   <div class="dmgtable" id="winDmgTable"></div>
   <div class="sparkwrap"><canvas id="winDpsCanvas" width="340" height="56"></canvas><div class="sparklabel">damage per second</div></div>
-  <button class="big" id="winRunBtn">NEW RUN</button>
+  <div class="btnrow">
+    <button class="big" id="winRunBtn">NEW RUN</button>
+    <button class="small" id="winHomeBtn">⌂ Back to Arcade</button>
+  </div>
 </div>
 
 <script>
@@ -1559,7 +1587,7 @@ function startRun() {
 el("startBtn").addEventListener("click", startRun);
 el("newRunBtn").addEventListener("click", (e) => { e.stopPropagation(); startRun(); });
 el("winRunBtn").addEventListener("click", (e) => { e.stopPropagation(); startRun(); });
-pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); if (state === ST_PLAY) setState(ST_PAUSE); });
+pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); if (state === ST_PLAY) { setState(ST_PAUSE); syncPauseMenu(); } });
 el("resumeBtn").addEventListener("click", (e) => { e.stopPropagation(); if (state === ST_PAUSE) setState(ST_PLAY); });
 pauseScreen.addEventListener("click", () => { if (state === ST_PAUSE) setState(ST_PLAY); });
 muteBtn.addEventListener("click", (e) => {
@@ -1576,6 +1604,40 @@ dmgBtn.addEventListener("click", (e) => {
 });
 el("buyBtn").addEventListener("click", (e) => { e.stopPropagation(); if (selNode) buyNode(selNode); });
 el("respecBtn").addEventListener("click", (e) => { e.stopPropagation(); respecTree(); });
+// --- arcade navigation + pause menu ---
+function goHome() { try { window.location.href = "../index.html"; } catch (e) {} }
+el("homeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
+el("deathHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
+el("winHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
+el("pauseHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
+el("pauseMuteBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  muted = !muted;
+  saveJSON("swarm_mute", muted);
+  refreshToggleBtns();
+  syncPauseMenu();
+});
+let newRunArmed = false;
+el("pauseNewRunBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!newRunArmed) {
+    newRunArmed = true;
+    el("pauseNewRunBtn").textContent = "Abandon this run? Click again";
+    return;
+  }
+  newRunArmed = false;
+  startRun();
+});
+function syncPauseMenu() {
+  el("pauseMuteBtn").textContent = "Sound: " + (muted ? "OFF" : "ON");
+  el("pauseNewRunBtn").textContent = "New Run";
+  newRunArmed = false;
+}
+window.addEventListener("keydown", (e) => { // bonus: Esc toggles pause (never required)
+  if (e.key !== "Escape") return;
+  if (state === ST_PLAY) { setState(ST_PAUSE); syncPauseMenu(); }
+  else if (state === ST_PAUSE) setState(ST_PLAY);
+});
 
 // ---------- Spawning director ----------
 let spawnTimer = 0.8;

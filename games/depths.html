@@ -6,11 +6,44 @@
 <title>Depths — Roguelike PoC</title>
 <style>
   html,body{margin:0;padding:0;height:100%;background:#05070a;overflow:hidden}
-  canvas{display:block;cursor:crosshair}
+  canvas{display:block;cursor:default}
+  #navBtns{position:fixed;top:10px;right:10px;display:flex;gap:8px;z-index:20}
+  #navBtns a,#navBtns button{
+    display:flex;align-items:center;justify-content:center;
+    width:34px;height:34px;box-sizing:border-box;
+    background:#161d2bee;border:1px solid #3a4664;border-radius:6px;
+    color:#c9d4e0;font:bold 16px Menlo,Consolas,monospace;text-decoration:none;
+    cursor:pointer;transition:filter .12s,transform .12s;padding:0}
+  #navBtns a:hover,#navBtns button:hover{filter:brightness(1.45);transform:translateY(-1px)}
+  #menuOverlay{position:fixed;inset:0;background:rgba(5,7,10,0.72);z-index:30;
+    display:flex;align-items:center;justify-content:center}
+  #menuOverlay[hidden]{display:none}
+  #menuPanel{background:#0a0e16;border:2px solid #3a4664;padding:26px 30px;
+    min-width:240px;text-align:center}
+  #menuPanel h2{margin:0 0 18px;color:#e8d9a0;font:bold 20px Menlo,Consolas,monospace}
+  #menuPanel button,#menuPanel a{
+    display:block;width:100%;box-sizing:border-box;margin:9px 0;padding:10px 14px;
+    background:#161d2b;border:1px solid #3a4664;border-radius:4px;
+    color:#c9d4e0;font:bold 13px Menlo,Consolas,monospace;text-decoration:none;
+    cursor:pointer;transition:filter .12s,transform .12s}
+  #menuPanel button:hover,#menuPanel a:hover{filter:brightness(1.45);transform:translateY(-1px)}
+  #menuPanel #mNewRun.confirm{border-color:#ff5c5c;color:#ff8a8a}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="navBtns">
+  <button id="menuBtn" title="Menu (Esc)" aria-label="Menu">☰</button>
+  <a id="homeBtn" href="../index.html" title="Back to Arcade" aria-label="Back to Arcade">⌂</a>
+</div>
+<div id="menuOverlay" hidden>
+  <div id="menuPanel">
+    <h2>Paused</h2>
+    <button id="mResume">Resume</button>
+    <button id="mNewRun">New Run</button>
+    <a id="mArcade" href="../index.html">Back to Arcade</a>
+  </div>
+</div>
 <script>
 (function(){
 'use strict';
@@ -185,6 +218,9 @@ var titleShrine = false;
 var S = null;
 var ui = { mode:'play', targetKind:null };  // 'play'|'inventory'|'shop'|'target'|'levelup'
 var minimapOn = true;
+var menuOpen = false;
+var fadeT0 = -9999;
+function startFade(){ fadeT0 = performance.now(); }
 
 var floaters = [], projectiles = [], booms = [];
 var shakeT0 = -9999, shakeMag = 0;
@@ -592,9 +628,10 @@ function newRun(clsKey){
   ui.mode = 'play'; ui.targetKind = null;
   titleShrine = false;
   genFloor(1);
-  log('You descend as a '+cdef.name+'.', cdef.color);
+  log('You descend as '+(cls==='alchemist'?'an ':'a ')+cdef.name+'.', cdef.color);
   log('The Amulet of Yendor lies on depth '+MAX_DEPTH+'.', '#c9a0ff');
   screen = 'game';
+  startFade();
 }
 
 // ---------- FOV ----------
@@ -1050,6 +1087,7 @@ function die(){
   saveBest(S.depth);
   bankSouls(false);
   screen = 'dead';
+  startFade();
   log('You died.', '#ff5c5c');
 }
 function winGame(){
@@ -1059,6 +1097,7 @@ function winGame(){
   lsSet('depths_wins', loadWins()+1);
   bankSouls(true);
   screen = 'win';
+  startFade();
 }
 
 // ---------- Player actions ----------
@@ -1424,7 +1463,7 @@ function rangerCanShoot(m){
          S.vis[idx(m.x,m.y)] && losClear(m.x,m.y,S.px,S.py);
 }
 function walkTick(now){
-  if (ui.mode !== 'play') return;
+  if (menuOpen || ui.mode !== 'play') return;
   if (!walkQueue.length && !walkAttack) return;
   if (now - lastStep < STEP_MS) return;
   lastStep = now;
@@ -1558,8 +1597,10 @@ function levelLayout(){
   return { panel:p, rows:rows };
 }
 function endLayout(){
-  var p = panelBase(Math.min(480, W-40), 320);
-  return { panel:p, newRun:{ x:Math.round(W/2-80), y:p.y+258, w:160, h:38 } };
+  var p = panelBase(Math.min(480, W-40), 352);
+  return { panel:p,
+           newRun:{ x:Math.round(W/2-80), y:p.y+258, w:160, h:38 },
+           arcade:{ x:Math.round(W/2-80), y:p.y+304, w:160, h:26 } };
 }
 function titleLayout(){
   var w = Math.min(660, Math.max(320, W-30)), h = 470;
@@ -1618,12 +1659,15 @@ canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 canvas.addEventListener('mousedown', function(e){
   if (e.button !== 0) return;
   e.preventDefault();
+  if (menuOpen) return;
   layoutFresh();
   var mx = e.clientX, my = e.clientY;
 
   if (screen === 'title'){ titleClick(mx,my); return; }
   if (screen === 'dead' || screen === 'win'){
-    if (hit(endLayout().newRun, mx, my)) screen = 'title';
+    var EL = endLayout();
+    if (hit(EL.newRun, mx, my)){ screen = 'title'; startFade(); }
+    else if (hit(EL.arcade, mx, my)){ window.location.href = '../index.html'; }
     return;
   }
 
@@ -1806,13 +1850,17 @@ function targetClick(mx,my){
 window.addEventListener('keydown', function(e){
   if (screen !== 'game') return;
   if (e.key === 'Escape'){
+    e.preventDefault();
+    if (menuOpen){ closeMenu(); return; }
     if (ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'target'){
       ui.mode = 'play'; ui.targetKind = null;
       if (S.transmuting) S.transmuting = false;
-      e.preventDefault();
+      return;
     }
+    if (ui.mode === 'play') openMenu();
     return;
   }
+  if (menuOpen) return;
   if (ui.mode !== 'play') return;
   if (e.key === 'i' || e.key === 'I'){ ui.mode = 'inventory'; return; }
   var dx=0, dy=0;
@@ -2117,7 +2165,7 @@ function drawMinimap(){
   if (!minimapOn) return;
   var s = 4;
   var mw = COLS*s, mh = ROWS*s;
-  var mx0 = W - mw - 12, my0 = 12;
+  var mx0 = W - mw - 12, my0 = 54;   // below the fixed nav buttons
   ctx.fillStyle = 'rgba(5,7,10,0.85)';
   ctx.fillRect(mx0-3, my0-3, mw+6, mh+6);
   ctx.strokeStyle = '#232c3d'; ctx.lineWidth = 1;
@@ -2463,23 +2511,24 @@ function drawTitle(now){
     var card = TL.cards[c], r = card.rect;
     var cd = CLASSES[card.key];
     var hov = hit(r, mouseX, mouseY);
+    var ry = hov ? r.y-4 : r.y;   // hover lift (visual only; click rect unchanged)
     ctx.fillStyle = hov ? '#1c2740' : '#111723';
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillRect(r.x, ry, r.w, r.h);
     ctx.strokeStyle = hov ? cd.color : '#2a3550';
     ctx.lineWidth = 2;
-    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.strokeRect(r.x, ry, r.w, r.h);
     ctx.fillStyle = cd.color;
     ctx.font = 'bold 24px Menlo, Consolas, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('@', r.x+r.w/2, r.y+30);
+    ctx.fillText('@', r.x+r.w/2, ry+30);
     ctx.font = 'bold 15px Menlo, Consolas, monospace';
-    ctx.fillText(cd.name, r.x+r.w/2, r.y+56);
+    ctx.fillText(cd.name, r.x+r.w/2, ry+56);
     ctx.font = '11px Menlo, Consolas, monospace';
     ctx.fillStyle = '#9fb0c3';
     for (var l=0; l<cd.lines.length; l++)
-      ctx.fillText(cd.lines[l], r.x+r.w/2, r.y+82+l*16);
+      ctx.fillText(cd.lines[l], r.x+r.w/2, ry+82+l*16);
     ctx.fillStyle = '#66788f';
-    ctx.fillText('HP '+ (cd.hp + (hasPerk('vital')?5:0)) +'  Atk '+cd.atkBase, r.x+r.w/2, r.y+r.h-14);
+    ctx.fillText('HP '+ (cd.hp + (hasPerk('vital')?5:0)) +'  Atk '+cd.atkBase, r.x+r.w/2, ry+r.h-14);
   }
 
   var sb = TL.shrine;
@@ -2576,14 +2625,126 @@ function drawEnd(){
   }
 
   var b = L.newRun;
-  ctx.fillStyle = '#1a2233';
+  var hovNR = hit(b, mouseX, mouseY);
+  ctx.fillStyle = hovNR ? '#26314a' : '#1a2233';
   ctx.fillRect(b.x, b.y, b.w, b.h);
   ctx.strokeStyle = '#e8d9a0'; ctx.lineWidth = 2;
   ctx.strokeRect(b.x, b.y, b.w, b.h);
   ctx.fillStyle = '#e8d9a0';
   ctx.font = 'bold 15px Menlo, Consolas, monospace';
   ctx.fillText('New Run', b.x+b.w/2, b.y+b.h/2+1);
+
+  var a = L.arcade;
+  var hovA = hit(a, mouseX, mouseY);
+  ctx.fillStyle = hovA ? '#9fb0c3' : '#66788f';
+  ctx.font = (hovA ? 'bold ' : '')+'12px Menlo, Consolas, monospace';
+  ctx.fillText('⌂ Back to Arcade', a.x+a.w/2, a.y+a.h/2+1);
 }
+
+// ---------- Arcade nav / pause menu (DOM overlay) ----------
+var menuBtn = document.getElementById('menuBtn');
+var menuOverlay = document.getElementById('menuOverlay');
+var mResume = document.getElementById('mResume');
+var mNewRun = document.getElementById('mNewRun');
+var newRunArmed = false;
+function openMenu(){
+  if (screen !== 'game') return;
+  menuOpen = true;
+  stopWalk();
+  newRunArmed = false;
+  mNewRun.textContent = 'New Run';
+  mNewRun.classList.remove('confirm');
+  menuOverlay.hidden = false;
+}
+function closeMenu(){
+  menuOpen = false;
+  menuOverlay.hidden = true;
+}
+menuBtn.addEventListener('click', function(){
+  if (menuOpen) closeMenu(); else openMenu();
+});
+mResume.addEventListener('click', closeMenu);
+mNewRun.addEventListener('click', function(){
+  if (!newRunArmed){
+    newRunArmed = true;
+    mNewRun.textContent = 'Abandon run — sure?';
+    mNewRun.classList.add('confirm');
+    return;
+  }
+  closeMenu();
+  screen = 'title';
+  titleShrine = false;
+  startFade();
+});
+var lastMenuBtnShown = null;
+function syncNav(){
+  var show = (screen === 'game');
+  if (show !== lastMenuBtnShown){
+    menuBtn.style.display = show ? 'flex' : 'none';
+    lastMenuBtnShown = show;
+  }
+  if (!show && menuOpen) closeMenu();
+}
+
+// ---------- Cursor affordance for canvas hot-regions ----------
+function clickableAt(mx,my){
+  if (menuOpen) return false;
+  var i;
+  if (screen === 'title'){
+    if (titleShrine){
+      var SL = shrineLayout();
+      if (hit(SL.close,mx,my)) return true;
+      for (i=0; i<SL.rows.length; i++) if (hit(SL.rows[i].rect,mx,my)) return true;
+      return false;
+    }
+    var TL = titleLayout();
+    if (hit(TL.shrine,mx,my)) return true;
+    for (i=0; i<TL.cards.length; i++) if (hit(TL.cards[i].rect,mx,my)) return true;
+    return false;
+  }
+  if (screen === 'dead' || screen === 'win'){
+    var EL = endLayout();
+    return hit(EL.newRun,mx,my) || hit(EL.arcade,mx,my);
+  }
+  if (!S) return false;
+  if (ui.mode === 'levelup'){
+    var LL = levelLayout();
+    for (i=0; i<LL.rows.length; i++) if (hit(LL.rows[i].rect,mx,my)) return true;
+    return false;
+  }
+  if (ui.mode === 'inventory'){
+    var IL = invLayout();
+    if (hit(IL.close,mx,my)) return true;
+    for (i=0; i<IL.rows.length; i++) if (hit(IL.rows[i].rect,mx,my)) return true;
+    return false;
+  }
+  if (ui.mode === 'shop'){
+    var SH = shopLayout();
+    if (hit(SH.close,mx,my)) return true;
+    for (i=0; i<SH.rows.length; i++) if (hit(SH.rows[i].rect,mx,my)) return true;
+    return false;
+  }
+  if (ui.mode === 'target'){
+    var tt = tileFromPixel(mx,my);
+    return !!(tt && S.vis[idx(tt[0],tt[1])] && my <= H-HUD_H);
+  }
+  var hud = hudLayout();
+  if (hit(hud.potion,mx,my) || hit(hud.ability,mx,my) || hit(hud.inv,mx,my) ||
+      hit(hud.map,mx,my) || (hud.flask && hit(hud.flask,mx,my))) return true;
+  if (my > H-HUD_H) return false;
+  var t = tileFromPixel(mx,my);
+  if (!t) return false;
+  var tx = t[0], ty = t[1], ii = idx(tx,ty);
+  if (!S.seen[ii]) return false;
+  if (tx===S.px && ty===S.py) return true;
+  var m = S.vis[ii] ? monsterAt(tx,ty) : null;
+  if (m || keeperAt(tx,ty)) return true;
+  if (S.map[ii]===1 && hoverPath) return true;   // main listener already pathed this tile
+  return false;
+}
+canvas.addEventListener('mousemove', function(e){
+  canvas.style.cursor = clickableAt(e.clientX, e.clientY) ? 'pointer' : 'default';
+});
 
 // ---------- Debug handle (read-only; used for automated testing) ----------
 window.__D = {
@@ -2606,12 +2767,14 @@ window.__D = {
   get minimap(){ return minimapOn; },
   get souls(){ return loadSouls(); },
   get perks(){ return loadPerks(); },
+  get menuOpen(){ return menuOpen; },
   step: function(){ if (screen === 'game') walkTick(performance.now()); }
 };
 
 // ---------- Main loop ----------
 function frame(now){
   layoutFresh();
+  syncNav();
   ctx.fillStyle = '#05070a';
   ctx.fillRect(0,0,W,H);
 
@@ -2640,6 +2803,14 @@ function frame(now){
     if (ui.mode === 'levelup') drawLevelUp();
     drawHUD();
     if (screen === 'dead' || screen === 'win') drawEnd();
+  }
+  // quick fade-in on screen transitions
+  var ft = (now - fadeT0)/260;
+  if (ft >= 0 && ft < 1){
+    ctx.globalAlpha = 1 - ft;
+    ctx.fillStyle = '#05070a';
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
   }
   requestAnimationFrame(frame);
 }

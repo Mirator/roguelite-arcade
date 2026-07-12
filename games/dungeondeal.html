@@ -30,7 +30,7 @@
   /* ------- top bar ------- */
   #topbar{
     flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
-    padding: 7px 14px; gap:8px; flex-wrap:wrap;
+    padding: 7px 90px 7px 14px; gap:8px; flex-wrap:wrap; /* right padding clears the fixed ⌂/☰ buttons */
   }
   .logo{ font-weight:800; letter-spacing:.06em; font-size:14px; color:var(--ink); }
   .logo .spade{ color:var(--purple); }
@@ -79,7 +79,7 @@
   .card{
     position:absolute; width:var(--cw); height:var(--ch);
     transform: translate(calc(var(--x)*(var(--cw) + var(--gap))), calc(var(--y)*(var(--ch) + var(--gap))));
-    transition: transform .28s cubic-bezier(.3,1.2,.4,1);
+    transition: transform .24s cubic-bezier(.3,1.2,.4,1);
     z-index:2; perspective:700px;
   }
   .card.hero{ z-index:5; }
@@ -113,13 +113,13 @@
     50%{ box-shadow: 0 12px 24px rgba(0,0,0,.6), 0 0 18px 5px rgba(255,60,80,.65); }
   }
 
-  .c-inner.dealin{ animation: dealIn .4s cubic-bezier(.25,1.1,.4,1) backwards; }
+  .c-inner.dealin{ animation: dealIn .34s cubic-bezier(.25,1.1,.4,1) backwards; }
   @keyframes dealIn{
     0%{ transform: rotateY(95deg) scale(.65); opacity:0; }
     60%{ opacity:1; }
     100%{ transform: rotateY(0) scale(1); }
   }
-  .c-inner.consume{ animation: consumeOut .28s ease-in forwards; }
+  .c-inner.consume{ animation: consumeOut .22s ease-in forwards; }
   @keyframes consumeOut{ to{ transform: rotateY(-80deg) scale(.45); opacity:0; } }
   .c-inner.hurt{ animation: hurtShake .45s ease; }
   @keyframes hurtShake{
@@ -279,6 +279,61 @@
   .stat-line{ font-size:13.5px; color:var(--dim); margin:3px 0; }
   .stat-line b{ color:var(--ink); }
   .bigicon{ font-size:42px; margin-bottom:5px; }
+
+  /* ------- arcade nav (fixed top-right) ------- */
+  #navbtns{
+    position:fixed; top:8px; right:10px; z-index:96;
+    display:flex; gap:6px;
+  }
+  .nav-btn{
+    width:32px; height:32px; border-radius:9px;
+    background:#1e1930; border:1px solid #3a3154; color:var(--dim);
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:16px; font-family:inherit; cursor:pointer; text-decoration:none;
+    transition: transform .12s, box-shadow .12s, color .12s, border-color .12s;
+  }
+  .nav-btn:hover{
+    transform: translateY(-2px); color:var(--ink); border-color:#6b5aa4;
+    box-shadow: 0 6px 14px rgba(110,80,255,.25);
+  }
+
+  /* ------- pause menu ------- */
+  #menu{
+    position:fixed; inset:0; z-index:95; display:none;
+    align-items:center; justify-content:center;
+    background: rgba(8,6,14,.78); backdrop-filter: blur(6px);
+  }
+  #menu.show{ display:flex; }
+  .menu-panel{
+    background: linear-gradient(170deg,#211a33,#151020);
+    border:1px solid #453a68; border-radius:16px; padding:22px 26px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.7); text-align:center;
+    min-width:250px; animation: panelIn .22s cubic-bezier(.3,1.3,.4,1);
+  }
+  .menu-panel h2{ font-size:17px; margin-bottom:12px; letter-spacing:.05em; }
+  .menu-panel .btn{ display:block; width:100%; margin:7px 0; }
+  .menu-panel .m-note{ font-size:12px; color:var(--dim); margin:4px 0 8px; }
+
+  /* ------- affordances: dim non-actionable cards ------- */
+  .c-inner{ transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, filter .2s ease, opacity .2s ease; }
+  .card:not(.adj):not(.target):not(.sel):not(.hero) .c-inner{
+    filter: brightness(.72) saturate(.8); opacity:.92;
+  }
+  .card:not(.reachable):not(.target){ cursor:default; }
+
+  /* hero stands out */
+  .card.hero .c-inner{
+    box-shadow: 0 0 18px rgba(232,215,106,.22), 0 0 0 1px rgba(232,215,106,.25), 0 4px 14px rgba(0,0,0,.55);
+  }
+
+  /* end-screen stats block */
+  .stats-grid{
+    display:grid; grid-template-columns:auto auto; gap:5px 22px;
+    margin:12px auto 8px; width:max-content; text-align:left; font-size:13.5px;
+  }
+  .stats-grid .sg-l{ color:var(--dim); }
+  .stats-grid .sg-v{ font-weight:800; color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; }
+  .end-btns{ margin-top:10px; }
 </style>
 </head>
 <body>
@@ -302,6 +357,11 @@
 <div id="tooltip"></div>
 <div id="flash"></div>
 <div id="overlay"></div>
+<div id="navbtns">
+  <button class="nav-btn" id="btn-menu" title="Menu">☰</button>
+  <a class="nav-btn" id="btn-home" href="../index.html" title="Back to Arcade">⌂</a>
+</div>
+<div id="menu"></div>
 
 <script>
 "use strict";
@@ -615,20 +675,22 @@ function updateReachable(){
     const cell = +el.dataset.cell;
     const isSlot = el.classList.contains("slot");
     if(S.targeting){
-      el.classList.remove("reachable");
+      el.classList.remove("reachable", "adj");
       const tgt = !isSlot && S.screen === "play" && validSpellTarget(cell);
       el.classList.toggle("target", tgt);
       el.classList.toggle("sel", !isSlot && S.targeting.first === cell);
       return;
     }
     el.classList.remove("target", "sel");
-    if(el === heroEl){ el.classList.remove("reachable"); return; }
+    if(el === heroEl){ el.classList.remove("reachable", "adj"); return; }
     const c = S.board[cell];
-    const ok = S.screen === "play" && !isLocked() && adjacent(cell, S.heroCell) &&
+    // adjacency-only flag drives the dim treatment (stable across the brief action lock)
+    const adjOk = S.screen === "play" && adjacent(cell, S.heroCell) &&
       (!isSlot
         ? !(c && c.type === "locked" && S.keys < 1)   // locked chest needs a key
         : !c);                                        // slot reachable only if empty
-    el.classList.toggle("reachable", ok);
+    el.classList.toggle("adj", adjOk);
+    el.classList.toggle("reachable", adjOk && !isLocked());
   });
 }
 
@@ -824,6 +886,7 @@ function showTooltipFor(el){
 function hideTooltip(){ tooltip.style.display = "none"; clearDanger(); }
 
 document.addEventListener("mouseover", e => {
+  if(menuOpen){ hideTooltip(); return; } // menu overlay suppresses tooltips
   const el = e.target.closest("[data-tip], #board .card, #board .slot");
   if(el) showTooltipFor(el); else hideTooltip();
 });
@@ -895,11 +958,18 @@ function endRun(won){
       <div class="bigicon">${won ? "👑" : "💀"}</div>
       <h1>${won ? "VICTORY" : "YOU DIED"}</h1>
       <div class="sub">${won ? "The Depth Lord is slain. The dungeon is yours." : "The dungeon keeps what it takes."}</div>
-      <div class="stat-line">Floors reached: <b>${S.floor}${won ? " — cleared!" : ""}</b> · Level <b>${S.lvl}</b></div>
-      <div class="stat-line">Gold banked: <b>🪙 ${S.gold}</b> (earned ${S.stats.goldEarned})</div>
-      <div class="stat-line">Cards consumed: <b>${S.stats.consumed}</b> · Monsters slain: <b>${S.stats.slain}</b></div>
+      <div class="stats-grid">
+        <span class="sg-l">Floors reached</span><span class="sg-v">${S.floor}${won ? " — cleared!" : ""}</span>
+        <span class="sg-l">Hero level</span><span class="sg-v">${S.lvl}</span>
+        <span class="sg-l">Monsters slain</span><span class="sg-v">${S.stats.slain}</span>
+        <span class="sg-l">Gold banked</span><span class="sg-v">🪙 ${S.gold} <span style="color:var(--faint);font-weight:600">(earned ${S.stats.goldEarned})</span></span>
+        <span class="sg-l">Cards consumed</span><span class="sg-v">${S.stats.consumed}</span>
+      </div>
       <div class="stat-line">${bestLine()}</div>
-      <br><button class="btn" id="btn-restart">New Run</button>
+      <div class="end-btns">
+        <button class="btn" id="btn-restart">New Run</button>
+        <button class="btn ghost" id="btn-arcade">Back to Arcade</button>
+      </div>
     </div>`;
     overlay.classList.add("show");
   }, won ? 500 : 650);
@@ -1472,8 +1542,48 @@ function showTitle(){
   renderHUD(); renderBest();
 }
 
+// ---------- pause menu (arcade shell; game input is locked while open) ----------
+const menuEl = $("#menu");
+let menuOpen = false, menuConfirm = false;
+
+function renderMenu(){
+  menuEl.innerHTML = `<div class="menu-panel">
+    <h2>☰ MENU</h2>
+    ${menuConfirm ? `
+      <div class="m-note">Abandon this run? Progress is lost.</div>
+      <button class="btn" id="menu-newrun-yes">Yes, new run</button>
+      <button class="btn ghost" id="menu-newrun-no">Keep playing</button>
+    ` : `
+      <button class="btn" id="menu-resume">Resume</button>
+      <button class="btn ghost" id="menu-newrun">New Run</button>
+      <button class="btn ghost" id="menu-arcade">Back to Arcade</button>
+    `}
+  </div>`;
+}
+function openMenu(){ menuOpen = true; menuConfirm = false; hideTooltip(); renderMenu(); menuEl.classList.add("show"); }
+function closeMenu(){ menuOpen = false; menuConfirm = false; menuEl.classList.remove("show"); }
+
+$("#btn-menu").addEventListener("click", () => { menuOpen ? closeMenu() : openMenu(); });
+menuEl.addEventListener("click", e => {
+  if(e.target.closest("#menu-resume")){ closeMenu(); return; }
+  if(e.target.closest("#menu-arcade")){ location.href = "../index.html"; return; }
+  if(e.target.closest("#menu-newrun")){
+    const midRun = S && !["title", "dead", "victory"].includes(S.screen);
+    if(midRun){ menuConfirm = true; renderMenu(); }
+    else { closeMenu(); newRun(); }
+    return;
+  }
+  if(e.target.closest("#menu-newrun-yes")){ closeMenu(); newRun(); return; }
+  if(e.target.closest("#menu-newrun-no")){ menuConfirm = false; renderMenu(); return; }
+  if(e.target === menuEl) closeMenu(); // click outside the panel resumes
+});
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape"){ menuOpen ? closeMenu() : openMenu(); }
+});
+
 // ---------- input (real DOM listeners) ----------
 board.addEventListener("click", e => {
+  if(menuOpen) return;
   if(!S || S.screen !== "play") return;
   const el = e.target.closest("#board .card, #board .slot");
   if(!el) return;
@@ -1495,6 +1605,7 @@ board.addEventListener("click", e => {
 });
 
 $("#statusbar").addEventListener("click", e => {
+  if(menuOpen) return;
   if(!S || S.screen !== "play") return;
   if(e.target.closest("#cancel-target")){ cancelTargeting(); return; }
   const sc = e.target.closest("[data-spell-i]");
@@ -1502,7 +1613,8 @@ $("#statusbar").addEventListener("click", e => {
 });
 
 overlay.addEventListener("click", e => {
-  if(!S) return;
+  if(menuOpen || !S) return;
+  if(e.target.closest("#btn-arcade")){ location.href = "../index.html"; return; }
   if(e.target.closest("#btn-start") || e.target.closest("#btn-restart")){ newRun(); return; }
   if(S.screen === "perk"){
     const p = e.target.closest(".perk-choice");
