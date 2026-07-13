@@ -133,7 +133,7 @@ var CLASSES = {
   ranger:    { name:'Ranger',    color:'#7ec850', hp:26, atkBase:3, prof:'bow', bowRange:4, diff:'EASY',
                lines:['Fragile but deadly.','Needs a bow: click far','enemies to shoot them.','Volley: rapid shots.'] },
   alchemist: { name:'Alchemist', color:'#c9a0ff', hp:30, atkBase:4, prof:'catalyst', diff:'MEDIUM',
-               lines:['Master of mixtures.','Catalysts boost flasks','and fire. Starts with 3','potions + 3 acid flasks.'] }
+               lines:['Master of mixtures.','Catalysts boost flasks','and fire. Starts with 3','potions + 4 acid flasks.'] }
 };
 var WTYPE_LABEL = { melee:'Melee', bow:'Bow', catalyst:'Catalyst' };
 var ABILITIES = {
@@ -182,7 +182,7 @@ function kindDesc(kind){
   switch(kind){
     case 'potion':      return 'Heals '+potionHeal()+' HP';
     case 'flask':       return 'Acid burst: '+acidDmg()+' dmg + melt (AoE 1)';
-    case 'scroll_fire': return 'Blast a lit tile (AoE '+fireballDmg()+')';
+    case 'scroll_fire': return 'Damage: '+fireballDmg()+'-'+(fireballDmg()+4)+'; AoE radius 2';
     case 'scroll_tele': return 'Teleports you elsewhere';
     case 'scroll_map':  return 'Reveals this whole floor';
     case 'ring_regen':  return '+1 HP every 3 turns';
