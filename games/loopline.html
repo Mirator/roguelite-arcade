@@ -20,6 +20,7 @@
   button{font:inherit; color:inherit; background:var(--panel2); border:1px solid var(--edge);
     border-radius:6px; padding:5px 12px; cursor:pointer;}
   button:hover{border-color:var(--gold); color:var(--gold);}
+  button:focus-visible,a:focus-visible,.card:focus-visible,.slot:focus-visible,.bslot:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
   button.active{background:var(--gold); color:#161006; border-color:var(--gold); font-weight:700;}
   button.warn:hover{border-color:var(--red); color:var(--red);}
   /* ---- top bar ---- */
@@ -94,6 +95,13 @@
   #tt .syn{color:var(--purple); margin-top:4px; font-size:10.5px;}
   #tt .up{color:var(--green);} #tt .dn{color:var(--red);}
   #tt .gs{margin-top:4px; font-size:11px;}
+  #tt.pinned{pointer-events:auto; max-width:min(320px,calc(100vw - 24px)); border-color:var(--gold);}
+  #btn-side{display:none;}
+  #tutorial{position:fixed; z-index:64; left:14px; bottom:136px; width:min(360px,calc(100vw - 28px));
+    padding:12px 14px; border:1px solid var(--gold); border-radius:9px; background:#0b0e14f2;
+    box-shadow:0 8px 30px #0009; color:var(--text);}
+  #tutorial.hidden{display:none} #tutorial b{color:var(--gold)}
+  #tutorial button{float:right; margin-left:10px;}
   /* ---- overlay ---- */
   #overlay{position:fixed; inset:0; z-index:50; background:#070a10d9; display:flex;
     align-items:center; justify-content:center;}
@@ -126,12 +134,13 @@
   .loadrow .lbl{font-size:10px; color:var(--dim); letter-spacing:1px;}
   .loadrow button{font-size:11px; padding:4px 10px;}
   /* ---- arcade nav / pause menu / affordance polish ---- */
-  #homebtn{position:fixed; top:9px; right:10px; z-index:70; width:34px; height:34px;
+  #homebtn,#arcadebtn{position:fixed; top:9px; right:10px; z-index:70; width:36px; height:36px;
     display:flex; align-items:center; justify-content:center; background:var(--panel2);
     border:1px solid var(--edge); border-radius:8px; color:var(--dim); font-size:17px;
     text-decoration:none; line-height:1; padding:0;}
-  #homebtn:hover{border-color:var(--gold); color:var(--gold);}
-  #topbar{padding-right:56px;}
+  #homebtn:hover,#arcadebtn:hover{border-color:var(--gold); color:var(--gold);}
+  #arcadebtn{right:52px}
+  #topbar{padding-right:98px;}
   #btn-pause,#btn-1,#btn-2,#btn-3,#btn-menu{min-width:42px; padding:5px 8px; text-align:center;}
   button.primary,a.btn.primary{background:var(--gold); color:#161006; border-color:var(--gold); font-weight:700;}
   button.primary:hover,a.btn.primary:hover{color:#161006; filter:brightness(1.08);}
@@ -152,6 +161,29 @@
   .card.sel{background:#242e42; border-color:var(--gold);
     box-shadow:0 6px 16px #e8b34b40, inset 0 1px 0 #e8b34b55;}
   .card.sel .cn{color:var(--gold);}
+  @media (pointer:coarse){#homebtn,#arcadebtn{width:44px;height:44px;top:5px}#arcadebtn{right:60px}#topbar{padding-right:112px}}
+  @media (max-width:899px){
+    #btn-side{display:inline-flex; align-items:center; justify-content:center;}
+    #side{position:fixed; z-index:48; top:52px; right:0; bottom:122px; width:min(320px,88vw);
+      transform:translateX(102%); transition:transform .18s ease; box-shadow:-12px 0 30px #000b;
+      overflow-y:auto;}
+    #side.open{transform:translateX(0)}
+    #hand{overflow-x:auto; overscroll-behavior-x:contain; padding:10px 2px; scrollbar-width:thin;}
+    .card{flex:0 0 104px;}
+  }
+  @media (max-width:599px){
+    #topbar{height:88px; flex-wrap:wrap; gap:5px 8px; align-content:center; padding:5px 112px 5px 8px;}
+    #topbar .brand{width:100%; font-size:12px; letter-spacing:2px;}
+    #topbar .counter{font-size:10px} #topbar .counter b{font-size:11px;margin-left:2px}
+    #topbar .ring{width:34px;height:34px} #topbar .ring-in b{font-size:11px}
+    #btn-2,#btn-3{display:none} #btn-pause,#btn-1,#btn-menu,#btn-side{min-width:36px;padding:5px 7px}
+    #btn-retreat{position:fixed; right:8px; bottom:8px; z-index:47; min-height:44px; box-shadow:0 4px 18px #000b;}
+    #side{top:88px; bottom:112px}
+    #handbar{height:112px; padding:0 8px; gap:7px} #handlabel{display:none}
+    .card{width:94px;height:90px;flex-basis:94px;padding:6px} .card .cd{font-size:8px}
+    #tutorial{bottom:126px}
+  }
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
@@ -167,7 +199,8 @@
     <button id="btn-1" class="active">1x</button>
     <button id="btn-2">2x</button>
     <button id="btn-3">3x</button>
-    <button id="btn-retreat" class="warn">Retreat to camp</button>
+    <button id="btn-retreat" class="warn">Retreat · keep 0 supplies</button>
+    <button id="btn-side" aria-expanded="false" aria-controls="side">Hero</button>
     <button id="btn-menu" title="Menu (Esc)">☰</button>
   </div>
   <div id="mid">
@@ -190,7 +223,7 @@
       <div class="sect">BACKPACK <i id="bp-count"></i> <i>(click to equip)</i></div>
       <div id="backpack"></div>
       <div class="sect">LOG</div>
-      <div id="log"></div>
+      <div id="log" aria-live="polite"></div>
     </div>
   </div>
   <div id="handbar">
@@ -200,7 +233,9 @@
   <div id="tt" class="hidden"></div>
   <div id="overlay"><div id="screen"></div></div>
   <div id="menuov" class="hidden"><div id="menu"></div></div>
-  <button id="homebtn" title="Title screen">⌂</button>
+  <div id="tutorial" class="hidden" role="dialog" aria-label="Loopline first steps"><button id="tutorial-ok" class="primary">Got it</button><b>First steps</b><br>Select a card, then place it on a highlighted tile. Neighboring tiles change its effects. Retreat banks the exact supplies shown on the button.</div>
+  <button id="homebtn" title="Title screen" aria-label="Game title">⌂</button>
+  <a id="arcadebtn" href="../index.html" title="Arcade" aria-label="Back to arcade">←</a>
 
 <script>
 'use strict';
@@ -906,13 +941,11 @@ function showTitle(){
     '<ul>'+
     '<li><b>The hero walks alone.</b> You control the world: click a card, then a highlighted tile.</li>'+
     '<li><b>Spawner tiles</b> mean loot and danger; <b>scenery tiles</b> keep the hero alive. Cards react to their neighbors - read their tooltips.</li>'+
-    '<li><b>Each dawn</b> spawners trigger and regen heals. The campfire heals 12% per lap.</li>'+
-    '<li><b>Bone Colossus</b> guards loop '+MINI_LOOP+'. <b>The Lich</b> (two phases) awaits after loop '+BOSS_LOOP+'.</li>'+
     '<li><b>Retreat</b> banks 100% of score as camp supplies. Death keeps '+(meta.up.triage?'75':'50')+'%.</li>'+
     '</ul>'+
     campHTML()+
     (meta.best.loops?'<div class="sub">Best: loop '+meta.best.loops+' &middot; score '+meta.best.score+' &middot; wins '+meta.best.wins+'</div>':'')+
-    '<div class="btnrow"><button data-act="start" class="primary">Start Run</button>'+
+    '<div class="btnrow"><button data-act="start" class="primary">Start Run</button><button data-act="how">How to play</button>'+
     (meta.best.wins>0?'<button data-act="startng" style="border-color:var(--purple);color:var(--purple)">Start NG+1</button>':'')+
     '</div>');
 }
@@ -920,6 +953,7 @@ function showScreen(html){$('screen').innerHTML=html;$('overlay').classList.remo
 function hideScreen(){$('overlay').classList.add('hidden');}
 function startRun(ng){
   newRun(ng);S.phase='run';setSpeed(1);hideScreen();
+  if(!localStorage.getItem('loopline_tutorial_seen_v1'))$('tutorial').classList.remove('hidden');
 }
 
 /* ============================== floats / log ============================== */
@@ -1155,7 +1189,7 @@ function renderHand(){
   if(!S.hand.length){el.innerHTML='<div class="empty">Kill enemies to earn cards...</div>';return;}
   el.innerHTML=S.hand.map((t,i)=>{
     const d=CARDS[t];
-    return '<div class="card'+(i===S.selCard?' sel':'')+'" data-i="'+i+'" data-tt="card:'+t+'">'+
+    return '<div class="card'+(i===S.selCard?' sel':'')+'" role="button" tabindex="0" aria-label="'+d.name+': '+d.short+'" data-i="'+i+'" data-tt="card:'+t+'">'+
       '<span class="tag">'+(d.place==='road'?'ROAD':d.place==='adj'?'BESIDE':d.place==='special'?'ERASE':'ANY')+'</span>'+
       '<div class="cg" style="color:'+d.color+'">'+d.glyph+'</div>'+
       '<div class="cn">'+d.name+'</div><div class="cd">'+d.short+'</div></div>';
@@ -1165,14 +1199,14 @@ function renderEquip(){
   $('equip').innerHTML=SLOTS.map(sl=>{
     const it=S.equip[sl];
     if(!it)return '<div class="slot">'+sl+'</div>';
-    return '<div class="slot filled" data-slot="'+sl+'" data-tt="eq:'+sl+'" style="border-color:'+TIER[it.tier].c+'55">'+
+    return '<div class="slot filled" role="button" tabindex="0" aria-label="Unequip '+it.name+'" data-slot="'+sl+'" data-tt="eq:'+sl+'" style="border-color:'+TIER[it.tier].c+'55">'+
       '<div class="ic" style="color:'+TIER[it.tier].c+';border-color:'+TIER[it.tier].c+'">'+SLOTIC[sl]+'</div>'+
       '<div style="color:'+TIER[it.tier].c+'">'+TIER[it.tier].n+'</div></div>';
   }).join('');
   let bp='';
   for(let i=0;i<PACK_MAX;i++){
     const it=S.backpack[i];
-    bp+=it?'<div class="bslot filled" data-i="'+i+'" data-tt="bp:'+i+'" style="border-color:'+TIER[it.tier].c+'88">'+
+    bp+=it?'<div class="bslot filled" role="button" tabindex="0" aria-label="Equip '+it.name+'" data-i="'+i+'" data-tt="bp:'+i+'" style="border-color:'+TIER[it.tier].c+'88">'+
         '<div class="ic" style="color:'+TIER[it.tier].c+';border-color:'+TIER[it.tier].c+'">'+SLOTIC[it.slot]+'</div></div>'
       :'<div class="bslot"></div>';
   }
@@ -1209,6 +1243,7 @@ function domTick(now){
   $('st-thorn').textContent=S.stats.thorns;
   let gs=0;for(const sl of SLOTS)if(S.equip[sl])gs+=gearScore(S.equip[sl]);
   $('st-gear').textContent=gs;
+  $('btn-retreat').textContent='Retreat · keep '+Math.max(0,Math.floor(S.score))+' supplies';
 }
 
 /* ============================== tooltip ============================== */
@@ -1229,21 +1264,27 @@ function ttHTML(spec){
     itemStatLines(it,cmp)+
     '<div class="d">scrap value '+it.scrap+(cmp&&S.equip[it.slot]?' &middot; vs equipped':'')+'</div>';
 }
-document.addEventListener('mousemove',e=>{
+let pinnedTip='';
+function showTip(el,x,y,pin){
+  if(!el||!S)return;
+  const html=ttHTML(el.dataset.tt||'');
+  if(!html){tt.classList.add('hidden');return;}
+  tt.innerHTML=html;tt.classList.remove('hidden');tt.classList.toggle('pinned',!!pin);
+  if(pin)pinnedTip=el.dataset.tt;
+  const er=el.getBoundingClientRect(),r=tt.getBoundingClientRect();
+  const px=pin?er.left:(x+14), py=pin?(er.top-r.height-8):(y-r.height-10);
+  tt.style.left=clamp(px,4,innerWidth-r.width-6)+'px';
+  tt.style.top=clamp(py,4,innerHeight-r.height-6)+'px';
+}
+document.addEventListener('pointermove',e=>{
   const el=e.target&&e.target.closest?e.target.closest('[data-tt]'):null;
-  if(el&&S){
-    const html=ttHTML(el.dataset.tt);
-    if(!html){tt.classList.add('hidden');return;}
-    tt.innerHTML=html;
-    tt.classList.remove('hidden');
-    const r=tt.getBoundingClientRect();
-    tt.style.left=clamp(e.clientX+14,4,innerWidth-r.width-6)+'px';
-    tt.style.top=clamp(e.clientY-r.height-10,4,innerHeight-r.height-6)+'px';
-  }else tt.classList.add('hidden');
+  if(el&&!pinnedTip)showTip(el,e.clientX,e.clientY,false);
+  else if(!el&&!pinnedTip)tt.classList.add('hidden');
 });
+document.addEventListener('focusin',e=>{const el=e.target.closest&&e.target.closest('[data-tt]');if(el)showTip(el,0,0,true);});
 
 /* ============================== input ============================== */
-cv.addEventListener('mousemove',e=>{
+cv.addEventListener('pointermove',e=>{
   const r=cv.getBoundingClientRect();
   hoverCell=cellAt(e.clientX-r.left,e.clientY-r.top);
   // affordance: pointer over legal tiles while a card is selected
@@ -1267,6 +1308,7 @@ $('hand').addEventListener('click',e=>{
   if(!S.hand[i]){S.selCard=-1;legalSet=null;dirty.hand=true;return;}
   if(S.selCard===i){S.selCard=-1;legalSet=null;}
   else{S.selCard=i;legalSet=computeLegal(S.hand[i]);}
+  pinnedTip=el.dataset.tt;showTip(el,e.clientX||0,e.clientY||0,true);
   dirty.hand=true;
 });
 $('backpack').addEventListener('click',e=>{
@@ -1278,6 +1320,17 @@ $('equip').addEventListener('click',e=>{
   if(!S||S.phase!=='run')return;
   const el=e.target.closest('.slot.filled');if(!el)return;
   unequipItem(el.dataset.slot);
+});
+$('btn-side').addEventListener('click',()=>{
+  const open=$('side').classList.toggle('open');
+  $('btn-side').setAttribute('aria-expanded',open?'true':'false');
+});
+$('tutorial-ok').addEventListener('click',()=>{
+  localStorage.setItem('loopline_tutorial_seen_v1','1');$('tutorial').classList.add('hidden');
+});
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}
+  if(e.key==='Escape'&&pinnedTip){pinnedTip='';tt.classList.add('hidden');}
 });
 function setSpeed(v){
   if(!S)return;
@@ -1298,8 +1351,11 @@ let pendingMenuAction=null;
 function menuMainHTML(){
   return '<h2>Paused</h2>'+
     '<button data-mact="resume" class="primary">Resume</button>'+
+    '<button disabled aria-disabled="true" title="Loopline has no audio">Sound: unavailable</button>'+
+    '<button data-mact="help">How to play</button>'+
     '<button data-mact="newrun">New Run</button>'+
-    '<button data-mact="title" class="warn">Title screen</button>';
+    '<button data-mact="title" class="warn">Title screen</button>'+
+    '<a class="btn" href="../index.html">← Arcade</a>';
 }
 function menuConfirmHTML(){
   const label=pendingMenuAction==='title'?'go to the title screen':'restart';
@@ -1331,6 +1387,8 @@ $('menuov').addEventListener('click',e=>{
   const b=e.target.closest('[data-mact]');if(!b)return;
   const act=b.dataset.mact;
   if(act==='resume')closeMenu();
+  else if(act==='help')$('menu').innerHTML='<h2>How to play</h2><div class="sub">Select a card, then a highlighted tile. Cards gain or lose effects from adjacent tiles. The hero walks and fights automatically. Retreat safely banks the supplies printed beside the action.</div><button data-mact="back" class="primary">Back</button>';
+  else if(act==='back')$('menu').innerHTML=menuMainHTML();
   else if(act==='newrun'){pendingMenuAction='newrun';$('menu').innerHTML=menuConfirmHTML();}
   else if(act==='title'){pendingMenuAction='title';$('menu').innerHTML=menuConfirmHTML();}
   else if(act==='confirmno')$('menu').innerHTML=menuMainHTML();
@@ -1354,6 +1412,7 @@ $('overlay').addEventListener('click',e=>{
   else if(act==='ng')startRun((S?S.ng:0)+1);
   else if(act==='startng')startRun(1);
   else if(act==='title')showTitle();
+  else if(act==='how')showScreen('<h2>How to play</h2><div class="sub">The hero walks and fights automatically. Select a card, then place it on a highlighted tile. Spawners create enemies and loot each dawn; scenery sustains the hero. Neighboring tiles change effects. The campfire heals each lap. Retreat banks the exact supply value shown beside the action.</div><div class="btnrow"><button data-act="title" class="primary">Back</button></div>');
   else if(act==='buy'){
     const u=UPGRADES[arg];
     if(u&&!meta.up[arg]&&meta.supplies>=u.cost){
@@ -1387,6 +1446,7 @@ window.G={
     while(t<sec&&S&&S.phase==='run'){update(0.05);t+=0.05;}
   },
 };
+window.render_game_to_text=()=>JSON.stringify(S?{game:'Loopline',phase:S.phase,loop:S.loop,day:S.day,score:S.score,hero:{hp:Math.round(S.hero.hp),maxHp:S.stats.maxHP,tile:S.heroIdx},hand:S.hand.slice(),selectedCard:S.selCard}: {game:'Loopline',phase:'title'});
 
 /* ============================== boot ============================== */
 resize();

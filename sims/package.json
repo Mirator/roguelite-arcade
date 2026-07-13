@@ -16,9 +16,13 @@
     "meta:mechanics": "node meta-mechanics.js",
     "sim:validity": "node loopline-sim.js --validity && node warband-sim.js --validity && node dungeondeal-sim.js --validity && node depths-sim.js --validity",
     "check:syntax": "node check-syntax.js",
+    "test:ui": "playwright test",
     "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics && npm run meta:mechanics && npm run sim:validity"
   },
   "dependencies": {
     "jsdom": "^27.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }

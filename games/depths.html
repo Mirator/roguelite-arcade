@@ -6,15 +6,17 @@
 <title>Depths — Roguelike PoC</title>
 <style>
   html,body{margin:0;padding:0;height:100%;background:#05070a;overflow:hidden}
-  canvas{display:block;cursor:default}
+  body{font-family:Menlo,Consolas,monospace}
+  canvas{display:block;cursor:default;touch-action:none}
   #navBtns{position:fixed;top:10px;right:10px;display:flex;gap:8px;z-index:20}
   #navBtns a,#navBtns button{
     display:flex;align-items:center;justify-content:center;
-    width:34px;height:34px;box-sizing:border-box;
+    width:36px;height:36px;box-sizing:border-box;
     background:#161d2bee;border:1px solid #3a4664;border-radius:6px;
     color:#c9d4e0;font:bold 16px Menlo,Consolas,monospace;text-decoration:none;
     cursor:pointer;transition:filter .12s,transform .12s;padding:0}
   #navBtns a:hover,#navBtns button:hover{filter:brightness(1.45);transform:translateY(-1px)}
+  #navBtns a:focus-visible,#navBtns button:focus-visible,#menuPanel button:focus-visible,#menuPanel a:focus-visible{outline:3px solid #ffd75f;outline-offset:3px}
   #menuOverlay{position:fixed;inset:0;background:rgba(5,7,10,0.72);z-index:30;
     display:flex;align-items:center;justify-content:center}
   #menuOverlay[hidden]{display:none}
@@ -28,6 +30,12 @@
     cursor:pointer;transition:filter .12s,transform .12s}
   #menuPanel button:hover,#menuPanel a:hover{filter:brightness(1.45);transform:translateY(-1px)}
   #menuPanel #mNewRun.confirm{border-color:#ff5c5c;color:#ff8a8a}
+  #tutorial{position:fixed;left:12px;bottom:12px;z-index:28;width:min(390px,calc(100vw - 24px));box-sizing:border-box;
+    padding:14px 16px;background:#0a0e16ee;border:2px solid #b28a3d;color:#c9d4e0;font:13px/1.55 Menlo,Consolas,monospace;box-shadow:0 10px 34px #000b}
+  #tutorial[hidden]{display:none}#tutorial b{color:#ffd75f}#tutorial button{float:right;margin-left:12px;padding:8px 12px;background:#b28a3d;color:#090b10;border:0;font:bold 12px Menlo,Consolas,monospace;cursor:pointer}
+  .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+  @media (pointer:coarse){#navBtns a,#navBtns button{width:44px;height:44px}#navBtns{gap:6px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
@@ -35,16 +43,21 @@
 <div id="navBtns">
   <button id="muteBtn" title="Sound on/off" aria-label="Sound">♪</button>
   <button id="menuBtn" title="Menu (Esc)" aria-label="Menu">☰</button>
-  <button id="homeBtn" title="Title screen" aria-label="Title screen">⌂</button>
+  <button id="homeBtn" title="Title screen" aria-label="Game title">⌂</button>
+  <a id="arcadeBtn" href="../index.html" title="Arcade" aria-label="Back to arcade">←</a>
 </div>
+<div id="liveStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <div id="menuOverlay" hidden>
   <div id="menuPanel">
     <h2>Paused</h2>
     <button id="mResume">Resume</button>
+    <button id="mHelp">How to play</button>
     <button id="mNewRun">Restart run</button>
     <button id="mTitle">Title screen</button>
+    <a href="../index.html">← Arcade</a>
   </div>
 </div>
+<div id="tutorial" hidden role="dialog" aria-label="Depths first steps"><button id="tutorialOk">Got it</button><b>First steps</b><br>Click a visible floor tile to preview and follow a path. Walking into an enemy attacks it. Use the ability and inventory actions in the HUD; item comparisons stay open while choosing gear.</div>
 <script>
 (function(){
 'use strict';
@@ -109,13 +122,14 @@ var W = 0, H = 0, tile = 16, offX = 0, offY = 0, DPR = 1;
 function resize(){
   DPR = window.devicePixelRatio || 1;
   W = window.innerWidth; H = window.innerHeight;
+  HUD_H = W < 700 ? 190 : 128;
   canvas.width  = Math.floor(W*DPR);
   canvas.height = Math.floor(H*DPR);
   canvas.style.width  = W+'px';
   canvas.style.height = H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
   var mapH = Math.max(60, H - HUD_H);
-  tile = Math.max(6, Math.floor(Math.min(W/COLS, mapH/ROWS)));
+  tile = Math.max(18, Math.floor(Math.min(W/COLS, mapH/ROWS)));
   offX = Math.floor((W - COLS*tile)/2);
   offY = Math.floor((mapH - ROWS*tile)/2);
 }
@@ -303,6 +317,8 @@ function acidDmg(){
 function log(text, color){
   S.msgs.push({ text:text, color:color||'#9fb0c3' });
   if (S.msgs.length > 60) S.msgs.shift();
+  var live = document.getElementById('liveStatus');
+  if (live) live.textContent = text;
 }
 function addFloater(x, y, text, color){
   floaters.push({ x:x, y:y, text:text, color:color, t0:performance.now() });
@@ -902,6 +918,7 @@ function newRun(clsKey){
   log('The Amulet of Yendor lies on depth '+MAX_DEPTH+'.', '#c9a0ff');
   screen = 'game';
   startFade();
+  if (!lsGet('depths_tutorial_seen_v1')) document.getElementById('tutorial').hidden = false;
 }
 
 // ---------- FOV ----------
@@ -1956,16 +1973,18 @@ function walkTick(now){
 // ---------- UI layouts (pure; shared by draw + click) ----------
 function hudLayout(){
   var top = H - HUD_H;
-  var x = 14, y = top+96, h = 24, gap = 8;
+  var mobile = W < 700;
+  var x = mobile ? 10 : 14, y = mobile ? top+118 : top+96, h = mobile ? 30 : 24, gap = mobile ? 6 : 8;
   var L = { top:top };
-  L.potion = { x:x, y:y, w:110, h:h }; x += 110+gap;
+  L.potion = { x:x, y:y, w:mobile?100:110, h:h }; x += (mobile?100:110)+gap;
   L.level = { x:42, y:top+22, w:216, h:14 };   // XP bar + Lv label: click to open skills
   if (S && (S.cls==='alchemist' || invCount('flask')>0)){
-    L.flask = { x:x, y:y, w:96, h:h }; x += 96+gap;
+    L.flask = { x:x, y:y, w:mobile?82:96, h:h }; x += (mobile?82:96)+gap;
   } else L.flask = null;
   L.ability = { x:x, y:y, w:118, h:h }; x += 118+gap;
-  L.inv = { x:x, y:y, w:92, h:h }; x += 92+gap;
-  L.map = { x:x, y:y, w:50, h:h };
+  if(mobile){ x=10; y=top+154; }
+  L.inv = { x:x, y:y, w:mobile?110:92, h:h }; x += (mobile?110:92)+gap;
+  L.map = { x:x, y:y, w:mobile?70:50, h:h };
   return L;
 }
 function panelBase(w,h){
@@ -2054,13 +2073,18 @@ function endLayout(){
   return { panel:p, newRun:{ x:Math.round(W/2-80), y:p.y+264, w:160, h:38 } };
 }
 function titleLayout(){
-  var w = Math.min(660, Math.max(320, W-30)), h = 470;
+  var narrow = W < 640;
+  var w = Math.min(660, Math.max(320, W-30)), h = narrow ? Math.min(660,H-24) : 470;
   var p = { x:Math.round((W-w)/2), y:Math.max(8, Math.round((H-h)/2)-10), w:w, h:h };
-  var cw = Math.floor((w-56)/3);
   var cards = [];
   var keys = ['warrior','ranger','alchemist'];
-  for (var i=0; i<3; i++)
-    cards.push({ key:keys[i], rect:{ x:p.x+14+i*(cw+14), y:p.y+142, w:cw, h:168 } });
+  if(narrow){
+    var ch=144;
+    for(var i=0;i<3;i++) cards.push({key:keys[i],rect:{x:p.x+14,y:p.y+132+i*(ch+8),w:w-28,h:ch}});
+  }else{
+    var cw = Math.floor((w-56)/3);
+    for (var j=0; j<3; j++) cards.push({ key:keys[j], rect:{ x:p.x+14+j*(cw+14), y:p.y+142, w:cw, h:168 } });
+  }
   return { panel:p, cards:cards,
            shrine:{ x:p.x+Math.round(w/2)-70, y:p.y+h-52, w:140, h:30 } };
 }
@@ -2345,6 +2369,9 @@ function drawGlyph(g, x, y, color, alpha, scale){
 }
 
 function drawMap(){
+  var mapH = H-HUD_H;
+  if(COLS*tile>W) offX=Math.max(W-COLS*tile,Math.min(0,Math.round(W/2-(S.px+.5)*tile)));
+  if(ROWS*tile>mapH) offY=Math.max(mapH-ROWS*tile,Math.min(0,Math.round(mapH/2-(S.py+.5)*tile)));
   var map = S.map, seen = S.seen, vis = S.vis;
   for (var y=0; y<ROWS; y++){
     for (var x=0; x<COLS; x++){
@@ -2680,6 +2707,7 @@ function drawButton(r, label, color, enabled, active){
 function drawHUD(){
   var hud = hudLayout();
   var top = hud.top;
+  var mobile = W < 700;
   ctx.fillStyle = '#0b0f16';
   ctx.fillRect(0, top, W, HUD_H);
   ctx.strokeStyle = '#232c3d'; ctx.lineWidth = 1;
@@ -2737,7 +2765,8 @@ function drawHUD(){
 
   ctx.font = '12px Menlo, Consolas, monospace';
   ctx.fillStyle = '#9fb0c3';
-  ctx.fillText(CLASSES[S.cls].name+'   Depth '+S.depth+'/'+MAX_DEPTH+' — '+(S.theme?S.theme.name:'')+(S.modifier?' · '+S.modifier.name:'')+'   Gold '+S.gold+'   Kills '+S.kills, xL, top+44);
+  var summary = mobile ? (CLASSES[S.cls].name+' · D'+S.depth+'/'+MAX_DEPTH+' · Gold '+S.gold+' · Kills '+S.kills) : (CLASSES[S.cls].name+'   Depth '+S.depth+'/'+MAX_DEPTH+' — '+(S.theme?S.theme.name:'')+(S.modifier?' · '+S.modifier.name:'')+'   Gold '+S.gold+'   Kills '+S.kills);
+  ctx.fillText(summary, xL, top+44);
   var wname = S.equip.weapon ? S.equip.weapon.name : 'Fists';
   var aname = S.equip.armor ? S.equip.armor.name : 'Rags';
   ctx.fillStyle = '#7d8ea3';
@@ -2759,19 +2788,20 @@ function drawHUD(){
   var logX = Math.max(360, Math.min(560, W-340));
   ctx.textAlign = 'left';
   ctx.font = '12px Menlo, Consolas, monospace';
-  var msgs = S.msgs.slice(-5);
+  var msgs = S.msgs.slice(mobile?-1:-5);
   for (var i=0; i<msgs.length; i++){
     var age = msgs.length-1-i;
     ctx.globalAlpha = 1 - age*0.16;
     ctx.fillStyle = msgs[i].color;
-    ctx.fillText(msgs[i].text, logX, top+16+i*19);
+    if(mobile) ctx.fillText(msgs[i].text.slice(0,Math.max(18,Math.floor(W/7))),xL,top+100);
+    else ctx.fillText(msgs[i].text, logX, top+16+i*19);
   }
   ctx.globalAlpha = 1;
 
   var best = loadBest(), wins = loadWins();
   ctx.textAlign = 'right';
   ctx.fillStyle = '#5a6578';
-  ctx.fillText('Souls: '+loadSouls()+'   Best: '+best+(wins?('   Wins: '+wins):''), W-14, top+HUD_H-12);
+  if(!mobile) ctx.fillText('Souls: '+loadSouls()+'   Best: '+best+(wins?('   Wins: '+wins):''), W-14, top+HUD_H-12);
 }
 
 function drawPanelFrame(p, title){
@@ -3060,8 +3090,8 @@ function drawTitle(now){
   ctx.fillText('claim the Amulet of Yendor on depth 10', W/2, p.y+78);
 
   ctx.fillStyle = '#c9d4e0';
-  ctx.font = '12px Menlo, Consolas, monospace';
-  ctx.fillText('Hover previews a path · click to walk · click monsters to fight', W/2, p.y+104);
+  ctx.font = (W<640?'11px':'12px')+' Menlo, Consolas, monospace';
+  ctx.fillText(W<640?'Tap a class, then tap paths and enemies':'Hover previews a path · click to walk · click monsters to fight', W/2, p.y+104);
 
   ctx.globalAlpha = 0.65 + 0.35*Math.sin(now/350);
   ctx.fillStyle = '#e8d9a0';
@@ -3087,7 +3117,7 @@ function drawTitle(now){
     ctx.fillText(cd.name, r.x+r.w/2, ry+56);
     ctx.font = '11px Menlo, Consolas, monospace';
     ctx.fillStyle = '#9fb0c3';
-    for (var l=0; l<cd.lines.length; l++)
+    for (var l=0; l<(W<640?2:cd.lines.length); l++)
       ctx.fillText(cd.lines[l], r.x+r.w/2, ry+82+l*16);
     ctx.fillStyle = '#66788f';
     ctx.fillText('HP '+ (cd.hp + (hasPerk('vital')?5:0)) +'  Atk '+cd.atkBase, r.x+r.w/2, ry+r.h-14);
@@ -3210,6 +3240,7 @@ var homeBtn = document.getElementById('homeBtn');
 var muteBtn = document.getElementById('muteBtn');
 var menuOverlay = document.getElementById('menuOverlay');
 var mResume = document.getElementById('mResume');
+var mHelp = document.getElementById('mHelp');
 var mNewRun = document.getElementById('mNewRun');
 var mTitle = document.getElementById('mTitle');
 var newRunArmed = false;
@@ -3246,6 +3277,10 @@ menuBtn.addEventListener('click', function(){
   if (menuOpen) closeMenu(); else openMenu();
 });
 mResume.addEventListener('click', closeMenu);
+mHelp.addEventListener('click', function(){ closeMenu(); document.getElementById('tutorial').hidden=false; });
+document.getElementById('tutorialOk').addEventListener('click', function(){
+  lsSet('depths_tutorial_seen_v1',1);document.getElementById('tutorial').hidden=true;
+});
 mNewRun.addEventListener('click', function(){
   if (!newRunArmed){
     newRunArmed = true;
@@ -3358,6 +3393,9 @@ window.__D = {
   get muted(){ return muted; },
   get canSell(){ return S ? canSellHere() : false; },
   step: function(){ if (screen === 'game') walkTick(performance.now()); }
+};
+window.render_game_to_text = function(){
+  return JSON.stringify(S ? {game:'Depths',screen:screen,mode:ui.mode,depth:S.depth,hero:{x:S.px,y:S.py,hp:S.hp,maxHp:S.maxHp,level:S.level},gold:S.gold,kills:S.kills,inventory:S.pack.length} : {game:'Depths',screen:screen});
 };
 
 // ---------- Main loop ----------

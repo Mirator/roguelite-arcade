@@ -220,6 +220,8 @@
   #tooltip .tt-cyan{ color:var(--cyan); font-weight:700; }
   #tooltip .tt-purple{ color:var(--purple); font-weight:700; }
   #tooltip .tt-pink{ color:var(--pink); font-weight:700; }
+  #tooltip.pinned{ pointer-events:auto; border-color:var(--purple); max-width:min(300px,calc(100vw - 20px)); }
+  .card.touch-preview .c-inner,.slot.touch-preview{ outline:3px solid var(--gold); outline-offset:3px; }
   #tooltip .tt-dim{ color:var(--dim); }
 
   /* screen flash */
@@ -251,6 +253,8 @@
   .rules{ text-align:left; font-size:12.5px; color:var(--dim); line-height:1.6; margin:8px 0 14px; }
   .rules b{ color:var(--ink); }
   .rules .r-ico{ display:inline-block; width:20px; text-align:center; }
+  .rules details{margin-top:8px;border-top:1px solid #3a3154;padding-top:7px}
+  .rules summary{cursor:pointer;color:var(--ink);font-weight:800;margin-bottom:6px}
   .btn{
     display:inline-block; background:linear-gradient(170deg,#7a5cff,#5a3fd0); color:#fff;
     border:none; border-radius:11px; padding:10px 24px; font-size:14px; font-weight:800;
@@ -288,7 +292,7 @@
     display:flex; gap:6px;
   }
   .nav-btn{
-    width:32px; height:32px; border-radius:9px;
+    width:36px; height:36px; border-radius:9px;
     background:#1e1930; border:1px solid #3a3154; color:var(--dim);
     display:inline-flex; align-items:center; justify-content:center;
     font-size:16px; font-family:inherit; cursor:pointer; text-decoration:none;
@@ -298,6 +302,11 @@
     transform: translateY(-2px); color:var(--ink); border-color:#6b5aa4;
     box-shadow: 0 6px 14px rgba(110,80,255,.25);
   }
+  .nav-btn:focus-visible,.btn:focus-visible,.card:focus-visible,.spell-chip:focus-visible{outline:3px solid var(--purple);outline-offset:3px}
+  .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+  .c-icon,.bigicon,.nav-btn{font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Segoe UI",sans-serif}
+  @media(pointer:coarse){.nav-btn{width:44px;height:44px}#navbtns{top:6px;right:6px}#topbar{padding-right:198px}.spell-chip,.cancel-chip{min-height:44px;padding:10px 12px}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
 
   /* ------- pause menu ------- */
   #menu{
@@ -344,7 +353,7 @@
   <div class="tb-mid">
     <span class="chip" id="floor-chip">Floor <b>1</b>/10</span>
     <span class="chip" id="deck-chip" data-tip="Cards left in the floor deck"><span class="deckback"></span><b id="deck-count">0</b></span>
-    <span class="chip gold-chip" data-tip="Gold — spend it at merchants. Also your score.">🪙 <b id="gold-count">0</b></span>
+    <span class="chip gold-chip" data-tip="Gold — spend it at merchants. Also your score.">Gold <b id="gold-count">0</b></span>
     <span class="chip xp-chip" id="xp-chip" data-tip="XP from monsters & gems. Each level: instantly +1 max HP and heal 2.">Lv <b id="lvl-count">1</b> · <span id="xp-count">0/15</span></span>
     <span id="relic-bar"></span>
   </div>
@@ -353,16 +362,17 @@
 
 <main id="stage">
   <div id="board"></div>
-  <div id="statusbar"></div>
+  <div id="statusbar" aria-live="polite"></div>
 </main>
 
 <div id="tooltip"></div>
 <div id="flash"></div>
 <div id="overlay"></div>
 <div id="navbtns">
-  <button class="nav-btn" id="btn-mute" title="Sound on/off">🔊</button>
-  <button class="nav-btn" id="btn-menu" title="Menu">☰</button>
-  <button class="nav-btn" id="btn-home" title="Title screen">⌂</button>
+  <button class="nav-btn" id="btn-mute" title="Sound on/off" aria-label="Sound on/off">🔊</button>
+  <button class="nav-btn" id="btn-menu" title="Menu" aria-label="Menu">☰</button>
+  <button class="nav-btn" id="btn-home" title="Title screen" aria-label="Game title">⌂</button>
+  <a class="nav-btn" href="../index.html" title="Arcade" aria-label="Back to arcade">←</a>
 </div>
 <div id="menu"></div>
 
@@ -392,7 +402,7 @@ const PERKS = {
   vit:   { icon:"❤️", name:"Vitality",    desc:"+2 max HP, healed immediately." },
   whet:  { icon:"🗡️", name:"Whetstone",   desc:"Weapons you pick up get +1 value." },
   alch:  { icon:"🧪", name:"Alchemist",   desc:"Potions heal +2 more." },
-  greed: { icon:"🪙", name:"Greed",       desc:"Coins are worth double." },
+  greed: { icon:"$", name:"Greed",       desc:"Coins are worth double." },
   bulw:  { icon:"🛡️", name:"Bulwark",     desc:"Shields you pick up last +1 hit." },
   wind:  { icon:"🕊️", name:"Second Wind", desc:"Once per floor: survive a lethal hit at 1 HP." },
   skin:  { icon:"🗿", name:"Stone Skin",  desc:"Take −1 damage from every monster hit." },
@@ -432,6 +442,7 @@ let uid = 0;
 const cardEls = new Map();
 let heroEl = null;
 let dangerEl = null; // card currently pulsing red on hover
+let tutorialPrompted = false;
 
 function newState(){
   return {
@@ -587,9 +598,9 @@ function cardFace(c){
     case "weapon":  return { icon:"🗡️", val: c.v, name:"Weapon" };
     case "shield":  return { icon:"🛡️", val:`${c.block}×${c.hits}`, name:"Shield", sub:"block × hits" };
     case "potion":  return { icon:"🧪", val:"+" + c.v, name:"Potion" };
-    case "coin":    return { icon:"🪙", val: c.v, name:"Gold" };
+    case "coin":    return { icon:"$", val: c.v, name:"Gold" };
     case "gem":     return { icon:"💎", val: c.v, name:"XP Gem" };
-    case "trap":    return { icon:"🪤", val: c.v, name:"Trap" };
+    case "trap":    return { icon:"!", val: c.v, name:"Trap" };
     case "curse":   return { icon:"☠️", val:"−" + c.amt, name:"Curse", sub:`weapon −${c.amt}, ${c.fights} fights` };
     case "chest":   return { icon:"📦", val:"?", name:"Chest" };
     case "key":     return { icon:"🗝️", val:"", name:"Key", sub:"opens locked chests" };
@@ -644,7 +655,7 @@ function renderHero(){
   const w = S.weapon ? S.weapon.v : 0;
   const sh = S.shield ? `${S.shield.block}×${S.shield.hits}` : "—";
   heroEl.querySelector(".c-inner").innerHTML =
-    `<div class="c-icon">🥷</div>` +
+    `<div class="c-icon">@</div>` +
     `<div class="hero-hp">${S.hp}<span class="max">/${S.maxHp}</span></div>` +
     `<div class="hpbar"><i style="width:${Math.max(0, S.hp / S.maxHp * 100)}%"></i></div>` +
     `<div class="hero-gear"><span class="g-w">🗡${w || "—"}</span><span class="g-s">🛡${sh}</span></div>`;
@@ -715,10 +726,12 @@ function updateReachable(){
       const tgt = !isSlot && S.screen === "play" && validSpellTarget(cell);
       el.classList.toggle("target", tgt);
       el.classList.toggle("sel", !isSlot && S.targeting.first === cell);
+      if(tgt){el.setAttribute("role","button");el.tabIndex=0;el.setAttribute("aria-label","Spell target: "+(S.board[cell]?cardFace(S.board[cell]).name:"empty space"));}
+      else{el.removeAttribute("role");el.tabIndex=-1;}
       return;
     }
     el.classList.remove("target", "sel");
-    if(el === heroEl){ el.classList.remove("reachable", "adj"); return; }
+    if(el === heroEl){ el.classList.remove("reachable", "adj"); el.removeAttribute("role");el.tabIndex=-1;return; }
     const c = S.board[cell];
     // adjacency-only flag drives the dim treatment (stable across the brief action lock)
     const adjOk = S.screen === "play" && adjacent(cell, S.heroCell) &&
@@ -727,6 +740,12 @@ function updateReachable(){
         : !c);                                        // slot reachable only if empty
     el.classList.toggle("adj", adjOk);
     el.classList.toggle("reachable", adjOk && !isLocked());
+    const actionable=adjOk&&!isLocked();
+    if(actionable){
+      el.setAttribute("role","button");el.tabIndex=0;
+      const f=c?cardFace(c):{name:"Empty space",sub:"move here"};
+      el.setAttribute("aria-label",f.name+(f.val!==undefined&&f.val!==""?" "+f.val:"")+(f.sub?". "+f.sub:""));
+    }else{el.removeAttribute("role");el.tabIndex=-1;}
   });
 }
 
@@ -760,7 +779,7 @@ function meta(){
 }
 function renderBest(){
   const b = loadBest(), m = meta();
-  $("#best-chip").innerHTML = (b ? `Best: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · 🪙${b.gold}` : "Best: —")
+  $("#best-chip").innerHTML = (b ? `Best: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · ${b.gold} gold` : "Best: —")
     + (m.runs ? ` <span style="color:var(--faint)">| ${m.wins}W/${m.runs}</span>` : "");
 }
 
@@ -953,15 +972,25 @@ function showTooltipFor(el){
   if(y < 6) y = r.bottom + 8;
   tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
 }
-function hideTooltip(){ tooltip.style.display = "none"; clearDanger(); }
+let touchPreviewKey = null;
+function clearTouchPreview(){
+  document.querySelectorAll('.touch-preview').forEach(el=>el.classList.remove('touch-preview'));
+  touchPreviewKey=null;tooltip.classList.remove('pinned');
+}
+function hideTooltip(){ tooltip.style.display = "none"; clearDanger(); clearTouchPreview(); }
 
 document.addEventListener("mouseover", e => {
   if(menuOpen){ hideTooltip(); return; } // menu overlay suppresses tooltips
   const el = e.target.closest("[data-tip], #board .card, #board .slot");
+  if(touchPreviewKey)return;
   if(el) showTooltipFor(el); else hideTooltip();
 });
 document.addEventListener("mouseout", e => {
-  if(e.target.closest("[data-tip], #board .card, #board .slot")) hideTooltip();
+  if(!touchPreviewKey&&e.target.closest("[data-tip], #board .card, #board .slot")) hideTooltip();
+});
+document.addEventListener('focusin',e=>{
+  const el=e.target.closest&&e.target.closest('[data-tip], #board [role="button"], .spell-chip');
+  if(el){showTooltipFor(el);tooltip.classList.add('pinned');}
 });
 
 // ---------- damage / xp / death plumbing ----------
@@ -1012,7 +1041,7 @@ function grantRelic(cell){
   const avail = Object.keys(RELICS).filter(k => !S.relics[k]);
   if(avail.length === 0){
     S.gold += 8; S.stats.goldEarned += 8;
-    floatText(cell, "+8 🪙 (relics full)", "f-gold", 220);
+    floatText(cell, "+8 gold (relics full)", "f-gold", 220);
     return;
   }
   const k = pick(avail);
@@ -1023,7 +1052,7 @@ function grantRelic(cell){
 function grantSpell(sp, cell){
   if(S.spells.length >= 2){
     S.gold += 4; S.stats.goldEarned += 4;
-    floatText(cell, "+4 🪙 (hands full)", "f-gold");
+    floatText(cell, "+4 gold (hands full)", "f-gold");
     return;
   }
   S.spells.push(sp);
@@ -1050,7 +1079,7 @@ function endRun(won){
         <span class="sg-l">Floors reached</span><span class="sg-v">${S.floor}${won ? " — cleared!" : ""}</span>
         <span class="sg-l">Hero level</span><span class="sg-v">${S.lvl}</span>
         <span class="sg-l">Monsters slain</span><span class="sg-v">${S.stats.slain}</span>
-        <span class="sg-l">Gold banked</span><span class="sg-v">🪙 ${S.gold} <span style="color:var(--faint);font-weight:600">(earned ${S.stats.goldEarned})</span></span>
+        <span class="sg-l">Gold banked</span><span class="sg-v">${S.gold} gold <span style="color:var(--faint);font-weight:600">(earned ${S.stats.goldEarned})</span></span>
         <span class="sg-l">Cards consumed</span><span class="sg-v">${S.stats.consumed}</span>
       </div>
       <div class="stat-line" style="font-size:12px">${timeline}</div>
@@ -1065,7 +1094,7 @@ function endRun(won){
 }
 function bestLine(){
   const b = loadBest(), m = meta();
-  return (b ? `Best run: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · 🪙 ${b.gold}` : "")
+  return (b ? `Best run: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · ${b.gold} gold` : "")
     + (m.runs ? ` — <b>${m.wins}</b> win${m.wins === 1 ? "" : "s"} in <b>${m.runs}</b> runs` : "");
 }
 
@@ -1307,7 +1336,7 @@ function resolveCard(cell){
     case "coin": {
       const g = (c.v + (S.relics.clover ? 2 : 0)) * Math.pow(2, S.perks.greed || 0);
       S.gold += g; S.stats.goldEarned += g;
-      floatText(cell, "+" + g + " 🪙", "f-gold");
+      floatText(cell, "+" + g + " gold", "f-gold");
       SND.play("coin");
       consumeCardEl(cell); moveHeroTo(cell);
       break;
@@ -1320,7 +1349,7 @@ function resolveCard(cell){
     }
     case "bloodgold": {
       S.gold += c.v; S.stats.goldEarned += c.v;
-      floatText(cell, `+${c.v} 🪙`, "f-gold");
+      floatText(cell, `+${c.v} gold`, "f-gold");
       SND.play("coin");
       const died = damageHero(c.dmg, 120);
       if(died){ consumeCardEl(cell); renderHUD(); endRun(false); return; }
@@ -1379,7 +1408,7 @@ function resolveCard(cell){
       grantRelic(cell);
       const g = 4 + S.floor;
       S.gold += g; S.stats.goldEarned += g;
-      floatText(cell, `+${g} 🪙`, "f-gold", 500);
+      floatText(cell, `+${g} gold`, "f-gold", 500);
       heroBlipFx();
       consumeCardEl(cell); moveHeroTo(cell);
       break;
@@ -1417,7 +1446,7 @@ function openChest(cell){
     case "gold": {
       const g = (4 + f) * Math.pow(2, S.perks.greed || 0);
       S.gold += g; S.stats.goldEarned += g;
-      floatText(cell, `📦 +${g} 🪙`, "f-gold"); break;
+      floatText(cell, `Loot +${g} gold`, "f-gold"); break;
     }
     case "potion": {
       const real = Math.min(4 + (S.perks.alch || 0) * 2, S.maxHp - S.hp);
@@ -1453,7 +1482,7 @@ function openEvent(){
     const can = S.hp > 3;
     body = `<div class="bigicon">⛩️</div><h2>Blood Shrine</h2>
       <div class="sub">An altar hungers. It pays well.</div>
-      <button class="btn ${can ? "" : "disabled"}" data-ev="pray">Bleed: −3 HP → +12 🪙</button>
+      <button class="btn ${can ? "" : "disabled"}" data-ev="pray">Bleed: −3 HP → +12 gold</button>
       <button class="btn ghost" data-ev="leave">Walk away</button>`;
   } else if(k === "fountain"){
     body = `<div class="bigicon">⛲</div><h2>Cold Fountain</h2>
@@ -1467,8 +1496,8 @@ function openEvent(){
     const can = S.gold >= toll;
     body = `<div class="bigicon">👿</div><h2>Toll Imp</h2>
       <div class="sub">"Pay the toll — or I take my cut and hex that blade of yours."</div>
-      <button class="btn ${can ? "" : "disabled"}" data-ev="pay">Pay ${toll} 🪙 — safe passage</button>
-      <button class="btn ghost" data-ev="refuse">Refuse: it steals ${steal} 🪙 (40%) and curses your weapon −2 for 3 fights</button>`;
+      <button class="btn ${can ? "" : "disabled"}" data-ev="pay">Pay ${toll} gold — safe passage</button>
+      <button class="btn ghost" data-ev="refuse">Refuse: it steals ${steal} gold (40%) and curses your weapon −2 for 3 fights</button>`;
   }
   overlay.innerHTML = `<div class="panel">${body}</div>`;
   overlay.classList.add("show");
@@ -1491,7 +1520,7 @@ function resolveEvent(choice){
       S.gold -= steal;
       if(S.curse){ S.curse.fights += 3; S.curse.amt = Math.max(S.curse.amt, 2); }
       else S.curse = { amt: 2, fights: 3 };
-      floatText(S.heroCell, `👿 −${steal} 🪙, cursed`, "f-purple", 150);
+      floatText(S.heroCell, `Imp: −${steal} gold, cursed`, "f-purple", 150);
     }
   }
   S.eventKind = null;
@@ -1536,7 +1565,7 @@ function openMerchant(){
 function renderMerchant(){
   overlay.innerHTML = `<div class="panel">
     <h2>🧙 The Merchant</h2>
-    <div class="sub">You carry <b style="color:var(--gold)">🪙 ${S.gold}</b> — click an offer to buy</div>
+    <div class="sub">You carry <b style="color:var(--gold)">${S.gold} gold</b> — click an offer to buy</div>
     <div class="choice-row">
       ${S.merchOffers.map((o, i) => {
         const full = o.id === "spell" && S.spells.length >= 2;
@@ -1544,7 +1573,7 @@ function renderMerchant(){
         return `<div class="mini-card ${cls}" data-buy="${i}">
           <div class="mi">${o.icon}</div><div class="mt">${o.name}</div>
           <div class="md">${o.desc}${full && !o.sold ? "<br>(hands full)" : ""}</div>
-          <div class="mp">${o.sold ? "SOLD" : "🪙 " + o.price}</div>
+          <div class="mp">${o.sold ? "SOLD" : o.price + " gold"}</div>
         </div>`;
       }).join("")}
     </div>
@@ -1637,10 +1666,15 @@ function startFloor(){
   renderHUD();
 }
 
+function showTutorial(){
+  overlay.innerHTML=`<div class="panel"><h2>First hand</h2><div class="rules"><b>1.</b> Choose one of the four adjacent cards.<br><b>2.</b> Preview the exact result before committing; lethal choices pulse red.<br><b>3.</b> Weapons absorb monster power, but lose that full amount after the fight.<br><b>4.</b> Select spell chips in the status bar, then choose a target.</div><button class="btn" id="btn-tutorial-ok">Start exploring</button></div>`;
+  overlay.classList.add('show');
+}
 function newRun(){
   replaceState(Object.assign(newState(), { screen: "play" }));
   overlay.classList.remove("show");
   startFloor();
+  if(!localStorage.getItem('dungeondeal_tutorial_seen_v1')&&!tutorialPrompted){tutorialPrompted=true;showTutorial();}
 }
 
 // ---------- title screen ----------
@@ -1650,13 +1684,14 @@ function showTitle(){
   overlay.innerHTML = `<div class="panel">
     <div class="bigicon">♠️</div>
     <h1>DUNGEON DEAL</h1>
-    <div class="sub">a 4×4 card dungeon — touchpad only</div>
+    <div class="sub">a 4×4 card dungeon · mouse, touch, or keyboard</div>
     <div class="rules">
-      <span class="r-ico">🖱️</span> <b>Click a card next to you</b> (4 directions) to take it — you move onto it. <b>Hover</b> previews the exact outcome; lethal picks pulse red.<br>
+      <span class="r-ico">◆</span> <b>Choose an adjacent card</b> to move and take it. Hover or focus previews the outcome; on touch, tap once to preview and again to confirm.<br>
+      <details><summary>Full rules</summary>
       <span class="r-ico">👹</span> <b>Monsters</b> hit for their power; your <b>🗡️ weapon</b> absorbs it but wears down. Kills give <b>XP</b> — each level instantly grants <b>+1 max HP</b> and heals 2. <b>🧌 Elites</b> drop relics.<br>
       <span class="r-ico">📜</span> <b>Spells</b> (max 2) wait in your bar — click to cast: 🔥 kill a monster, ❄️ free next fight, 🌀 swap two cards, 💣 destroy anything.<br>
       <span class="r-ico">🗝️</span> <b>Keys</b> open <b>locked chests</b> (relic inside). <b>❓ Events</b> offer deals with exact prices. <b>🩸 Blood Gold</b> pays in HP; the <b>⚒️ Anvil</b> melts your blade into max HP.<br>
-      <span class="r-ico">🪜</span> Use up the deck & slay every monster → <b>stairs</b> + a perk. <b>10 themed floors</b>, a 🦂 warden at 5, the 🐉 <b>Depth Lord</b> (2 stages) at 10.<br>
+      <span class="r-ico">🪜</span> Use up the deck & slay every monster → <b>stairs</b> + a perk. <b>10 themed floors</b>, a 🦂 warden at 5, the 🐉 <b>Depth Lord</b> (2 stages) at 10.<br></details>
     </div>
     <button class="btn" id="btn-start">Deal me in</button>
   </div>`;
@@ -1679,8 +1714,10 @@ function renderMenu(){
       <button class="btn ghost" id="menu-confirm-no">Keep playing</button>
     ` : `
       <button class="btn" id="menu-resume">Resume</button>
+      <button class="btn ghost" id="menu-help">How to play</button>
       <button class="btn ghost" id="menu-newrun">New Run</button>
       <button class="btn ghost" id="menu-title">Title screen</button>
+      <a class="btn ghost" href="../index.html">← Arcade</a>
     `}
   </div>`;
 }
@@ -1695,6 +1732,7 @@ $("#btn-home").addEventListener("click", () => {
 });
 menuEl.addEventListener("click", e => {
   if(e.target.closest("#menu-resume")){ closeMenu(); return; }
+  if(e.target.closest("#menu-help")){ closeMenu(); showTutorial(); return; }
   if(e.target.closest("#menu-title")){
     if(isMidRun()){ menuConfirm = "title"; renderMenu(); }
     else { closeMenu(); showTitle(); }
@@ -1715,6 +1753,7 @@ menuEl.addEventListener("click", e => {
   if(e.target === menuEl) closeMenu(); // click outside the panel resumes
 });
 document.addEventListener("keydown", e => {
+  if((e.key==="Enter"||e.key===" ")&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();return;}
   if(e.key === "Escape"){ menuOpen ? closeMenu() : openMenu(); }
 });
 
@@ -1766,6 +1805,13 @@ board.addEventListener("click", e => {
   const el = e.target.closest("#board .card, #board .slot");
   if(!el) return;
   const cell = +el.dataset.cell;
+  const coarseTap=typeof window.matchMedia==='function'&&window.matchMedia('(pointer:coarse)').matches&&e.detail>0;
+  const previewKey=(S.targeting?'spell:'+S.targeting.spell+':':'move:')+cell;
+  if(coarseTap&&touchPreviewKey!==previewKey){
+    clearTouchPreview();touchPreviewKey=previewKey;el.classList.add('touch-preview');
+    showTooltipFor(el);tooltip.classList.add('pinned');return;
+  }
+  if(touchPreviewKey===previewKey)clearTouchPreview();
   if(S.targeting){
     // spell targeting mode: clicks pick targets, invalid clicks cancel
     if(el.classList.contains("slot") && (S.board[cell] || cell === S.heroCell)) return; // covered by a card el
@@ -1792,6 +1838,7 @@ $("#statusbar").addEventListener("click", e => {
 
 overlay.addEventListener("click", e => {
   if(menuOpen || !S) return;
+  if(e.target.closest('#btn-tutorial-ok')){localStorage.setItem('dungeondeal_tutorial_seen_v1','1');overlay.classList.remove('show');return;}
   if(e.target.closest("#btn-title")){ showTitle(); return; }
   if(e.target.closest("#btn-start") || e.target.closest("#btn-restart")){ newRun(); return; }
   if(S.screen === "perk"){
@@ -1835,6 +1882,7 @@ window.DD = {
     },
   },
 };
+window.render_game_to_text = () => JSON.stringify(S ? {game:'Dungeon Deal',screen:S.screen,floor:S.floor,hero:{cell:S.heroCell,hp:S.hp,maxHp:S.maxHp},gold:S.gold,level:S.lvl,weapon:S.weapon?S.weapon.v:0,shield:S.shield,reachable:[...document.querySelectorAll('#board [role="button"]')].map(el=>+el.dataset.cell)} : {game:'Dungeon Deal',screen:'loading'});
 </script>
 </body>
 </html>

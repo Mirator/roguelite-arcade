@@ -32,6 +32,8 @@ function makeEl(id) {
     textContent: "",
     className: "",
     disabled: false,
+    setAttribute(name, value) { el[name] = String(value); },
+    getAttribute(name) { return el[name] === undefined ? null : String(el[name]); },
     appendChild(c) { el.children.push(c); return c; },
     addEventListener(t, fn) { (el.handlers[t] = el.handlers[t] || []).push(fn); },
     dispatchEvent(ev) { (el.handlers[ev.type] || []).forEach(fn => fn(ev)); return true; },
@@ -50,7 +52,8 @@ const ctxProxy = new Proxy({}, { get: () => noop, set: () => true });
 const ids = ["game", "pauseBtn", "muteBtn", "dmgBtn", "homeBtn", "titleScreen", "startRow", "startBtn", "openTreeBtn", "treeCoinBadge", "bestHint",
   "treeScreen", "treeBackBtn", "coinsLabelFull", "treeSvgFull", "treeNodesFull", "nodeInfoFull", "buyBtnFull", "respecBtnFull",
   "levelUpScreen", "lvlSub", "cards", "rerollBtn", "dpsPanelLevelUp", "chestScreen", "chestCards", "dpsPanelChest",
-  "pauseScreen", "resumeBtn", "pauseNewRunBtn", "pauseMuteBtn", "pauseHomeBtn",
+  "pauseScreen", "resumeBtn", "pauseNewRunBtn", "pauseMuteBtn", "pauseHomeBtn", "pauseHelpBtn",
+  "liveStatus", "steerHint", "steerHintClose",
   "deathScreen", "deathStats", "bestLine", "coinLine", "dmgTable", "dpsCanvas", "newRunBtn",
   "winScreen", "winStats", "winDmgTable", "winDpsCanvas", "winRunBtn"];
 const els = {};

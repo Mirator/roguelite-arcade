@@ -299,12 +299,13 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 /* ============ nav + menu ============ */
 #navBtns{position:fixed;top:8px;right:10px;z-index:80;display:flex;gap:6px}
 .navB{
-  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
   background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--dim);
   font-size:17px;line-height:1;cursor:pointer;text-decoration:none;
   transition:color .15s, border-color .15s, background .15s;
 }
 .navB:hover{color:var(--gold);border-color:var(--gold);background:#232d3d}
+.navB:focus-visible,.btn:focus-visible,.card:focus-visible,.cmdCard:focus-visible,.mapNode:focus-visible,.dropItem:focus-visible,.mItem:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 #menuOv{
   position:fixed;inset:0;z-index:85;display:flex;align-items:center;justify-content:center;
   background:#0d1117d9;backdrop-filter:blur(3px);
@@ -326,6 +327,28 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 #tip .tn{font-weight:900;color:var(--gold)} #tip .tt{color:var(--dim);font-size:10.5px}
 #tip .ta{margin-top:4px} #tip .ti{margin-top:4px;color:#9fd0ff}
 #tip .tc{margin-top:4px;color:#e5a08c;font-size:11px}
+#tip.pinned{pointer-events:auto;border-color:var(--gold);max-width:min(320px,calc(100vw - 20px))}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@media(pointer:coarse){.navB{width:44px;height:44px}#navBtns{top:5px;right:6px}.itemSlot,.mapNode.open{min-width:44px;min-height:44px}}
+@media(max-width:599px){
+  :root{--cw:58px}
+  html,body,#app,.scr{width:100%;max-width:100%;min-width:0}
+  #navBtns{top:auto;right:6px;bottom:6px}
+  #hud{min-height:72px;flex-wrap:wrap;align-content:center;gap:4px 6px;padding:5px 7px}
+  #hud .pill{font-size:10px;padding:2px 7px} #hud .sp{display:none} #hud .phase{width:100%;order:-1;font-size:9px}
+  #shopPhase{justify-content:flex-start;gap:8px;padding:10px 5px 66px;overflow-y:auto;overscroll-behavior:contain}
+  #scout{flex-direction:column;gap:5px;padding:10px 5px 5px;width:100%;max-width:100%}
+  #scoutLeft{max-width:100%;text-align:center} #scoutInfo{font-size:9.5px}
+  #scoutCards{--cw:52px} .zone{gap:4px;width:100%}.zlabel{font-size:8px;letter-spacing:.06em;text-align:center}
+  #benchWrap,#stashWrap{width:100%;justify-content:center}.ctlRow{gap:5px}
+  #ecoNote{font-size:9px;padding:0 8px}.btn{min-height:38px;padding:6px 10px}
+  #mapPhase{padding:5px 5px 60px} #mapLegend{display:none} #mapHead{font-size:10px}
+  #battlePhase{padding:4px 4px 60px} #blog{height:74px;padding:4px 7px}
+  .center{justify-content:flex-start;padding:64px 8px 60px}.cmdCard{width:min(94vw,330px)}
+  .dropItem{width:min(150px,44vw);padding:9px 8px}.ovl{overflow-y:auto;padding:20px 6px 64px;justify-content:flex-start}
+  #rulesPanel{max-width:96vw;max-height:82vh;padding:14px}.statline{text-align:center}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
@@ -450,15 +473,19 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
   </section>
 </div>
 <div id="navBtns">
-  <button id="menuBtn" class="navB" data-act="menu-open" title="Menu (Esc)">☰</button>
-  <button id="homeBtn" class="navB" data-act="go-title" title="Title screen">⌂</button>
+  <button id="muteBtn" class="navB" data-act="mute" title="Sound on/off" aria-label="Sound on/off">♪</button>
+  <button id="menuBtn" class="navB" data-act="menu-open" title="Menu (Esc)" aria-label="Menu">☰</button>
+  <button id="homeBtn" class="navB" data-act="go-title" title="Title screen" aria-label="Game title">⌂</button>
+  <a class="navB" href="../index.html" title="Arcade" aria-label="Back to arcade">←</a>
 </div>
+<div id="liveStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <div id="menuOv" class="hidden">
   <div id="menuPanel">
     <h3>⚔️ WAR<span style="color:var(--gold)">BAND</span></h3>
     <button class="btn primary mBtn" data-act="menu-close">▶ Resume</button>
     <button class="btn danger mBtn" data-act="menu-abandon" id="abandonBtn">🏳️ Abandon Run</button>
     <button class="btn mBtn" data-act="go-title">🏰 Title screen</button>
+    <a class="btn mBtn" href="../index.html">← Arcade</a>
     <div class="mNote">Esc toggles this menu</div>
   </div>
 </div>
@@ -571,7 +598,10 @@ const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 
 // ---------------------------- tiny sfx --------------------------------
 let AC = null;
+let muted = false;
+try{ muted = localStorage.getItem('wb_mute') === '1'; }catch(e){}
 function sfx(kind){
+  if(muted) return;
   try{
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if(AC.state === 'suspended') AC.resume();
@@ -971,6 +1001,11 @@ function endRun(victory){
 function tipData(u){
   const U = UNITS[u.key];
   let s = `<span class="tn">${U.e} ${uname(u)}</span> <span class="tt">· ${FACTIONS[U.f].i} ${U.f} · Tier ${U.t}</span><div class="ta">${abText(u)}</div>`;
+  if(S && S.lineup){
+    const count = S.lineup.filter(x => x && UNITS[x.key].f === U.f).length;
+    const next = count < 3 ? 3 : count < 5 ? 5 : null;
+    s += `<div class="tc">Lineup synergy: ${count} ${U.f}${next ? ` · ${next-count} more to unlock ${next}` : ' · maximum doctrine active'}</div>`;
+  }
   if(u.item) s += `<div class="ti">${ITEMS[u.item].e} ${ITEMS[u.item].n}: ${ITEMS[u.item].d}</div>`;
   return s;
 }
@@ -1371,6 +1406,7 @@ function log(msg){
   b.appendChild(d);
   while(b.children.length > 8) b.removeChild(b.firstChild);
   b.scrollTop = b.scrollHeight;
+  $('#liveStatus').textContent = msg;
 }
 function mkFighter(u, side){
   const U = UNITS[u.key];
@@ -1759,16 +1795,19 @@ async function runBattle(){
     S.wins++; meta.battleWins++; saveMeta();
     ban.textContent = '🏅 VICTORY'; ban.classList.add('win');
     sfx('win');
+    ban.innerHTML += `<div class="bsub">${bt.P.filter(f=>f.alive).length} survived · ${S.gold} gold banked</div>`;
     log('🏅 Your warband stands victorious!');
   } else if(result === 'lose'){
     const cost = curDepth() > 5 ? 2 : 1;
     S.lives -= cost;
     ban.textContent = '💔 DEFEAT'; ban.classList.add('lose');
     sfx('lose');
+    ban.innerHTML += `<div class="bsub">-${cost} ${cost>1?'lives':'life'} · ${Math.max(0,S.lives)} remain</div>`;
     log(`💔 Defeat — you lose ${cost} ${cost > 1 ? 'lives' : 'life'}.`);
   } else {
     ban.textContent = '🤝 DRAW'; ban.classList.add('draw');
     log('🤝 A bloody draw. No lives lost.');
+    ban.innerHTML += `<div class="bsub">No lives lost · adjust formation and try again</div>`;
   }
   renderHUD();
   if(!await wait(1300, battle)) return;
@@ -1894,7 +1933,18 @@ function abandonRun(){
   endRun(false);
 }
 
-// ---------------------------- input (mouse-first) ----------------------
+// ---------------------------- semantic input ---------------------------
+function semanticize(root = document){
+  const nodes = [];
+  if(root.nodeType === 1 && root.matches('[data-act]:not(button):not(a)')) nodes.push(root);
+  if(root.querySelectorAll) nodes.push(...root.querySelectorAll('[data-act]:not(button):not(a)'));
+  for(const el of nodes){
+    el.setAttribute('role','button'); el.tabIndex = 0;
+    if(!el.getAttribute('aria-label')) el.setAttribute('aria-label',(el.textContent||el.dataset.act).trim().replace(/\s+/g,' ').slice(0,140));
+  }
+}
+new MutationObserver(records=>records.forEach(r=>r.addedNodes.forEach(semanticize))).observe(document.body,{childList:true,subtree:true});
+semanticize();
 document.addEventListener('click', ev => {
   if(dragJustHappened) return;         // swallow the trailing click after a drag
   const t = ev.target.closest('[data-act]');
@@ -1903,10 +1953,16 @@ document.addEventListener('click', ev => {
   switch(act){
     case 'start-run':    showScreen('cmd'); break;
     case 'continue-run': continueRun(); break;
-    case 'pick-cmd':     startRun(t.dataset.cmd); break;
+    case 'pick-cmd':
+      startRun(t.dataset.cmd);
+      if(!localStorage.getItem('warband_tutorial_seen_v1')) $('#rulesOv').classList.remove('hidden');
+      break;
     case 'go-title':     goTitle(); break;
     case 'rules-open':   $('#rulesOv').classList.remove('hidden'); break;
-    case 'rules-close':  $('#rulesOv').classList.add('hidden'); break;
+    case 'rules-close':
+      $('#rulesOv').classList.add('hidden');
+      localStorage.setItem('warband_tutorial_seen_v1','1');
+      break;
     case 'meta-buy':     metaBuy(t.dataset.item); break;
     case 'map-node':     chooseNode(+t.dataset.l, +t.dataset.i); break;
     case 'event-pick':   pickEvent(t.dataset.e); break;
@@ -1923,6 +1979,12 @@ document.addEventListener('click', ev => {
     case 'menu-open':    openMenu(); break;
     case 'menu-close':   closeMenu(); break;
     case 'menu-abandon': abandonRun(); break;
+    case 'mute':
+      muted = !muted;
+      $('#muteBtn').textContent = muted ? '🔇' : '♪';
+      $('#muteBtn').setAttribute('aria-label', muted ? 'Sound off' : 'Sound on');
+      try{ localStorage.setItem('wb_mute', muted ? '1' : '0'); }catch(e){}
+      break;
     case 'fight':
       if(S && S.phase === 'shop' && S.lineup.some(Boolean)) runBattle();
       else hint('Move at least one unit into the lineup!');
@@ -1933,32 +1995,33 @@ document.addEventListener('click', ev => {
       break;
   }
 });
-// tooltip follows the mouse over any [data-tip]
+// Tooltips persist on focus or tap, matching mouse hover information.
 const tip = $('#tip');
 let tipTarget = null;
-document.addEventListener('mousemove', ev => {
+let pinnedTip = false;
+function positionTip(c, x, y, pin){
+  tipTarget = c; pinnedTip = !!pin;
+  tip.innerHTML = c.dataset.tip; tip.classList.remove('hidden'); tip.classList.toggle('pinned',pinnedTip);
+  const r = tip.getBoundingClientRect(), er = c.getBoundingClientRect(), pad = 14;
+  let px = pin ? er.left : x + pad, py = pin ? er.bottom + 8 : y + pad;
+  if(px + r.width > innerWidth - 6) px = innerWidth-r.width-6;
+  if(py + r.height > innerHeight - 6) py = pin ? er.top-r.height-8 : y-r.height-pad;
+  tip.style.left = Math.max(6,px)+'px'; tip.style.top = Math.max(6,py)+'px';
+}
+document.addEventListener('pointermove', ev => {
   const c = (!ghost && ev.target.closest) ? ev.target.closest('[data-tip]') : null;
-  if(c){
-    if(tipTarget !== c || tip.classList.contains('hidden')){
-      tipTarget = c;
-      tip.innerHTML = c.dataset.tip;
-      tip.classList.remove('hidden');
-    } else {
-      tip.innerHTML = c.dataset.tip;
-    }
-    const pad = 14;
-    let x = ev.clientX + pad, y = ev.clientY + pad;
-    const r = tip.getBoundingClientRect();
-    if(x + r.width > innerWidth - 6)  x = ev.clientX - r.width - pad;
-    if(y + r.height > innerHeight - 6) y = ev.clientY - r.height - pad;
-    tip.style.left = x + 'px'; tip.style.top = y + 'px';
-  } else if(tipTarget){
+  if(c && !pinnedTip) positionTip(c,ev.clientX,ev.clientY,false);
+  else if(!c && tipTarget && !pinnedTip){
     tipTarget = null;
     tip.classList.add('hidden');
   }
 });
+document.addEventListener('focusin',ev=>{const c=ev.target.closest&&ev.target.closest('[data-tip]');if(c)positionTip(c,0,0,true);});
+document.addEventListener('click',ev=>{const c=ev.target.closest&&ev.target.closest('[data-tip]');if(c)positionTip(c,ev.clientX,ev.clientY,true);});
 window.addEventListener('resize', () => { /* fluid layout: flex + clamp() */ });
 document.addEventListener('keydown', ev => {
+  if((ev.key==='Enter'||ev.key===' ')&&ev.target.matches('[role="button"]')){ev.preventDefault();ev.target.click();return;}
+  if(ev.key === 'Escape' && pinnedTip){pinnedTip=false;tipTarget=null;tip.classList.add('hidden');return;}
   if(ev.key === 'Escape'){ ev.preventDefault(); toggleMenu(); }
 });
 
@@ -1979,8 +2042,11 @@ window.__wb = {
   giveItem(k){ if(S.stash.length < STASH_MAX){ S.stash.push(k); renderShopPhase(); } },
   resetMeta(){ meta = {medals:0, trophies:0, battleWins:0, runs:0, owned:{}}; saveMeta(); renderTitle(); },
 };
+window.render_game_to_text = () => JSON.stringify(S ? {game:'Warband',phase:S.phase,node:S.pos?S.pos.l+1:0,lives:S.lives,gold:S.gold,wins:S.wins,lineup:S.lineup.map(u=>u?{unit:u.key,level:u.lvl,attack:u.atk,hp:u.hp}:null),enemy:S.enemy?S.enemy.map(u=>u.key):[]} : {game:'Warband',phase:'title'});
 
 // ---------------------------- boot ------------------------------------
+$('#muteBtn').textContent = muted ? '🔇' : '♪';
+$('#muteBtn').setAttribute('aria-label', muted ? 'Sound off' : 'Sound on');
 showScreen('title');
 </script>
 </body>

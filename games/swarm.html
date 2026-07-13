@@ -11,7 +11,7 @@
     font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
     -webkit-user-select: none; user-select: none;
   }
-  #game { display: block; position: absolute; inset: 0; cursor: crosshair; }
+  #game { display: block; position: absolute; inset: 0; cursor: crosshair; touch-action:none; }
   .overlay {
     position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center;
@@ -94,6 +94,7 @@
   .startw.locked { opacity: 0.45; cursor: default; }
   .cards { display: flex; gap: 16px; margin-top: 18px; flex-wrap: wrap; justify-content: center; }
   .card {
+    font:inherit; color:inherit;
     width: 190px; min-height: 216px; background: linear-gradient(170deg, #182031, #10151f);
     border: 1px solid #2e3c55; border-radius: 12px; padding: 16px 15px;
     cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
@@ -186,6 +187,24 @@
   .startw.locked { cursor: not-allowed; }
   .tnode:hover:not(.locked):not(.owned):not(.root) { border-color: #6ea8ff; }
   .tnode.locked { cursor: not-allowed; }
+  button:focus-visible,a:focus-visible,.card:focus-visible,.tnode:focus-visible{outline:3px solid #8fc2ff;outline-offset:3px}
+  .arcadeLink{left:14px;display:inline-flex;align-items:center;justify-content:center;color:#b9c6dc;text-decoration:none}
+  .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+  .icon,.topbtn{font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji","Segoe UI",sans-serif}
+  @media (pointer:coarse){.topbtn{width:44px;height:44px;top:10px}.arcadeLink{left:10px}#homeBtn{right:10px}#pauseBtn{right:60px}#muteBtn{right:110px}#dmgBtn{right:160px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+  .gamehint{position:fixed;z-index:30;left:50%;bottom:24px;transform:translateX(-50%);width:min(420px,calc(100vw - 24px));box-sizing:border-box;background:#141b29f2;border:1px solid #6ea8ff;border-radius:12px;padding:12px 14px;box-shadow:0 12px 34px #0009;text-align:left;font-size:13px;line-height:1.45}
+  .gamehint button{float:right;margin:0 0 0 12px;background:#6ea8ff;color:#0b0e14;border:0;border-radius:8px;padding:8px 12px;font-weight:800}
+  @media(max-width:600px){
+    .overlay{justify-content:flex-start;overflow-y:auto;padding:76px 12px 24px;box-sizing:border-box}
+    h1{font-size:40px;letter-spacing:4px}.panel{padding:13px 15px;font-size:13px;max-width:calc(100vw - 24px)}
+    .titleleft{gap:11px}.startrow{gap:5px}.startw{padding:8px 9px}.cards{width:100%;flex-direction:column;align-items:center;margin-top:10px}
+    .card{width:min(320px,calc(100vw - 32px));min-height:132px;padding:12px;box-sizing:border-box}.card .icon{font-size:28px}.card .desc{font-size:12px}
+    .dpsPanel{display:none}#treeScreen{padding:72px 12px 24px}#treeBoxFull{position:static;width:100%;max-width:420px;height:auto}
+    #treeSvgFull,.brlabel{display:none}#treeNodesFull{position:static;display:grid;grid-template-columns:1fr;gap:8px}
+    .tnode{position:relative!important;left:auto!important;top:auto!important;width:100%;height:52px;box-sizing:border-box;border-radius:10px}
+    .tnode.root{display:none}.tnode .tc{position:static;width:auto;margin-left:12px}.tnode .ti{font-size:20px}
+  }
 </style>
 </head>
 <body>
@@ -193,7 +212,10 @@
 <button id="pauseBtn" class="topbtn hidden" title="Pause">❚❚</button>
 <button id="muteBtn" class="topbtn hidden" title="Sound on/off">♪</button>
 <button id="dmgBtn" class="topbtn hidden" title="Damage numbers on/off">DMG</button>
-<button id="homeBtn" class="topbtn" title="Title screen">⌂</button>
+<button id="homeBtn" class="topbtn" title="Title screen" aria-label="Game title">⌂</button>
+<a href="../index.html" id="arcadeBtn" class="topbtn arcadeLink" title="Arcade" aria-label="Back to arcade">←</a>
+<div id="liveStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<div id="steerHint" class="gamehint hidden" role="status"><button id="steerHintClose">Got it</button><b>Steer to survive:</b> move the pointer, or drag on touch. Weapons auto-fire; avoid red danger zones, collect gems for level-up choices, then spend banked death coins in the upgrade tree.</div>
 
 <div id="titleScreen" class="overlay">
   <h1>SWARM</h1>
@@ -206,7 +228,7 @@
         A <b>boss</b> comes every 2½ minutes. Survive 30 minutes to win.<br>
         You <b>will</b> die fast at first — every death banks <b>coins</b> for
         the upgrade tree. Die, buy, go again.<br>
-        <span style="color:#7f8ca3;font-size:12px">Touchpad only: move the cursor to steer. Clicks are just for menus.</span>
+        <span style="color:#7f8ca3;font-size:12px">Move the pointer or drag to steer; tap/click for menus and upgrade choices.</span>
       </div>
       <div class="sectlabel">Loadout — starting weapon</div>
       <div class="startrow" id="startRow"></div>
@@ -260,6 +282,8 @@
     <button class="small" id="pauseNewRunBtn">New Run</button>
     <button class="small" id="pauseMuteBtn">Sound: ON</button>
     <button class="small" id="pauseHomeBtn">⌂ Title Screen</button>
+    <button class="small" id="pauseHelpBtn">How to play</button>
+    <a class="small arcadeLink" style="position:static;width:auto;height:auto;padding:11px 18px" href="../index.html">← Arcade</a>
   </div>
 </div>
 
@@ -1233,6 +1257,8 @@ function setState(s) {
   dmgBtn.classList.toggle("hidden", s !== ST_PLAY);
   if (s !== ST_DEAD) deathScreen.classList.add("hidden");
   if (s === ST_TITLE) { renderTree(); renderStartRow(); }
+  const live = el("liveStatus");
+  if (live) live.textContent = s === ST_LEVELUP ? "Level up. Choose one upgrade." : s === ST_CHEST ? "Treasure chest. Pick a reward." : s === ST_PAUSE ? "Game paused." : s === ST_WIN ? "Victory." : "";
 }
 function refreshToggleBtns() {
   muteBtn.textContent = muted ? "×" : "♪";
@@ -1263,8 +1289,10 @@ function openLevelUp() {
 function renderLevelCards(picks) {
   cardsEl.innerHTML = "";
   for (const c of picks) {
-    const div = document.createElement("div");
+    const div = document.createElement("button");
+    div.type = "button";
     div.className = "card " + c.cls;
+    div.setAttribute("aria-label", c.name + ". " + c.desc);
     div.innerHTML =
       '<div class="icon">' + c.icon + '</div>' +
       '<div class="name">' + c.name + '</div>' +
@@ -1314,8 +1342,10 @@ function openChest() {
   while (picks.length < player.chestChoices && pool.length) picks.push(pool.splice((Math.random() * pool.length) | 0, 1)[0]);
   chestCardsEl.innerHTML = "";
   for (const r of picks) {
-    const div = document.createElement("div");
+    const div = document.createElement("button");
+    div.type = "button";
     div.className = "card";
+    div.setAttribute("aria-label", r.name + ". " + r.desc);
     div.innerHTML =
       '<div class="icon">' + r.icon + '</div>' +
       '<div class="name">' + r.name + '</div>' +
@@ -1405,8 +1435,10 @@ function renderTree() {
     const owned = own(n.id);
     const unlocked = nodeUnlocked(n);
     const afford = coins >= n.cost;
-    const div = document.createElement("div");
+    const div = document.createElement("button");
+    div.type = "button";
     div.className = "tnode" + (owned ? " owned" : unlocked ? (afford ? " avail" : "") : " locked") + (selNode === n.id ? " sel" : "");
+    div.setAttribute("aria-label", n.name + ". " + n.desc + ". " + (owned ? "Owned" : n.cost + " coins"));
     div.style.left = (n.x * TREE_SCALE - 29) + "px";
     div.style.top = (n.y * TREE_SCALE - 29) + "px";
     div.innerHTML = '<span class="ti">' + n.icon + '</span>' +
@@ -1663,11 +1695,13 @@ function resetGame() {
 }
 
 // ---------- Input ----------
-window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener("pointermove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
 function startRun() {
   initAudio();
   resetGame();
   setState(ST_PLAY);
+  let seen = false; try{ seen = localStorage.getItem("swarm_tutorial_seen_v1") === "1"; }catch(e){}
+  if(!seen) el("steerHint").classList.remove("hidden");
   if (player.startLevel > 1) { player.xp += player.xpNext; maybeLevelUp(); } // Head Start: free pick
 }
 el("startBtn").addEventListener("click", startRun);
@@ -1714,6 +1748,8 @@ el("pauseMuteBtn").addEventListener("click", (e) => {
   refreshToggleBtns();
   syncPauseMenu();
 });
+el("pauseHelpBtn").addEventListener("click", (e) => { e.stopPropagation(); el("steerHint").classList.remove("hidden"); setState(ST_PLAY); });
+el("steerHintClose").addEventListener("click", (e) => { e.stopPropagation(); el("steerHint").classList.add("hidden"); try{localStorage.setItem("swarm_tutorial_seen_v1","1");}catch(err){} });
 let newRunArmed = false;
 el("pauseNewRunBtn").addEventListener("click", (e) => {
   e.stopPropagation();
@@ -2643,8 +2679,9 @@ function draw() {
 }
 
 function drawHUD() {
+  const mobile = W < 600;
   // HP bar
-  const bw = 240, bh = 14, bx = 18, by = 18;
+  const bw = mobile ? Math.min(160,W*.42) : 240, bh = 14, bx = 18, by = 18;
   ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
   ctx.fillStyle = "#3a1420";
@@ -2671,24 +2708,26 @@ function drawHUD() {
   ctx.font = "bold 26px system-ui, sans-serif";
   ctx.fillStyle = "#e8eefb";
   ctx.textAlign = "center";
-  ctx.fillText(fmtTime(elapsed), W / 2, 40);
+  ctx.fillText(fmtTime(elapsed), W / 2, mobile ? 88 : 40);
   ctx.textAlign = "right";
   ctx.font = "bold 15px system-ui, sans-serif";
   ctx.fillStyle = "#9db3d0";
-  ctx.fillText("KILLS  " + kills, W - 150, 32);
+  const statX = mobile ? W-12 : W-150;
+  ctx.fillText("KILLS  " + kills, statX, mobile?70:32);
   ctx.fillStyle = "#ffd166";
-  ctx.fillText("◉ " + runCoins, W - 150, 54);
+  ctx.fillText("◉ " + runCoins, statX, mobile?90:54);
   ctx.font = "11px system-ui, sans-serif";
   ctx.fillStyle = "#8a7a4a";
-  ctx.fillText("BANK " + coins, W - 150, 71);
+  ctx.fillText("BANK " + coins, statX, mobile?107:71);
   // combo
   if (combo >= 3) {
     const pop = 1 + Math.min(0.5, comboTimer * 0.2);
     ctx.font = "bold " + Math.round(17 * pop) + "px system-ui, sans-serif";
     ctx.fillStyle = "rgba(255, 209, 102, " + Math.min(1, comboTimer) + ")";
-    ctx.fillText("×" + combo + " combo", W - 150, 96);
+    const comboX = mobile ? W-12 : W-150;
+    ctx.fillText("×" + combo + " combo", comboX, mobile?130:96);
     // drain timer bar, right-aligned under the combo text
-    const cbw = 76, cbh = 4, cbx = W - 150 - cbw, cby = 101;
+    const cbw = 76, cbh = 4, cbx = comboX - cbw, cby = mobile?135:101;
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(cbx, cby, cbw, cbh);
     ctx.fillStyle = "#ffd166";
@@ -2697,7 +2736,7 @@ function drawHUD() {
     const a = comboBreakFlash / 0.5;
     ctx.font = "bold 15px system-ui, sans-serif";
     ctx.fillStyle = "rgba(255, 90, 90, " + a + ")";
-    ctx.fillText("combo broken", W - 150, 96);
+    ctx.fillText("combo broken", mobile?W-12:W-150, mobile?130:96);
   }
   ctx.textAlign = "left";
 
@@ -2864,6 +2903,7 @@ window.__swarm = {
     boss: (() => { const b = bossAlive(); return b ? { name: b.name, hp: Math.round(b.hp), mode: b.mode } : null; })(),
   }),
 };
+window.render_game_to_text = () => JSON.stringify({game:"Swarm",...window.__swarm.stats()});
 })();
 </script>
 </body>
