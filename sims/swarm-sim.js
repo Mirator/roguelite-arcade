@@ -132,12 +132,36 @@ function runMechanics() {
   };
   const placeEnemy = (x, y, hp = 10000, radius = 50) => {
     const enemy = S.spawnEnemy(0);
+    if (!enemy) throw new Error("Unable to add enemy to mechanics fixture");
     enemy.x = x;
     enemy.y = y;
     enemy.hp = enemy.maxHp = hp;
     enemy.r = radius;
     enemy.dmg = 0;
     return enemy;
+  };
+  const linearNearest = (x, y, maxDist) => {
+    let best = null;
+    let bestDistance = maxDist * maxDist;
+    for (let i = 0; i < S.enemies.length; i++) {
+      const enemy = S.enemies[i];
+      if (enemy.dead) continue;
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = enemy;
+      }
+    }
+    return best;
+  };
+  const checkGridNearest = (name, x, y, maxDist) => {
+    S.testing.gridRebuild();
+    const expected = linearNearest(x, y, maxDist);
+    const actual = S.testing.nearestEnemyTo(x, y, maxDist);
+    check(name, actual === expected, `grid target index ${S.enemies.indexOf(actual)}, linear target index ${S.enemies.indexOf(expected)}`);
+    return actual;
   };
 
   S.testing.startRun();
@@ -262,6 +286,74 @@ function runMechanics() {
   S.testing.fireScatter();
   const scatterProjectiles = S.projectiles.filter((projectile) => projectile.src === "scatter");
   check("Scatter projectiles start with per-projectile hit history", scatterProjectiles.length > 0 && scatterProjectiles.every((projectile) => projectile.hitTargets instanceof Set), "Scatter projectile history was missing");
+
+  const queryX = 1000;
+  const queryY = 1000;
+  clearRunObjects();
+  const adjacentInside = placeEnemy(1008, queryY, 10000, 10);
+  placeEnemy(1090, queryY, 10000, 10);
+  check("grid homing includes an in-range adjacent-cell enemy", checkGridNearest("grid nearest matches linear reference across adjacent cells", queryX, queryY, 80) === adjacentInside, "in-range adjacent-cell enemy was not selected");
+
+  clearRunObjects();
+  placeEnemy(1090, queryY, 10000, 10);
+  check("grid homing excludes an out-of-range adjacent-cell enemy", checkGridNearest("grid nearest matches linear reference when an adjacent-cell enemy is outside radius", queryX, queryY, 80) === null, "out-of-range adjacent-cell enemy was selected");
+
+  clearRunObjects();
+  const deadCandidate = placeEnemy(queryX + 10, queryY, 10000, 10);
+  const liveCandidate = placeEnemy(queryX + 30, queryY, 10000, 10);
+  S.testing.gridRebuild();
+  deadCandidate.dead = true;
+  check("grid homing ignores candidates that die after rebuild", S.testing.nearestEnemyTo(queryX, queryY, 80) === liveCandidate, "dead candidate was selected");
+
+  clearRunObjects();
+  checkGridNearest("grid homing returns no target for an empty fixture", queryX, queryY, 80);
+
+  clearRunObjects();
+  const firstEqual = placeEnemy(queryX + 60, queryY, 10000, 10);
+  placeEnemy(queryX - 60, queryY, 10000, 10);
+  check("equal-distance grid ties preserve enemy-array order", checkGridNearest("grid nearest matches linear reference for equal distances", queryX, queryY, 80) === firstEqual, "later enemy won an equal-distance tie");
+
+  clearRunObjects();
+  placeEnemy(queryX + 60.0001, queryY, 10000, 10);
+  const nearerByFraction = placeEnemy(queryX - 60, queryY, 10000, 10);
+  check("near-distance grid selection preserves squared-distance precision", checkGridNearest("grid nearest matches linear reference for near distances", queryX, queryY, 80) === nearerByFraction, "fractionally nearer enemy was not selected");
+
+  clearRunObjects();
+  const sparseTarget = placeEnemy(520, 500, 10000, 10);
+  placeEnemy(560, 500, 10000, 10);
+  placeEnemy(500, 570, 10000, 10);
+  placeEnemy(580, 580, 10000, 10);
+  for (let i = 4; i < 380; i++) placeEnemy(2800 + (i % 20) * 20, 2800 + ((i / 20) | 0) * 20, 10000, 10);
+  S.testing.gridRebuild();
+  const sparseMetrics = {};
+  const sparseActual = S.testing.nearestEnemyTo(500, 500, 420, sparseMetrics);
+  check("sparse homing fixture contains 380 enemies", S.enemies.length === 380, `enemy count was ${S.enemies.length}`);
+  check("sparse homing evaluates only queried grid cells", sparseMetrics.evaluated === 4, `evaluated ${sparseMetrics.evaluated} of ${S.enemies.length} enemies`);
+  check("sparse grid nearest matches linear reference", sparseActual === sparseTarget && sparseActual === linearNearest(500, 500, 420), "sparse fixture selected a different target");
+
+  S.testing.startRun();
+  clearRunObjects();
+  disableWeapons();
+  const homingTarget = placeEnemy(S.player.x + 180, S.player.y, 10000, 10);
+  const homingDecoy = placeEnemy(S.player.x, S.player.y + 300, 10000, 10);
+  homingTarget.spd = 0;
+  homingDecoy.spd = 0;
+  const movingHomingProjectile = {
+    x: S.player.x, y: S.player.y, vx: 0, vy: 200, spd: 200,
+    life: 2, dmg: 0, r: 4, pierce: 0, crit: 0, homing: true,
+    hue: 210, src: "bolt", hitTargets: new Set(),
+  };
+  S.projectiles.push(movingHomingProjectile);
+  const homingDt = 0.05;
+  const linearHomingTarget = linearNearest(movingHomingProjectile.x, movingHomingProjectile.y, 420);
+  check("moving homing fixture selects the expected linear-reference target", linearHomingTarget === homingTarget, "linear reference selected the decoy");
+  const initialAngle = Math.atan2(movingHomingProjectile.vy, movingHomingProjectile.vx);
+  const targetAngle = Math.atan2(linearHomingTarget.y - movingHomingProjectile.y, linearHomingTarget.x - movingHomingProjectile.x);
+  const expectedAngle = initialAngle + Math.max(-6 * homingDt, Math.min(6 * homingDt, targetAngle - initialAngle));
+  S.testing.update(homingDt);
+  const actualAngle = Math.atan2(movingHomingProjectile.vy, movingHomingProjectile.vx);
+  check("moving homing projectile steers toward the linear-reference target", Math.abs(actualAngle - expectedAngle) < 1e-12, `angle was ${actualAngle}, expected ${expectedAngle}`);
+  check("moving homing projectile advances after steering", movingHomingProjectile.x !== S.player.x || movingHomingProjectile.y !== S.player.y, "projectile did not move");
 
   console.log(JSON.stringify({ suite: "swarm:mechanics", checks: checks.length, passed: checks }));
 }

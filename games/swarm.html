@@ -843,15 +843,18 @@ function nearestEnemy(maxDist) {
   }
   return best;
 }
-function nearestEnemyTo(x, y, maxDist) {
-  let best = null, bd = maxDist * maxDist;
-  for (let i = 0; i < enemies.length; i++) {
+function nearestEnemyTo(x, y, maxDist, metrics) {
+  let best = null, bestIdx = -1, bd = maxDist * maxDist;
+  const near = gridQuery(x, y, maxDist);
+  for (let j = 0; j < near.length; j++) {
+    const i = near[j];
     const e = enemies[i];
     if (e.dead) continue;
     const dx = e.x - x, dy = e.y - y;
     const d = dx * dx + dy * dy;
-    if (d < bd) { bd = d; best = e; }
+    if (d < bd || (best !== null && d === bd && i < bestIdx)) { bd = d; best = e; bestIdx = i; }
   }
+  if (metrics) metrics.evaluated = near.length;
   return best;
 }
 
@@ -2843,7 +2846,7 @@ window.__swarm = {
   tree: treeOwned, buyNode, respecTree, treeBonus,
   gainXp, hurtPlayer, spawnEnemy, spawnBoss, triggerEvent, openChest, dropChest,
   testing: {
-    update, startRun, coinCard, chestRewards: CHEST_REWARDS, fireBolt, fireScatter,
+    update, startRun, coinCard, chestRewards: CHEST_REWARDS, fireBolt, fireScatter, gridRebuild, nearestEnemyTo,
     setState: (name) => {
       const next = ST_NAMES.indexOf(name);
       if (next < 0) throw new Error("Unknown Swarm state: " + name);
