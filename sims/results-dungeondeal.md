@@ -4,7 +4,7 @@ Date: 2026-07-13 · Harness: `sims/dungeondeal-sim.js` · Game: `games/dungeonde
 
 ## Method
 
-The jsdom harness drives the real UI/game entry points with deterministic `mulberry32` seeds. Greedy and Tactical each receive seeds 1000–1039. Results now have three disjoint terminal classes:
+The jsdom harness drives the real UI/game entry points with deterministic `mulberry32` seeds. Greedy and Tactical each receive seeds 1000–1039. Level-ups resolve automatically in the game, granting +1 max HP and healing 2. Perk choices remain interactive: Greedy selects randomly from the offered perks, while Tactical prioritizes defensive perks when HP is low. Results have three disjoint terminal classes:
 
 - win: the real game reached its victory screen;
 - death: the real game reached its dead screen;

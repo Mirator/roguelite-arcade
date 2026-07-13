@@ -5,9 +5,9 @@
  * Loads the single-file game (games/dungeondeal.html) into jsdom and drives
  * the REAL game through its real DOM listeners: every action is a dispatched
  * MouseEvent click on #board .card/.slot elements, statusbar spell chips, and
- * overlay buttons (perk/boon/event/merchant/start). No game logic is
+ * overlay buttons (perk/event/merchant/start). No game logic is
  * reimplemented — combat/loot resolution runs through the page's own
- * resolveCard/castOnCell/buyOffer/choosePerk/chooseBoon handlers. Policy-side
+ * resolveCard/castOnCell/buyOffer/choosePerk handlers. Policy-side
  * evaluation reuses the game's own exposed math (predictedDamage, calcFight,
  * trapDamage — top-level function declarations of the classic <script>, so
  * they live on window) and reads state via the game's window.DD handle.
@@ -23,12 +23,12 @@
  *              else better weapons, else the weakest survivable monster, else
  *              loot. Casts Fireball at the biggest monster the moment it has
  *              one, arms Freeze before any damaging fight, never uses Swap,
- *              picks random perks/boons, only buys healing at merchants.
+ *              picks random perks, only buys healing at merchants.
  *   tactical - adds positioning (center cells preferred over corners), saves
  *              Fireball for elites/bosses, arms Freeze for big hits only,
  *              uses Swap to pull a potion adjacent when low, banks keys for
  *              locked chests, buys weapons/potions/shields at merchants, and
- *              picks defensive perks/boons when HP-poor.
+ *              picks defensive perks when HP-poor.
  *
  * Both policies never take a predictably lethal card while an alternative
  * exists, and walk toward the best remaining target across empty slots when
@@ -605,26 +605,6 @@ function handlePerk(ctx, policy) {
   flush(3000); // covers the next floor's deal-in lock
 }
 
-function handleLevel(ctx, policy) {
-  const { win, flush } = ctx;
-  const S = win.DD.state;
-  const els = [...win.document.querySelectorAll('.boon-choice')];
-  if (!els.length) { flush(500); return; }
-  const keys = els.map((el) => el.dataset.boon);
-  let pickKey;
-  if (policy === 'tactical') {
-    if (S.hp <= S.maxHp * 0.45 && keys.includes('mend')) pickKey = 'mend';
-    else if (!S.shield && keys.includes('guard')) pickKey = 'guard';
-    else if ((!S.weapon || S.weapon.v < 4) && keys.includes('hone')) pickKey = 'hone';
-    else pickKey = ['hone', 'guard', 'tools', 'scroll', 'gild', 'mend']
-      .find((k) => keys.includes(k)) || keys[0];
-  } else {
-    pickKey = keys[Math.floor(win.Math.random() * keys.length)];
-  }
-  click(win, els[keys.indexOf(pickKey)]);
-  flush(1000);
-}
-
 function handleEvent(ctx, policy) {
   const { win, flush } = ctx;
   const doc = win.document;
@@ -714,7 +694,6 @@ function playRun(policy, seed) {
     if (S.screen === 'dead' || S.screen === 'victory') break;
     if (S.screen === 'play') playStep(ctx, policy, rs);
     else if (S.screen === 'perk') handlePerk(ctx, policy);
-    else if (S.screen === 'level') handleLevel(ctx, policy);
     else if (S.screen === 'event') handleEvent(ctx, policy);
     else if (S.screen === 'merchant') handleMerchant(ctx, policy);
     else flush(1500);
