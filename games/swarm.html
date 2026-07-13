@@ -955,6 +955,7 @@ function fireBolt() {
       x: player.x, y: player.y,
       vx: Math.cos(base + off) * s.spd, vy: Math.sin(base + off) * s.spd,
       dmg: s.dmg, life: 1.7, r: 5, pierce: s.pierce, src: "bolt", homing: s.homing, spd: s.spd,
+      hitTargets: new Set(),
     });
   }
   sfx("shoot");
@@ -970,6 +971,7 @@ function fireNova() {
       x: player.x, y: player.y,
       vx: Math.cos(a) * s.spd, vy: Math.sin(a) * s.spd,
       dmg: s.dmg, life: s.life, r: 4, pierce: 0, src: "nova", homing: false, spd: s.spd,
+      hitTargets: new Set(),
     });
   }
   addFlash(player.x, player.y, 26, 190);
@@ -1043,6 +1045,7 @@ function fireScatter() {
       x: player.x, y: player.y,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       dmg: s.dmg, life: s.life, r: 3, pierce: s.pierce, src: "scatter", homing: false, spd: sp,
+      hitTargets: new Set(),
     });
   }
   sfx("shoot");
@@ -2071,9 +2074,10 @@ function update(dt) {
       const near = gridQuery(p.x, p.y, p.r + 50);
       for (let j = 0; j < near.length; j++) {
         const e = enemies[near[j]];
-        if (e.dead) continue;
+        if (e.dead || p.hitTargets.has(e)) continue;
         const d = Math.hypot(e.x - p.x, e.y - p.y);
         if (d < e.r + p.r) {
+          p.hitTargets.add(e);
           const md = Math.hypot(p.vx, p.vy) || 1;
           hitEnemy(e, p.dmg, p.vx / md, p.vy / md, 150, p.src);
           spawnParticle(p.x, p.y, 200, 120, 2);
@@ -2839,7 +2843,7 @@ window.__swarm = {
   tree: treeOwned, buyNode, respecTree, treeBonus,
   gainXp, hurtPlayer, spawnEnemy, spawnBoss, triggerEvent, openChest, dropChest,
   testing: {
-    update, startRun, coinCard, chestRewards: CHEST_REWARDS,
+    update, startRun, coinCard, chestRewards: CHEST_REWARDS, fireBolt, fireScatter,
     setState: (name) => {
       const next = ST_NAMES.indexOf(name);
       if (next < 0) throw new Error("Unknown Swarm state: " + name);

@@ -127,6 +127,18 @@ function runMechanics() {
       group.length = 0;
     }
   };
+  const disableWeapons = () => {
+    for (const weapon of Object.values(S.weapons)) weapon.level = 0;
+  };
+  const placeEnemy = (x, y, hp = 10000, radius = 50) => {
+    const enemy = S.spawnEnemy(0);
+    enemy.x = x;
+    enemy.y = y;
+    enemy.hp = enemy.maxHp = hp;
+    enemy.r = radius;
+    enemy.dmg = 0;
+    return enemy;
+  };
 
   S.testing.startRun();
   clearRunObjects();
@@ -186,6 +198,70 @@ function runMechanics() {
   S.testing.setState("dead");
   chestCoinReward.apply();
   check("dead state rejects modal rewards", S.stats().runCoins === coinsBefore, `run coins changed to ${S.stats().runCoins}`);
+
+  S.testing.startRun();
+  clearRunObjects();
+  disableWeapons();
+  S.player.critCh = 0;
+  const targetX = S.player.x + 100;
+  const targetY = S.player.y;
+  const firstTarget = placeEnemy(targetX, targetY);
+  S.weapons.bolt.level = 6;
+  S.testing.fireBolt();
+  const boltProjectiles = S.projectiles.filter((projectile) => projectile.src === "bolt");
+  check("Bolt projectiles start with per-projectile hit history", boltProjectiles.length > 0 && boltProjectiles.every((projectile) => projectile.hitTargets instanceof Set), "Bolt projectile history was missing");
+  const piercingProjectile = boltProjectiles[0];
+  S.projectiles.length = 0;
+  S.projectiles.push(piercingProjectile);
+  disableWeapons();
+  piercingProjectile.x = targetX;
+  piercingProjectile.y = targetY;
+  piercingProjectile.vx = 0;
+  piercingProjectile.vy = 0;
+  const firstHp = firstTarget.hp;
+  S.testing.update(0);
+  const hpAfterFirstHit = firstTarget.hp;
+  check("piercing projectile damages its first target", hpAfterFirstHit < firstHp, `hp stayed at ${firstHp}`);
+  check("piercing projectile survives its first target", S.projectiles.includes(piercingProjectile), "projectile was removed");
+  S.testing.update(0);
+  check("piercing projectile does not rehit the same target", firstTarget.hp === hpAfterFirstHit, `hp changed from ${hpAfterFirstHit} to ${firstTarget.hp}`);
+  const secondTarget = placeEnemy(targetX, targetY);
+  const secondHp = secondTarget.hp;
+  S.testing.update(0);
+  check("piercing projectile damages a distinct target", secondTarget.hp < secondHp, `hp stayed at ${secondHp}`);
+  check("distinct target consumes the remaining pierce budget", !S.projectiles.includes(piercingProjectile), "projectile survived exhausted pierce");
+
+  S.testing.startRun();
+  clearRunObjects();
+  disableWeapons();
+  S.player.critCh = 0;
+  const sharedTarget = placeEnemy(targetX, targetY);
+  S.weapons.bolt.level = 1;
+  S.testing.fireBolt();
+  S.testing.fireBolt();
+  const separateProjectiles = S.projectiles.slice();
+  disableWeapons();
+  for (const projectile of separateProjectiles) {
+    projectile.x = targetX;
+    projectile.y = targetY;
+    projectile.vx = 0;
+    projectile.vy = 0;
+  }
+  const sharedHp = sharedTarget.hp;
+  const expectedTwoHits = separateProjectiles.reduce((sum, projectile) => sum + projectile.dmg, 0);
+  S.testing.update(0);
+  check("separate projectiles may hit the same target", sharedTarget.hp === sharedHp - expectedTwoHits, `damage was ${sharedHp - sharedTarget.hp}, expected ${expectedTwoHits}`);
+  check("non-piercing projectiles still disappear on hit", separateProjectiles.every((projectile) => !S.projectiles.includes(projectile)), `${S.projectiles.length} projectiles remained`);
+
+  S.testing.startRun();
+  clearRunObjects();
+  disableWeapons();
+  placeEnemy(targetX, targetY);
+  S.weapons.scatter.level = 1;
+  S.weapons.scatter.evolved = true;
+  S.testing.fireScatter();
+  const scatterProjectiles = S.projectiles.filter((projectile) => projectile.src === "scatter");
+  check("Scatter projectiles start with per-projectile hit history", scatterProjectiles.length > 0 && scatterProjectiles.every((projectile) => projectile.hitTargets instanceof Set), "Scatter projectile history was missing");
 
   console.log(JSON.stringify({ suite: "swarm:mechanics", checks: checks.length, passed: checks }));
 }
