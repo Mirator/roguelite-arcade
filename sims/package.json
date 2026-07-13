@@ -13,8 +13,9 @@
     "swarm:mechanics": "node swarm-sim.js --mechanics",
     "warband": "node warband-sim.js",
     "warband:mechanics": "node warband-sim.js --mechanics",
+    "meta:mechanics": "node meta-mechanics.js",
     "check:syntax": "node check-syntax.js",
-    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics"
+    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics && npm run meta:mechanics"
   },
   "dependencies": {
     "jsdom": "^27.0.1"

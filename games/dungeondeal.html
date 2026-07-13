@@ -733,13 +733,31 @@ function updateReachable(){
 // ---------- storage ----------
 function loadJSON(k){ try{ return JSON.parse(localStorage.getItem(k) || "null"); }catch(e){ return null; } }
 function saveJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ /* unavailable */ } }
-function loadBest(){ return loadJSON("dd_best"); }
+function nonNegativeInt(value, fallback = 0){
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isInteger(value)
+    ? value : fallback;
+}
+function plainObject(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+function loadBest(){
+  const raw = loadJSON("dd_best");
+  if(!plainObject(raw)) return null;
+  return {
+    floor: nonNegativeInt(raw.floor),
+    gold: nonNegativeInt(raw.gold),
+    won: typeof raw.won === "boolean" ? raw.won : false,
+  };
+}
 function saveBest(run){
   const b = loadBest();
   const score = r => (r.won ? 100 : r.floor) * 1000 + r.gold;
   if(!b || score(run) > score(b)) saveJSON("dd_best", run);
 }
-function meta(){ return loadJSON("dd_meta") || { runs: 0, wins: 0 }; }
+function meta(){
+  const raw = loadJSON("dd_meta");
+  const runs = nonNegativeInt(plainObject(raw) ? raw.runs : 0);
+  const wins = Math.min(runs, nonNegativeInt(plainObject(raw) ? raw.wins : 0));
+  return { runs, wins };
+}
 function renderBest(){
   const b = loadBest(), m = meta();
   $("#best-chip").innerHTML = (b ? `Best: <b>${b.won ? "WON 👑" : "Floor " + b.floor}</b> · 🪙${b.gold}` : "Best: —")

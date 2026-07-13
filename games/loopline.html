@@ -319,14 +319,34 @@ const UPGRADES={
 
 /* ============================== meta (camp) ============================== */
 let meta=loadMeta();
+function nonNegativeInt(value,fallback=0){
+  return typeof value==='number'&&Number.isFinite(value)&&value>=0&&Number.isInteger(value)?value:fallback;
+}
+function plainObject(value){return !!value&&typeof value==='object'&&!Array.isArray(value);}
+function normalizeBest(value){
+  const source=plainObject(value)?value:{};
+  return {loops:nonNegativeInt(source.loops),score:nonNegativeInt(source.score),wins:nonNegativeInt(source.wins)};
+}
+function normalizeMeta(value,legacyBest){
+  const source=plainObject(value)?value:{};
+  const upSource=plainObject(source.up)?source.up:{};
+  const up={};
+  for(const key in UPGRADES)up[key]=typeof upSource[key]==='boolean'?upSource[key]:false;
+  return {
+    supplies:nonNegativeInt(source.supplies),
+    best:normalizeBest(plainObject(source.best)?source.best:legacyBest),
+    up,
+    loadout:source.loadout==='shield'?'shield':'sword',
+  };
+}
 function loadMeta(){
   try{
     const m=JSON.parse(localStorage.getItem('loopline_meta_v2'));
-    if(m&&m.best&&m.up)return m;
+    if(plainObject(m))return normalizeMeta(m);
   }catch(e){}
-  let legacy={loops:0,score:0,wins:0};
-  try{const b=JSON.parse(localStorage.getItem('loopline_best_v1'));if(b&&typeof b.loops==='number')legacy=b;}catch(e){}
-  return {supplies:0,best:legacy,up:{pack:false,hearty:false,lucky:false,triage:false,armory:false},loadout:'sword'};
+  let legacy=null;
+  try{legacy=JSON.parse(localStorage.getItem('loopline_best_v1'));}catch(e){}
+  return normalizeMeta(null,legacy);
 }
 function saveMeta(){try{localStorage.setItem('loopline_meta_v2',JSON.stringify(meta));}catch(e){}}
 

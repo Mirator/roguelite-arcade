@@ -589,12 +589,31 @@ function sfx(kind){
 
 // ---------------------------- meta (localStorage) --------------------
 const META_KEY = 'wb_meta_v1';
+function nonNegativeInt(value, fallback = 0){
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number.isInteger(value)
+    ? value : fallback;
+}
+function normalizeMeta(value){
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const ownedSource = source.owned && typeof source.owned === 'object' && !Array.isArray(source.owned)
+    ? source.owned : {};
+  const owned = {};
+  for(const item of META_ITEMS){
+    if(typeof ownedSource[item.id] === 'boolean') owned[item.id] = ownedSource[item.id];
+  }
+  return {
+    medals: nonNegativeInt(source.medals),
+    trophies: nonNegativeInt(source.trophies),
+    battleWins: nonNegativeInt(source.battleWins),
+    runs: nonNegativeInt(source.runs),
+    owned,
+  };
+}
 function loadMeta(){
   try{
-    const m = JSON.parse(localStorage.getItem(META_KEY));
-    if(m && typeof m === 'object') return Object.assign({medals:0,trophies:0,battleWins:0,runs:0,owned:{}}, m);
+    return normalizeMeta(JSON.parse(localStorage.getItem(META_KEY)));
   }catch(e){}
-  return {medals:0, trophies:0, battleWins:0, runs:0, owned:{}};
+  return normalizeMeta(null);
 }
 function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(meta)); }catch(e){} }
 let meta = loadMeta();
