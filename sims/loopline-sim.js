@@ -71,7 +71,16 @@ function makeFakeCtx() {
   });
 }
 
-function loadGame() {
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function loadGame(seed) {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const errors = [];
   const dom = new JSDOM(html, {
@@ -80,6 +89,9 @@ function loadGame() {
     url: 'http://localhost/',
     pretendToBeVisual: true,
     beforeParse(window) {
+      // Install the seeded generator before the page's script is evaluated so
+      // initialization and the complete run consume the same reproducible RNG.
+      window.Math.random = mulberry32(seed);
       window.HTMLCanvasElement.prototype.getContext = function () { return makeFakeCtx(); };
       window.addEventListener('error', (ev) => {
         errors.push((ev.error && ev.error.stack) || String(ev.message));
@@ -249,8 +261,8 @@ const POLICIES = {
 
 /* ============================== single-run driver ============================== */
 
-function runOnce(policyName) {
-  const { dom, win, errors } = loadGame();
+function runOnce(policyName, seed) {
+  const { dom, win, errors } = loadGame(seed);
   const policy = POLICIES[policyName];
 
   let endKind = null;
@@ -290,6 +302,7 @@ function runOnce(policyName) {
 
   const S = win.G.S;
   const result = {
+    seed,
     finalLoop: S.loop,
     finalDay: S.day,
     finalScore: S.score,
@@ -342,17 +355,33 @@ function fmt(n, d = 1) { return Number.isFinite(n) ? n.toFixed(d) : 'n/a'; }
 /* ============================== main ============================== */
 
 function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === '--validity') {
+    const first = runOnce('naive', 424242);
+    const replay = runOnce('naive', 424242);
+    if (JSON.stringify(first) !== JSON.stringify(replay)) {
+      throw new Error('Loopline seeded replay produced different results');
+    }
+    console.log('Loopline validity check passed: seed 424242 replayed identically.');
+    return;
+  }
+  const runsPerPolicy = +(args[0] || RUNS_PER_POLICY);
+  const baseSeed = +(args[1] || 12000);
+  if (!Number.isInteger(runsPerPolicy) || runsPerPolicy < 1 || !Number.isInteger(baseSeed)) {
+    throw new Error('Usage: node loopline-sim.js [runsPerPolicy>=1] [integerBaseSeed]');
+  }
   const allSummaries = [];
   const allResults = {};
   for (const policyName of Object.keys(POLICIES)) {
-    console.log(`\nRunning policy "${policyName}" (${POLICIES[policyName].label}) x${RUNS_PER_POLICY}...`);
+    console.log(`\nRunning policy "${policyName}" (${POLICIES[policyName].label}) x${runsPerPolicy} (seeds ${baseSeed}-${baseSeed + runsPerPolicy - 1})...`);
     const results = [];
-    for (let i = 0; i < RUNS_PER_POLICY; i++) {
-      const r = runOnce(policyName);
+    for (let i = 0; i < runsPerPolicy; i++) {
+      const seed = baseSeed + i;
+      const r = runOnce(policyName, seed);
       results.push(r);
       const tag = r.kind === 'victory' ? 'WIN' : r.kind === 'death' ? `died L${r.finalLoop}` : r.kind;
       const errTag = r.errors.length ? ` [${r.errors.length} error(s)]` : '';
-      console.log(`  run ${i + 1}/${RUNS_PER_POLICY}: ${tag}, score=${r.finalScore}, miniBossWin=${r.miniBossWin}, lichReached=${r.lichReached}${errTag}`);
+      console.log(`  seed=${seed} run ${i + 1}/${runsPerPolicy}: ${tag}, score=${r.finalScore}, miniBossWin=${r.miniBossWin}, lichReached=${r.lichReached}${errTag}`);
     }
     allResults[policyName] = results;
     allSummaries.push(summarize(policyName, results));
@@ -372,12 +401,14 @@ function main() {
     console.log(`\n${anomalyTotal} run(s) had anomalies (timeout or console/JS errors):`);
     for (const s of allSummaries) {
       for (const a of s.anomalies) {
-        console.log(`  [${s.policyName}] kind=${a.kind} loop=${a.finalLoop} errors=${JSON.stringify(a.errors)}`);
+        console.log(`  [${s.policyName}] seed=${a.seed} kind=${a.kind} loop=${a.finalLoop} errors=${JSON.stringify(a.errors)}`);
       }
     }
   } else {
     console.log('\nNo anomalies (timeouts or console/JS errors) across all runs.');
   }
+
+  console.log('RESULT_JSON:' + JSON.stringify({ baseSeed, runsPerPolicy, summaries: allSummaries }));
 
   return { allSummaries, allResults };
 }
@@ -386,4 +417,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { main, runOnce, summarize, POLICIES };
+module.exports = { main, runOnce, summarize, POLICIES, mulberry32 };

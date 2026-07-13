@@ -28,6 +28,7 @@ const HTML_PATH = path.join(__dirname, '..', 'games', 'depths.html');
 const HTML = fs.readFileSync(HTML_PATH, 'utf8');
 
 const RUNS_PER_CELL = parseInt(process.env.RUNS || '22', 10); // 6 cells * 22 = 132 runs
+const BASE_SEED = parseInt(process.env.BASE_SEED || '16000', 10);
 const MAX_ACTS = 5000;      // hard cap on bot actions per run (softlock guard)
 const MAX_RUN_MS = 20000;   // hard wall-clock cap per run (softlock guard)
 const COLS = 40, ROWS = 30, HUD_H = 128;
@@ -50,13 +51,23 @@ function makeFakeCtx() {
   });
 }
 
-function loadGame() {
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function loadGame(seed) {
   const errors = [];
   const dom = new JSDOM(HTML, {
     runScripts: 'dangerously',
     url: 'http://localhost/',
     pretendToBeVisual: true,
     beforeParse(window) {
+      window.Math.random = mulberry32(seed);
       window.HTMLCanvasElement.prototype.getContext = function () { return makeFakeCtx(); };
       window.requestAnimationFrame = () => 0; // disable render loop; sim drives turns itself
       window.addEventListener('error', ev => errors.push((ev.error && ev.error.stack) || ev.message));
@@ -512,8 +523,8 @@ function act(ctx) {
 }
 
 // ---------------------------------------------------------------- one run ---
-function runOne(policy, cls) {
-  const { dom, win, D, errors } = loadGame();
+function runOne(policy, cls, seed) {
+  const { dom, win, D, errors } = loadGame(seed);
   try {
     // start a run from the title screen
     const card = D.titleL.cards.find(c => c.key === cls);
@@ -536,10 +547,10 @@ function runOne(policy, cls) {
     }
     const S = D.S;
     return {
-      policy, cls,
+      policy, cls, seed,
       win: D.screen === 'win',
       dead: D.screen === 'dead',
-      stuck: stuck || (acts >= MAX_ACTS),
+      stuck: D.screen === 'game' && (stuck || acts >= MAX_ACTS),
       depth: S.depth,
       level: S.level,
       souls: S.soulsEarned || 0,
@@ -573,7 +584,42 @@ function median(arr) {
 }
 const avg = a => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 
+function validateResultHealth(runs, requested) {
+  const issues = [];
+  if (requested > 0 && runs.length !== requested) {
+    issues.push(`requested ${requested} runs but received ${runs.length}`);
+  }
+  for (let i = 0; i < runs.length; i++) {
+    const r = runs[i];
+    const terminals = Number(!!r.win) + Number(!!r.dead) + Number(!!r.stuck);
+    if (terminals !== 1) issues.push(`run ${i} (seed ${r.seed ?? 'n/a'}) has ${terminals} terminal classes`);
+  }
+  const completed = runs.filter(r => (r.win || r.dead) && !r.stuck).length;
+  if (requested > 0 && completed === 0) {
+    issues.push('nonempty batch produced no completed win/death results');
+  }
+  return { ok: issues.length === 0, completed, issues };
+}
+
 function main() {
+  if (process.argv[2] === '--validity') {
+    const allStuck = [{ seed: 1, win: false, dead: false, stuck: true }];
+    const mixed = [
+      { seed: 2, win: false, dead: false, stuck: true },
+      { seed: 3, win: false, dead: true, stuck: false },
+      { seed: 4, win: true, dead: false, stuck: false },
+    ];
+    const bad = validateResultHealth(allStuck, 1);
+    const good = validateResultHealth(mixed, 3);
+    if (bad.ok || !bad.issues.some(x => x.includes('no completed')) || !good.ok || good.completed !== 2) {
+      throw new Error('Depths result-health validation self-test failed');
+    }
+    console.log('Depths validity check passed: all-stuck fails and mixed completed/stuck results pass.');
+    return;
+  }
+  if (!Number.isInteger(RUNS_PER_CELL) || RUNS_PER_CELL < 1 || !Number.isInteger(BASE_SEED)) {
+    throw new Error('RUNS must be >=1 and BASE_SEED must be an integer');
+  }
   const classes = ['warrior', 'ranger', 'alchemist'];
   const policies = ['reckless', 'careful'];
   const cells = [];
@@ -584,7 +630,7 @@ function main() {
     for (const cls of classes) {
       const runs = [];
       for (let i = 0; i < RUNS_PER_CELL; i++) {
-        const r = runOne(policy, cls);
+        const r = runOne(policy, cls, BASE_SEED + i);
         runs.push(r);
         if (r.errors.length) {
           totalErrors += r.errors.length;
@@ -592,7 +638,7 @@ function main() {
         }
       }
       cells.push({ policy, cls, runs });
-      process.stderr.write(`. finished ${policy}/${cls} (${RUNS_PER_CELL} runs)\n`);
+      process.stderr.write(`. finished ${policy}/${cls} (${RUNS_PER_CELL} runs, seeds ${BASE_SEED}-${BASE_SEED + RUNS_PER_CELL - 1})\n`);
     }
   }
 
@@ -628,12 +674,14 @@ function main() {
     .map(d => `d${d}:${byDepth[d]}`).join('  '));
 
   const allRuns = cells.flatMap(c => c.runs);
+  const health = validateResultHealth(allRuns, RUNS_PER_CELL * cells.length);
   console.log(`\nTotal runs: ${allRuns.length}   wins: ${allRuns.filter(r => r.win).length}` +
     `   stuck/timeout: ${allRuns.filter(r => r.stuck).length}` +
     `   console/page errors: ${totalErrors}`);
   if (errorSamples.length) console.log('Error samples:\n' + errorSamples.join('\n---\n'));
+  if (!health.ok) console.log('Invalid result batch:\n' + health.issues.join('\n'));
   console.log(`Elapsed: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  if (totalErrors > 0) process.exitCode = 1;
+  if (totalErrors > 0 || !health.ok) process.exitCode = 1;
 }
 
 main();

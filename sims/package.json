@@ -14,8 +14,9 @@
     "warband": "node warband-sim.js",
     "warband:mechanics": "node warband-sim.js --mechanics",
     "meta:mechanics": "node meta-mechanics.js",
+    "sim:validity": "node loopline-sim.js --validity && node warband-sim.js --validity && node dungeondeal-sim.js --validity && node depths-sim.js --validity",
     "check:syntax": "node check-syntax.js",
-    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics && npm run meta:mechanics"
+    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics && npm run meta:mechanics && npm run sim:validity"
   },
   "dependencies": {
     "jsdom": "^27.0.1"

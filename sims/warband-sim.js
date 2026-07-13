@@ -847,19 +847,51 @@ function summarize(label, results) {
 // --------------------------------------------------------------- driver ---
 const COMMANDERS = ['necro', 'tact', 'warlord'];
 
-async function runBatch(mode, count, baseSeed) {
+function makeCohort(count, baseSeed) {
+  return Array.from({ length: count }, (_, i) => ({
+    seed: baseSeed + i,
+    commander: COMMANDERS[i % COMMANDERS.length],
+  }));
+}
+
+async function runBatch(mode, cohort) {
   const results = [];
-  for (let i = 0; i < count; i++) {
-    const commander = COMMANDERS[i % COMMANDERS.length];
-    const seed = baseSeed + i;
+  for (let i = 0; i < cohort.length; i++) {
+    const { commander, seed } = cohort[i];
     // eslint-disable-next-line no-await-in-loop
     const r = await playRunAsync(mode, commander, seed);
     if (r.errors.length) console.log(`  [errors] ${mode}/${commander} seed=${seed}:`, r.errors.slice(0, 3));
     results.push(r);
-    process.stdout.write(`\r${mode}: ${i + 1}/${count} runs`);
+    process.stdout.write(`\r${mode}: ${i + 1}/${cohort.length} runs`);
   }
   process.stdout.write('\n');
   return results;
+}
+
+function summarizePaired(thoughtful, greedy) {
+  if (thoughtful.length !== greedy.length) throw new Error('paired cohorts differ in length');
+  let thoughtfulOnlyWins = 0, greedyOnlyWins = 0, bothWin = 0, neitherWins = 0;
+  const depthDeltas = [], battleWinDeltas = [];
+  for (let i = 0; i < thoughtful.length; i++) {
+    const t = thoughtful[i], g = greedy[i];
+    if (t.seed !== g.seed || t.commander !== g.commander) {
+      throw new Error(`paired cohort mismatch at index ${i}`);
+    }
+    if (t.won && g.won) bothWin++;
+    else if (t.won) thoughtfulOnlyWins++;
+    else if (g.won) greedyOnlyWins++;
+    else neitherWins++;
+    depthDeltas.push(t.depthReached - g.depthReached);
+    battleWinDeltas.push(t.wins - g.wins);
+  }
+  const n = thoughtful.length;
+  return {
+    n,
+    winRateDeltaPctPoints: n ? 100 * (thoughtfulOnlyWins - greedyOnlyWins) / n : 0,
+    thoughtfulOnlyWins, greedyOnlyWins, bothWin, neitherWins,
+    avgDepthDelta: avg(depthDeltas),
+    avgBattleWinsDelta: avg(battleWinDeltas),
+  };
 }
 
 async function main() {
@@ -868,22 +900,39 @@ async function main() {
     await runMechanicsChecks();
     return;
   }
+  if (args[0] === '--validity') {
+    const cohort = makeCohort(7, 8800);
+    const thoughtfulCohort = cohort.map(x => ({ ...x }));
+    const greedyCohort = cohort.map(x => ({ ...x }));
+    if (JSON.stringify(thoughtfulCohort) !== JSON.stringify(greedyCohort)) {
+      throw new Error('Warband policies received different cohorts');
+    }
+    console.log(`Warband validity check passed: identical ordered cohort ${cohort[0].seed}-${cohort.at(-1).seed}, commander rotation ${cohort.map(x => x.commander).join(',')}.`);
+    return;
+  }
   const N = +(args[0] || 30);
   const BASE_SEED = +(args[1] || 5000);
+  if (!Number.isInteger(N) || N < 1 || !Number.isInteger(BASE_SEED)) {
+    throw new Error('Usage: node warband-sim.js [runsPerPolicy>=1] [integerBaseSeed]');
+  }
   const t0 = Date.now();
+  const cohort = makeCohort(N, BASE_SEED);
 
   console.log(`Running ${N} THOUGHTFUL runs (seeds ${BASE_SEED}-${BASE_SEED + N - 1})...`);
-  const thoughtful = await runBatch('thoughtful', N, BASE_SEED);
-  console.log(`Running ${N} GREEDY runs (seeds ${BASE_SEED + 1000}-${BASE_SEED + 1000 + N - 1})...`);
-  const greedy = await runBatch('greedy', N, BASE_SEED + 1000);
+  const thoughtful = await runBatch('thoughtful', cohort);
+  console.log(`Running ${N} GREEDY runs (seeds ${BASE_SEED}-${BASE_SEED + N - 1})...`);
+  const greedy = await runBatch('greedy', cohort);
 
   const sT = summarize('THOUGHTFUL', thoughtful);
   const sG = summarize('GREEDY', greedy);
+  const paired = summarizePaired(thoughtful, greedy);
 
   console.log(`\nseparation: thoughtful ${(100 * sT.winRate).toFixed(0)}% vs greedy ${(100 * sG.winRate).toFixed(0)}%` +
     ` (ratio ${sG.winRate > 0 ? (sT.winRate / sG.winRate).toFixed(2) : 'inf'}x)`);
+  console.log(`paired outcomes:     thoughtful-only ${paired.thoughtfulOnlyWins}, greedy-only ${paired.greedyOnlyWins}, both ${paired.bothWin}, neither ${paired.neitherWins}`);
+  console.log(`paired deltas (T-G): wins ${paired.winRateDeltaPctPoints.toFixed(1)}pp, avg depth ${paired.avgDepthDelta.toFixed(2)}, avg battle wins ${paired.avgBattleWinsDelta.toFixed(2)}`);
   console.log(`total wall time: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log('RESULT_JSON:' + JSON.stringify({ thoughtful: sT, greedy: sG }));
+  console.log('RESULT_JSON:' + JSON.stringify({ baseSeed: BASE_SEED, cohort, thoughtful: sT, greedy: sG, paired }));
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

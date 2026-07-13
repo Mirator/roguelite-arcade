@@ -733,9 +733,13 @@ function playRun(policy, seed) {
 
   flush(2000);
   const S = win.DD.state;
+  // A delayed transition that finishes during the final flush is a genuine
+  // game outcome, not a bot guard outcome. Keep the terminal classes disjoint.
+  if (S.screen === 'dead' || S.screen === 'victory') softlock = false;
   const res = {
     policy, seed,
     won: S.screen === 'victory',
+    dead: S.screen === 'dead',
     floor: S.floor,
     lvl: S.lvl,
     gold: S.gold,
@@ -756,20 +760,31 @@ function median(xs) {
 }
 const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
+function terminalClass(result) {
+  const terminals = Number(!!result.won) + Number(!!result.dead) + Number(!!result.softlock);
+  if (terminals !== 1) return 'unknown';
+  if (result.won) return 'win';
+  if (result.softlock) return 'softlock';
+  if (result.dead) return 'death';
+}
+
 function summarize(label, results) {
   const n = results.length;
-  const wins = results.filter((r) => r.won).length;
-  const deaths = results.filter((r) => !r.won);
+  const wins = results.filter((r) => terminalClass(r) === 'win').length;
+  const deaths = results.filter((r) => terminalClass(r) === 'death');
+  const softlocks = results.filter((r) => terminalClass(r) === 'softlock').length;
+  const unknown = results.filter((r) => terminalClass(r) === 'unknown').length;
+  const completed = wins + deaths.length;
   const causes = { monster: 0, trap: 0, mimic: 0, other: 0 };
   const deathFloors = {};
   for (const r of deaths) {
     causes[r.cause || 'other']++;
     deathFloors[r.floor] = (deathFloors[r.floor] || 0) + 1;
   }
-  const softlocks = results.filter((r) => r.softlock).length;
   const errCount = results.reduce((s, r) => s + r.errors.length, 0);
-  console.log(`\n=== ${label} (n=${n}) ===`);
-  console.log(`win rate:            ${wins}/${n} (${(100 * wins / n).toFixed(0)}%)`);
+  console.log(`\n=== ${label} (requested n=${n}) ===`);
+  console.log(`outcomes:            wins ${wins}, deaths ${deaths.length}, softlocks ${softlocks}, unknown ${unknown} (requested ${n})`);
+  console.log(`win rate (completed): ${wins}/${completed} (${completed ? (100 * wins / completed).toFixed(0) : 'n/a'}%; softlocks excluded)`);
   console.log(`median floor:        ${median(results.map((r) => r.floor))}`);
   console.log(`avg floor:           ${avg(results.map((r) => r.floor)).toFixed(2)}`);
   console.log(`avg level at end:    ${avg(results.map((r) => r.lvl)).toFixed(2)}`);
@@ -777,7 +792,6 @@ function summarize(label, results) {
   console.log(`deaths by cause:     monster ${causes.monster} · trap ${causes.trap} · mimic ${causes.mimic} · other ${causes.other}`);
   console.log(`deaths by floor:     ${Object.keys(deathFloors).sort((a, b) => a - b)
     .map((f) => `F${f}:${deathFloors[f]}`).join(' ') || '—'}`);
-  console.log(`softlocks:           ${softlocks}`);
   console.log(`console errors:      ${errCount}`);
   if (errCount) {
     const seen = new Set();
@@ -786,13 +800,27 @@ function summarize(label, results) {
       if (!seen.has(k)) { seen.add(k); console.log('  err: ' + k); }
     }
   }
-  return { label, n, wins, winRate: wins / n, medianFloor: median(results.map((r) => r.floor)),
+  return { label, n, completed, wins, deaths: deaths.length, winRate: completed ? wins / completed : null, medianFloor: median(results.map((r) => r.floor)),
     avgFloor: avg(results.map((r) => r.floor)), avgLvl: avg(results.map((r) => r.lvl)),
-    avgGold: avg(results.map((r) => r.gold)), causes, deathFloors, softlocks, errors: errCount };
+    avgGold: avg(results.map((r) => r.gold)), causes, deathFloors, softlocks, unknown, errors: errCount };
 }
 
 // --------------------------------------------------------------------- main --
 (function main() {
+  if (process.argv[2] === '--validity') {
+    const synthetic = [
+      { won: true, dead: false, softlock: false, floor: 10, lvl: 8, gold: 12, cause: null, errors: [] },
+      { won: false, dead: true, softlock: false, floor: 4, lvl: 3, gold: 2, cause: 'trap', errors: [] },
+      { won: false, dead: false, softlock: true, floor: 7, lvl: 5, gold: 5, cause: null, errors: [] },
+    ];
+    const s = summarize('SYNTHETIC VALIDITY', synthetic);
+    if (s.completed !== 2 || s.wins !== 1 || s.deaths !== 1 || s.softlocks !== 1 ||
+        s.causes.trap !== 1 || s.deathFloors[4] !== 1 || s.deathFloors[7]) {
+      throw new Error('Dungeon Deal terminal classes or denominators are invalid');
+    }
+    console.log('Dungeon Deal validity check passed: win/death/softlock are disjoint.');
+    return;
+  }
   if (process.argv[2] === '--mechanics') {
     runMechanicsTests();
     return;
