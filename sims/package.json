@@ -8,10 +8,11 @@
     "depths": "node depths-sim.js",
     "loopline": "node loopline-sim.js",
     "swarm": "node swarm-sim.js",
+    "swarm:smoke": "node swarm-sim.js 1",
     "warband": "node warband-sim.js",
     "warband:mechanics": "node warband-sim.js --mechanics",
     "check:syntax": "node check-syntax.js",
-    "test": "npm run check:syntax && npm run warband:mechanics"
+    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke"
   },
   "dependencies": {
     "jsdom": "^27.0.1"

@@ -1,8 +1,16 @@
 // Headless harness v2: runs expanded swarm.html game logic with stubbed DOM/canvas.
+// Usage: node swarm-sim.js [game-html] [seconds]
+// Pass seconds as the only argument to use ../games/swarm.html.
 "use strict";
 const fs = require("fs");
+const path = require("path");
 
-const html = fs.readFileSync(process.argv[2], "utf8");
+const defaultGame = path.resolve(__dirname, "../games/swarm.html");
+const firstArg = process.argv[2];
+const useDefaultGame = firstArg === undefined || (firstArg.trim() !== "" && Number.isFinite(Number(firstArg)));
+const gamePath = useDefaultGame ? defaultGame : firstArg;
+const runSecondsArg = useDefaultGame ? firstArg : process.argv[3];
+const html = fs.readFileSync(gamePath, "utf8");
 const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!m) { console.error("no script found"); process.exit(1); }
 const src = m[1];
@@ -37,13 +45,23 @@ function makeEl(id) {
 function noop() { return noop; }
 const ctxProxy = new Proxy({}, { get: () => noop, set: () => true });
 
-const ids = ["game", "pauseBtn", "muteBtn", "dmgBtn", "titleScreen", "startRow", "startBtn", "bestHint", "coinsLabel",
-  "treeSvg", "treeNodes", "nodeInfo", "buyBtn", "respecBtn",
-  "levelUpScreen", "lvlSub", "cards", "rerollBtn", "chestScreen", "chestCards",
-  "pauseScreen", "resumeBtn", "deathScreen", "deathStats", "bestLine", "coinLine", "dmgTable", "dpsCanvas", "newRunBtn",
+const ids = ["game", "pauseBtn", "muteBtn", "dmgBtn", "homeBtn", "titleScreen", "startRow", "startBtn", "openTreeBtn", "treeCoinBadge", "bestHint",
+  "treeScreen", "treeBackBtn", "coinsLabelFull", "treeSvgFull", "treeNodesFull", "nodeInfoFull", "buyBtnFull", "respecBtnFull",
+  "levelUpScreen", "lvlSub", "cards", "rerollBtn", "dpsPanelLevelUp", "chestScreen", "chestCards", "dpsPanelChest",
+  "pauseScreen", "resumeBtn", "pauseNewRunBtn", "pauseMuteBtn", "pauseHomeBtn",
+  "deathScreen", "deathStats", "bestLine", "coinLine", "dmgTable", "dpsCanvas", "newRunBtn",
   "winScreen", "winStats", "winDmgTable", "winDpsCanvas", "winRunBtn"];
 const els = {};
 for (const id of ids) els[id] = makeEl(id);
+
+const literalIdPattern = /\b(?:el|(?:document\.)?getElementById)\(\s*["']([^"']+)["']\s*\)/g;
+const referencedIds = new Set();
+let idMatch;
+while ((idMatch = literalIdPattern.exec(src)) !== null) referencedIds.add(idMatch[1]);
+const missingIds = [...referencedIds].filter((id) => !els[id]).sort();
+if (missingIds.length > 0) {
+  throw new Error(`Swarm simulator DOM fixture is missing IDs referenced by ${gamePath}: ${missingIds.join(", ")}`);
+}
 
 let rafCb = null;
 const winHandlers = {};
@@ -107,7 +125,7 @@ let updateTimeAccum = 0, updateFrames = 0, maxEnemies = 0, peakUpdateMs = 0;
 const bossLog = [];
 let lastBossName = null;
 
-const RUN_SECONDS = parseFloat(process.argv[3] || "480");
+const RUN_SECONDS = parseFloat(runSecondsArg || "480");
 const GOD = process.env.GOD === "1";
 
 // --- skill profile config ---

@@ -6,11 +6,11 @@ Date: 2026-07-11 · Harness: `sims/swarm-sim.js` (+ `sims/run-swarm.sh`) · Game
 
 Two independent verification tracks.
 
-**(1) In-browser mechanics (real DOM/pointer events).** The live game was driven on the preview server at `http://localhost:8646/games/swarm.html`. Tree nodes were bought by dispatching real `MouseEvent('click')` on the rendered `#treeNodes .tnode` divs (first click selects → info panel; second click buys, exactly as a user does), RESPEC/start via clicks on the real `#respecBtn`/`startRow`/`startBtn` elements. State was read back through the `window.__swarm` handle (`tree`, `treeBonus()`, `player`, `weapons`, `stats()`, `hurtPlayer()`). Persistence was tested by writing `localStorage`, calling `location.reload()`, and re-reading. Console was watched for errors throughout.
+**(1) In-browser mechanics (real DOM/pointer events).** The live game was driven on the preview server at `http://localhost:8646/games/swarm.html`. Tree nodes were bought by dispatching real `MouseEvent('click')` on the rendered `#treeNodesFull .tnode` divs (first click selects → info panel; second click buys, exactly as a user does), RESPEC/start via clicks on the real `#respecBtnFull`/`startRow`/`startBtn` elements. State was read back through the `window.__swarm` handle (`tree`, `treeBonus()`, `player`, `weapons`, `stats()`, `hurtPlayer()`). Persistence was tested by writing `localStorage`, calling `location.reload()`, and re-reading. Console was watched for errors throughout.
 
 **(2) Headless survival/economy sims.** `sims/swarm-sim.js` loads the single-file game with stubbed DOM/canvas/rAF (its own in-memory `localStorage`) and drives the game's **real** `update(dt)` at a fixed 16.67 ms step via a gap-seeking kiting AI (`PROFILE=mid`: ~100 ms decision cadence, 250 ms reaction lag, 20%/tick dodge-miss — a competent-but-human kiter, not frame-perfect). Level-up/chest picks go through the real card DOM + click handlers with a skilled build-priority policy (evolutions > core damage/rate > deepen owned weapons > breadth > defense-when-low > utility). Tree ownership is pre-seeded via the `TREE=` env var (writes `swarm_tree`), matching the exact node IDs a player would buy. Three tiers × 5 runs, run **twice** (pooled n=10/tier) to smooth variance. All sim batches were run as **background** tasks (never blocking the foreground) per the anti-hang protocol.
 
-Reproduce: `bash sims/run-swarm.sh` (writes `sims/swarm-results.jsonl`). Raw data from this session: `sims/swarm-results-batch1.jsonl`, `sims/swarm-results-batch2.jsonl`.
+Reproduce: `bash sims/run-swarm.sh` (writes `sims/swarm-results.jsonl`). The wrapper stops without appending a result if the simulator fails or its first output line is not valid JSON. Raw data from this session: `sims/swarm-results-batch1.jsonl`, `sims/swarm-results-batch2.jsonl`.
 
 ## Tree-mechanics checks (in-browser, real events)
 
@@ -18,10 +18,10 @@ Reproduce: `bash sims/run-swarm.sh` (writes `sims/swarm-results.jsonl`). Raw dat
 |-------|--------|--------|
 | Node select → info panel → buy | Real clicks on o1 (select shows cost, second click buys) | **PASS** |
 | Full prereq **chain** buy | Bought o1→o2→o3→o6 by real double-clicks; o6 (req o3) only buyable after chain | **PASS** — exact costs deducted (15/35/70/190), 5000→4690 |
-| Prereq gating (locked node) | Locked nodes render `.locked`, `buyBtn.disabled`, `buyNode()` returns false | **PASS** |
-| Insufficient funds | `buyBtn.disabled` when `coins < cost`; buy rejected | **PASS** |
+| Prereq gating (locked node) | Locked nodes render `.locked`, `buyBtnFull.disabled`, `buyNode()` returns false | **PASS** |
+| Insufficient funds | `buyBtnFull.disabled` when `coins < cost`; buy rejected | **PASS** |
 | `treeBonus()` reflects purchases | After o1+o2+o6: dmg=1.33, crit=0.05, rate=1.10 (o3) | **PASS** (matches formula) |
-| RESPEC 50% refund + state clear | Real click `#respecBtn`; spent 310 → refunded `floor(310×0.5)=155` (4690→4845); `tree={}` | **PASS** |
+| RESPEC 50% refund + state clear | Real click `#respecBtnFull`; spent 310 → refunded `floor(310×0.5)=155` (4690→4845); `tree={}` | **PASS** |
 | Persistence across reload | Seeded 15-node tree + reload → all 15 nodes survive from `swarm_tree` | **PASS** |
 | Weapon-unlock nodes grant weapon | Own o4, select Blades, start → `weapons.orbit.level===1` (not bolt) | **PASS** |
 | Head Start (f5) starts at level 2 | Own f5, start → `player.level===2` + free level-up card offered | **PASS** |
