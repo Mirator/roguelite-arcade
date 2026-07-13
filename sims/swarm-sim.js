@@ -155,6 +155,38 @@ function runMechanics() {
   check("Phoenix consumes one revive", S.player.revives === 0, `revives were ${S.player.revives}`);
   check("Phoenix restores half health", S.player.hp === expectedReviveHp, `hp was ${S.player.hp}, expected ${expectedReviveHp}`);
 
+  const levelCoinReward = S.testing.coinCard();
+  const chestCoinReward = S.testing.chestRewards.find((reward) => reward.name === "Coin Cache");
+  check("chest Coin Cache definition is present", Boolean(chestCoinReward), "Coin Cache reward was missing");
+
+  S.testing.startRun();
+  S.player.coinMul = 1;
+  S.testing.setState("levelup");
+  let coinsBefore = S.stats().runCoins;
+  levelCoinReward.apply();
+  check("level-up Coin Cache credits 30 coins", S.stats().runCoins - coinsBefore === 30, `credited ${S.stats().runCoins - coinsBefore}`);
+  S.testing.setState("chest");
+  coinsBefore = S.stats().runCoins;
+  chestCoinReward.apply();
+  check("chest Coin Cache credits 40 coins", S.stats().runCoins - coinsBefore === 40, `credited ${S.stats().runCoins - coinsBefore}`);
+
+  S.testing.startRun();
+  S.player.coinMul = 1.25;
+  S.testing.setState("levelup");
+  levelCoinReward.apply();
+  check("modal reward applies multiplier and rounding", S.stats().runCoins === 38, `run coins were ${S.stats().runCoins}`);
+  S.testing.setState("chest");
+  for (let i = 0; i < 100; i++) chestCoinReward.apply();
+  check("modal rewards respect the run coin cap", S.stats().runCoins === 1500, `run coins were ${S.stats().runCoins}`);
+
+  S.testing.setState("title");
+  coinsBefore = S.stats().runCoins;
+  levelCoinReward.apply();
+  check("title state rejects modal rewards", S.stats().runCoins === coinsBefore, `run coins changed to ${S.stats().runCoins}`);
+  S.testing.setState("dead");
+  chestCoinReward.apply();
+  check("dead state rejects modal rewards", S.stats().runCoins === coinsBefore, `run coins changed to ${S.stats().runCoins}`);
+
   console.log(JSON.stringify({ suite: "swarm:mechanics", checks: checks.length, passed: checks }));
 }
 

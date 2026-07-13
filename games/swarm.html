@@ -402,7 +402,10 @@ const ST_NAMES = ["title", "play", "levelup", "dead", "chest", "pause", "win"];
 let state = ST_TITLE;
 let elapsed = 0, kills = 0, runCoins = 0;
 const RUN_COIN_CAP = 1500;
-function addRunCoins(v) { if (state !== ST_PLAY) return; runCoins = Math.min(RUN_COIN_CAP, runCoins + Math.round(v * (player.coinMul || 1))); }
+function addRunCoins(v, rewardState = ST_PLAY) {
+  if (state !== rewardState) return;
+  runCoins = Math.min(RUN_COIN_CAP, runCoins + Math.round(v * (player.coinMul || 1)));
+}
 let shake = 0, hitStop = 0;
 const COMBO_WINDOW = 4; // seconds of no kills before the combo resets
 let combo = 0, comboTimer = 0, bestCombo = 0, comboBreakFlash = 0;
@@ -1168,7 +1171,7 @@ function ascendCard(k) {
 function coinCard() {
   return {
     kind: "coin", id: "coin", icon: "◉", name: "Coin Cache", lvl: "", desc: "+30 coins for the workshop", hint: "", tag: "Bonus", cls: "",
-    apply: () => { addRunCoins(30); },
+    apply: () => { addRunCoins(30, ST_LEVELUP); },
   };
 }
 function buildUpgradeChoices() {
@@ -1286,7 +1289,7 @@ rerollBtn.addEventListener("click", (ev) => {
 // ---------- Chests ----------
 const CHEST_REWARDS = [
   { icon: "✚", name: "Full Repair", desc: "Restore all of your HP", can: () => player.hp < player.maxHp, apply: () => { player.hp = player.maxHp; } },
-  { icon: "◉", name: "Coin Cache", desc: "+40 coins for the workshop", can: () => true, apply: () => { addRunCoins(40); } },
+  { icon: "◉", name: "Coin Cache", desc: "+40 coins for the workshop", can: () => true, apply: () => { addRunCoins(40, ST_CHEST); } },
   { icon: "⚙", name: "Tune-up", desc: "A random owned weapon gains +1 level",
     can: () => { for (const k in weapons) if (weapons[k].level > 0 && weapons[k].level < WEAPON_DEFS[k].max) return true; return false; },
     apply: () => {
@@ -2835,7 +2838,14 @@ window.__swarm = {
   player, weapons, passives, enemies, gems, pickups, projectiles, chests, mines, glaives, strikes, shells, spits, rocks,
   tree: treeOwned, buyNode, respecTree, treeBonus,
   gainXp, hurtPlayer, spawnEnemy, spawnBoss, triggerEvent, openChest, dropChest,
-  testing: { update, startRun },
+  testing: {
+    update, startRun, coinCard, chestRewards: CHEST_REWARDS,
+    setState: (name) => {
+      const next = ST_NAMES.indexOf(name);
+      if (next < 0) throw new Error("Unknown Swarm state: " + name);
+      setState(next);
+    },
+  },
   get coins() { return coins; },
   get combo() { return combo; },
   get muted() { return muted; },
