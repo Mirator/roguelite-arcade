@@ -571,6 +571,26 @@ async function playRunAsync(mode, commander, seed) {
 }
 
 // -------------------------------------------------------------- mechanics --
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function pollUntil(predicate, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    if (predicate()) return true;
+    await sleep(1);
+  } while (Date.now() < deadline);
+  return false;
+}
+function raceUnit(wb, key, atk, hp) {
+  return { key, lvl: 1, atk: atk === undefined ? wb.UNITS[key].a : atk, hp: hp === undefined ? wb.UNITS[key].h : hp, item: null };
+}
+function prepRaceBattle(wb, player, enemy) {
+  const S = wb.state;
+  S.lineup = [player, null, null, null, null];
+  S.bench = [null, null, null];
+  S.enemy = [enemy];
+  S.enemy.focus = wb.UNITS[enemy.key].f;
+}
+
 async function runMechanicsChecks() {
   const fails = [];
   const check = (name, cond) => { if (!cond) fails.push(name); console.log(`  [${cond ? 'OK' : 'FAIL'}] ${name}`); };
@@ -624,6 +644,7 @@ async function runMechanicsChecks() {
     wb.fast(BATTLE_SPEED);
     await wb.runBattle();
     const foughtKeys = wb.battle.P.map((f) => f.key);
+    check('battle: normal result completes', S.phase !== 'battle' && S.path.length === 1);
     check('bench: fielded unit entered the battle roster', foughtKeys.includes('turtle'));
     check('bench: benched unit never entered the battle roster', !foughtKeys.includes('dragon'));
     check('bench: benched unit still on the bench post-battle', S.bench[0] && S.bench[0].key === 'dragon');
@@ -691,6 +712,83 @@ async function runMechanicsChecks() {
     S.phase = 'event'; S.eventUnit = 'mage'; S.bench = [null, null, null];
     wb.pickEvent('unit');
     check('event: free recruit applied', S.bench[0] && S.bench[0].key === 'mage' && S.phase === 'map');
+    win.close();
+  }
+
+  // 6. Replacing a run during the intro invalidates the old battle coroutine.
+  {
+    const { win, wb, K } = loadGame(6);
+    _K = K;
+    wb.startRun('tact');
+    const oldRun = wb.state;
+    prepRaceBattle(wb, raceUnit(wb, 'knight', 3, 20), raceUnit(wb, 'healer', 1, 20));
+    wb.fast(20); // the intro wait remains long enough to replace deterministically
+    const oldBattle = wb.runBattle();
+    await sleep(5);
+    check('cancel intro: old battle reached intro', oldRun.phase === 'battle' && wb.battle.running);
+    wb.startRun('warlord');
+    const replacement = wb.state;
+    const expectedRoster = JSON.stringify(replacement.lineup);
+    const banner = win.document.getElementById('banner');
+    banner.className = 'replacement-banner';
+    const metaBefore = { runs: wb.meta.runs, medals: wb.meta.medals };
+    await oldBattle;
+    check('cancel intro: replacement run object remains current', wb.state === replacement);
+    check('cancel intro: replacement state remains pristine', replacement.phase === 'map' && replacement.path.length === 0 && replacement.lives === K.START_LIVES && JSON.stringify(replacement.lineup) === expectedRoster);
+    check('cancel intro: stale battle cannot mutate banner', banner.className === 'replacement-banner');
+    check('cancel intro: stale battle awards no run progression', wb.meta.runs === metaBefore.runs && wb.meta.medals === metaBefore.medals);
+    win.close();
+  }
+
+  // 7. A confirmed abandon during combat may end the old run once, but the
+  // old coroutine must not mutate an immediate replacement run afterward.
+  {
+    const { win, wb, K } = loadGame(7);
+    _K = K;
+    wb.startRun('tact');
+    const oldRun = wb.state;
+    oldRun.pos = { l: 0, i: 0 };
+    prepRaceBattle(wb, raceUnit(wb, 'knight', 1, 100), raceUnit(wb, 'knight', 1, 100));
+    wb.fast(30);
+    const oldBattle = wb.runBattle();
+    const reachedCombat = await pollUntil(() => win.document.getElementById('blog').textContent.includes('clash!'));
+    check('cancel combat: probe reached an exchange', reachedCombat && oldRun.phase === 'battle');
+    win.document.getElementById('menuBtn').click();
+    win.document.getElementById('abandonBtn').click();
+    win.document.getElementById('abandonBtn').click();
+    const awarded = { runs: wb.meta.runs, medals: wb.meta.medals };
+    check('cancel combat: confirmed abandon awards old run exactly once', awarded.runs === 1 && awarded.medals === 1);
+    wb.startRun('necro');
+    const replacement = wb.state;
+    const expectedRoster = JSON.stringify(replacement.lineup);
+    await oldBattle;
+    check('cancel combat: replacement run remains pristine', wb.state === replacement && replacement.phase === 'map' && replacement.path.length === 0 && replacement.lives === K.START_LIVES && JSON.stringify(replacement.lineup) === expectedRoster);
+    check('cancel combat: stale coroutine cannot duplicate abandon award', wb.meta.runs === awarded.runs && wb.meta.medals === awarded.medals);
+    win.close();
+  }
+
+  // 8. Replacing the run after combat resolves, during the pre-result wait,
+  // prevents result UI/progression and afterBattle from touching the new run.
+  {
+    const { win, wb, K } = loadGame(8);
+    _K = K;
+    wb.startRun('tact');
+    const oldRun = wb.state;
+    prepRaceBattle(wb, raceUnit(wb, 'knight', 100, 100), raceUnit(wb, 'healer', 0, 1));
+    wb.fast(30);
+    const oldBattle = wb.runBattle();
+    const resultComputed = await pollUntil(() => !wb.battle.running && oldRun.phase === 'battle');
+    check('cancel result: probe reached pre-result wait', resultComputed);
+    wb.startRun('warlord');
+    const replacement = wb.state;
+    const expectedRoster = JSON.stringify(replacement.lineup);
+    const banner = win.document.getElementById('banner');
+    banner.className = 'replacement-result-banner';
+    const metaBefore = { runs: wb.meta.runs, medals: wb.meta.medals, battleWins: wb.meta.battleWins };
+    await oldBattle;
+    check('cancel result: replacement run remains pristine', wb.state === replacement && replacement.phase === 'map' && replacement.path.length === 0 && replacement.lives === K.START_LIVES && JSON.stringify(replacement.lineup) === expectedRoster);
+    check('cancel result: stale result cannot mutate banner', banner.className === 'replacement-result-banner');
+    check('cancel result: stale result awards no progression', wb.meta.runs === metaBefore.runs && wb.meta.medals === metaBefore.medals && wb.meta.battleWins === metaBefore.battleWins);
     win.close();
   }
 

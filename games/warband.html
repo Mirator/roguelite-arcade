@@ -602,8 +602,19 @@ let meta = loadMeta();
 // ---------------------------- run state ------------------------------
 let S = null;
 let sel = null;   // {type:'shop'|'line'|'bench'|'stash', i}
-let bt = {speed:1, running:false, paused:false, abort:false, P:[], E:[], syn:null, necroUsed:false};
+let bt = {speed:1, running:false, paused:false, identity:null, P:[], E:[], syn:null, necroUsed:false};
+let battleSerial = 0;
 let hintTimer = null;
+
+function invalidateBattle(){
+  battleSerial++;
+  bt.identity = null;
+  bt.running = false;
+  bt.paused = false;
+}
+function battleIsCurrent(battle){
+  return !!battle && bt.identity === battle && battle.id === battleSerial && battle.run === S;
+}
 
 function goldBonus(){ return (meta.owned.gold1?1:0) + (meta.owned.gold2?1:0); }
 function newUnit(key){ return {key, lvl:1, atk:UNITS[key].a, hp:UNITS[key].h, item:null}; }
@@ -883,6 +894,7 @@ function genEnemy(depth, opts = {}){
 
 // ---------------------------- run lifecycle ----------------------------
 function startRun(cmd){
+  invalidateBattle();
   S = {
     lives:START_LIVES, gold:0, wins:0, phase:'map', commander:cmd,
     lineup:[null,null,null,null,null], bench:[null,null,null], shop:[], enemy:[],
@@ -901,6 +913,7 @@ function returnToMap(){
   renderMap();
 }
 function endRun(victory){
+  invalidateBattle();
   const depth = S.pos ? S.pos.l + 1 : 0;
   const earned = depth + (victory ? 5 : 0);
   meta.medals += earned;
@@ -1326,10 +1339,10 @@ function skipDrop(){
 }
 
 // ---------------------------- battle ----------------------------------
-function wait(ms){
+function wait(ms, battle){
   return new Promise(r => setTimeout(async () => {
-    while(bt.paused && !bt.abort) await new Promise(p => setTimeout(p, 120));
-    r();
+    while(bt.paused && battleIsCurrent(battle)) await new Promise(p => setTimeout(p, 120));
+    r(battleIsCurrent(battle));
   }, ms / bt.speed));
 }
 function log(msg){
@@ -1481,7 +1494,8 @@ function faintEffect(f, arr, foes){
       break; }
   }
 }
-async function processDeaths(P, E){
+async function processDeaths(P, E, battle){
+  if(!battleIsCurrent(battle)) return false;
   let changed = true;
   while(changed){
     changed = false;
@@ -1495,19 +1509,19 @@ async function processDeaths(P, E){
           f.hp = 1; f.poison = 0;
           pop(f, '🕯️SAVED', 'buff');
           log(`🕯️ The Necromancer denies death — ${fLabel(f)} stands at 1 HP!`);
-          updateF(f); changed = true; await wait(420); continue;
+          updateF(f); changed = true; if(!await wait(420, battle)) return false; continue;
         }
         if(f.alphaRevive && !f.alphaUsed){
           f.alphaUsed = true; f.hp = Math.max(1, Math.ceil(f.maxhp / 2)); f.poison = 0;
           pop(f, '🐾ALPHA', 'buff');
           log(`🐾🐾 The Pack Alpha refuses to fall — ${fLabel(f)} rises at ${f.hp} HP!`);
-          updateF(f); changed = true; await wait(420); continue;
+          updateF(f); changed = true; if(!await wait(420, battle)) return false; continue;
         }
         if(U.ab === 'revive' && !f.revived){
           f.revived = true; f.hp = abVal(f); f.poison = 0;
           pop(f, '🔥REBORN', 'buff');
           log(`${fLabel(f)} is reborn with ${f.hp} HP!`);
-          updateF(f); changed = true; await wait(420); continue;
+          updateF(f); changed = true; if(!await wait(420, battle)) return false; continue;
         }
         f.alive = false; changed = true;
         sfx('faint');
@@ -1531,45 +1545,48 @@ async function processDeaths(P, E){
             if(t2){ log(`${fLabel(u)} hurls a death bolt for ${abVal(u)}!`); dealDamage(t2, abVal(u)); }
           }
         }
-        await wait(360);
+        if(!await wait(360, battle)) return false;
       }
     }
   }
+  return battleIsCurrent(battle);
 }
-async function startAbility(f, allies, foes){
+async function startAbility(f, allies, foes, battle){
+  if(!battleIsCurrent(battle)) return false;
   const U = UNITS[f.key];
   const v = abVal(f);
   switch(U.ab){
     case 'snipeBack': {
       const t = lastAlive(foes);
       const n = abilityDmg(f);
-      if(t){ log(`${fLabel(f)} snipes ${fLabel(t)} for ${n}!`); arcaneHit(f, t, n, foes); await wait(320); }
+      if(t){ log(`${fLabel(f)} snipes ${fLabel(t)} for ${n}!`); arcaneHit(f, t, n, foes); if(!await wait(320, battle)) return false; }
       break; }
     case 'shield':
       f.shield += v; pop(f, '🛡+' + v, 'shield'); updateF(f);
-      log(`${fLabel(f)} shells up (+${v} shield).`); await wait(280); break;
+      log(`${fLabel(f)} shells up (+${v} shield).`); if(!await wait(280, battle)) return false; break;
     case 'rally':
       for(const a of allies) if(a.alive) buff(a, v, v, a === f);
-      log(`${fLabel(f)} rallies the warband: +${v}/+${v} to all!`); await wait(360); break;
+      log(`${fLabel(f)} rallies the warband: +${v}/+${v} to all!`); if(!await wait(360, battle)) return false; break;
     case 'curse': {
       const t = front(foes);
       if(t){
         const s = Math.min(v, t.atk);
         t.atk -= s;
         pop(t, '-' + s + '⚔', 'dmg'); updateF(t);
-        log(`${fLabel(f)} curses ${fLabel(t)}: -${s} ATK.`); await wait(320);
+        log(`${fLabel(f)} curses ${fLabel(t)}: -${s} ATK.`); if(!await wait(320, battle)) return false;
       }
       break; }
     case 'pack': {
       const n = allies.filter(x => x.alive && x !== f && UNITS[x.key].f === 'Beast').length;
-      if(n > 0){ buff(f, v * n, v * n); log(`${fLabel(f)} leads the pack: +${v*n}/+${v*n}!`); await wait(340); }
+      if(n > 0){ buff(f, v * n, v * n); log(`${fLabel(f)} leads the pack: +${v*n}/+${v*n}!`); if(!await wait(340, battle)) return false; }
       break; }
     case 'breath': {
       const n = abilityDmg(f);
       log(`${fLabel(f)} breathes fire — ${n} to all enemies! 🔥`);
       for(const t of foes.filter(x => x.alive)) dealDamage(t, n);
-      await wait(400); break; }
+      if(!await wait(400, battle)) return false; break; }
   }
+  return battleIsCurrent(battle);
 }
 function applySynergyStart(arr, side){
   const syn = bt.syn[side];
@@ -1631,12 +1648,15 @@ function strike(att, def, foes){
   return kills;
 }
 async function runBattle(){
+  const run = S;
+  invalidateBattle();
+  const battle = Object.freeze({id:battleSerial, run});
+  bt.identity = battle;
   const node = curNode();
   S.saved = S.gold;
   S.phase = 'battle';
   bt.running = true;
   bt.necroUsed = false;
-  bt.abort = false;
   bt.P = S.lineup.filter(Boolean).map(u => mkFighter(u, 'P'));
   bt.E = S.enemy.map(u => mkFighter(u, 'E'));
   bt.syn = {P:synOf(bt.P), E:synOf(bt.E)};
@@ -1647,14 +1667,14 @@ async function runBattle(){
   ban.className = 'intro';
   ban.innerHTML = `<div class="bsub">NODE ${curDepth()} — ${typ}</div>${node && node.name ? node.name : 'Skirmish'}`;
   ban.classList.remove('hidden');
-  await wait(1000);
+  if(!await wait(1000, battle)) return;
   ban.classList.add('hidden');
   log(`⚔️ ${node && node.name ? node.name : 'The enemy'} — a ${S.enemy.focus}-sworn band of ${bt.E.length}!`);
-  await wait(400);
+  if(!await wait(400, battle)) return;
 
   if(S.commander === 'warlord'){
     const fr = front(bt.P);
-    if(fr){ buff(fr, 2, 2); log(`⚔️ The Warlord anoints ${fLabel(fr)}: +2/+2.`); await wait(320); }
+    if(fr){ buff(fr, 2, 2); log(`⚔️ The Warlord anoints ${fLabel(fr)}: +2/+2.`); if(!await wait(320, battle)) return; }
   }
   for(const arr of [bt.P, bt.E]){
     for(let i = 0; i < arr.length; i++){
@@ -1666,26 +1686,25 @@ async function runBattle(){
   }
   applySynergyStart(bt.P, 'P');
   applySynergyStart(bt.E, 'E');
-  await wait(400);
+  if(!await wait(400, battle)) return;
   for(let i = 0; i < 5; i++){
-    if(bt.P[i] && bt.P[i].alive) await startAbility(bt.P[i], bt.P, bt.E);
-    if(bt.E[i] && bt.E[i].alive) await startAbility(bt.E[i], bt.E, bt.P);
+    if(bt.P[i] && bt.P[i].alive && !(await startAbility(bt.P[i], bt.P, bt.E, battle))) return;
+    if(bt.E[i] && bt.E[i].alive && !(await startAbility(bt.E[i], bt.E, bt.P, battle))) return;
   }
-  await processDeaths(bt.P, bt.E);
-  if(bt.abort){ bt.running = false; return; }
+  if(!await processDeaths(bt.P, bt.E, battle)) return;
 
   let turns = 0;
-  while(!bt.abort && alive(bt.P) && alive(bt.E) && ++turns <= 60){
+  while(battleIsCurrent(battle) && alive(bt.P) && alive(bt.E) && ++turns <= 60){
     const a = front(bt.P), b = front(bt.E);
     a.el.classList.add('lungeR'); b.el.classList.add('lungeL');
-    await wait(230);
+    if(!await wait(230, battle)) return;
     a.el.classList.remove('lungeR'); b.el.classList.remove('lungeL');
     sfx('hit');
     log(`${fLabel(a)} and ${fLabel(b)} clash! (${a.atk} ⚔ ${b.atk})`);
     const kills = [...strike(a, b, bt.E), ...strike(b, a, bt.P)];
     for(const [k, v] of kills) killCredit(k, v);
-    await wait(280);
-    await processDeaths(bt.P, bt.E);
+    if(!await wait(280, battle)) return;
+    if(!await processDeaths(bt.P, bt.E, battle)) return;
     let poisoned = false;
     for(const f of [...bt.P, ...bt.E]){
       if(f.alive && f.poison > 0){
@@ -1694,7 +1713,10 @@ async function runBattle(){
         updateF(f); poisoned = true;
       }
     }
-    if(poisoned){ await wait(240); await processDeaths(bt.P, bt.E); }
+    if(poisoned){
+      if(!await wait(240, battle)) return;
+      if(!await processDeaths(bt.P, bt.E, battle)) return;
+    }
     for(const arr of [bt.P, bt.E]){
       const alv = arr.filter(f => f.alive);
       for(let i = 0; i < alv.length; i++){
@@ -1702,16 +1724,16 @@ async function runBattle(){
         for(const j of [i-1, i+1]) if(alv[j]) healF(alv[j], abVal(alv[i]));
       }
     }
-    await wait(240);
+    if(!await wait(240, battle)) return;
   }
 
-  if(bt.abort){ bt.running = false; return; }
+  if(!battleIsCurrent(battle)) return;
   const pAlive = alive(bt.P), eAlive = alive(bt.E);
   let result = 'draw';
   if(pAlive && !eAlive) result = 'win';
   else if(!pAlive && eAlive) result = 'lose';
   bt.running = false;
-  await wait(380);
+  if(!await wait(380, battle)) return;
   ban.classList.remove('hidden');
   ban.className = '';
   if(result === 'win'){
@@ -1730,7 +1752,8 @@ async function runBattle(){
     log('🤝 A bloody draw. No lives lost.');
   }
   renderHUD();
-  await wait(1300);
+  if(!await wait(1300, battle)) return;
+  if(!battleIsCurrent(battle)) return;
   afterBattle(result);
 }
 function afterBattle(result){
@@ -1847,7 +1870,7 @@ function toggleMenu(){ menuOpen ? closeMenu() : openMenu(); }
 function abandonRun(){
   if(!S || S.phase === 'over') return;
   if(!abandonArmed){ abandonArmed = true; refreshMenu(); return; }
-  if(S.phase === 'battle') bt.abort = true;
+  invalidateBattle();
   closeMenu();
   endRun(false);
 }
