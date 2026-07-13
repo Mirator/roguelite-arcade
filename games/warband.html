@@ -727,7 +727,7 @@ function prepFight(node){
   if(!node.enemy){
     const depth = node.l + 1;
     if(node.type === 'boss'){
-      node.enemy = genEnemy(12, {count:5, minLvl:2, itemChance:.6});
+      node.enemy = genEnemy(10, {count:5, minLvl:2, itemChance:.4});
       node.name = 'The Warlord';
     } else {
       node.enemy = genEnemy(node.type === 'elite' ? depth + 2 : depth,
@@ -857,17 +857,17 @@ function genEnemy(depth, opts = {}){
   const pool = Object.keys(UNITS).filter(k => UNITS[k].t <= maxTier);
   const focusPool = pool.filter(k => UNITS[k].f === focus);
   const count = opts.count || clamp(2 + Math.floor(depth/2), 2, 5);
-  const bAtk = Math.floor(depth/3), bHp = Math.floor(depth*3/5);
+  const bAtk = Math.floor((depth-1)/3), bHp = Math.floor(depth/2);
   const band = [];
   for(let i = 0; i < count; i++){
     const key = (Math.random() < .7 && focusPool.length) ? pick(focusPool) : pick(pool);
     const u = newUnit(key);
     let lvl = opts.minLvl || 1;
-    if(Math.random() < (depth - 2) * 0.17) lvl++;
-    if(Math.random() < (depth - 5) * 0.18) lvl++;
+    if(Math.random() < (depth - 2) * 0.11) lvl++;
+    if(Math.random() < (depth - 5) * 0.11) lvl++;
     while(u.lvl < Math.min(lvl, MAX_LVL)) levelUp(u);
     u.atk += bAtk; u.hp += bHp;
-    const itemChance = opts.itemChance !== undefined ? opts.itemChance : (depth >= 4 ? 0.22 + depth * 0.03 : 0);
+    const itemChance = opts.itemChance !== undefined ? opts.itemChance : (depth >= 4 ? 0.16 + depth * 0.025 : 0);
     if(Math.random() < itemChance) u.item = pick(Object.keys(ITEMS));
     band.push(u);
   }

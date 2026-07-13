@@ -5,7 +5,9 @@
   "description": "Re-runnable balance simulation harnesses for the games/ prototypes",
   "scripts": {
     "start": "node dungeondeal-sim.js",
-    "depths": "node depths-sim.js"
+    "depths": "node depths-sim.js",
+    "warband": "node warband-sim.js",
+    "warband:mechanics": "node warband-sim.js --mechanics"
   },
   "dependencies": {
     "jsdom": "^27.0.1"
