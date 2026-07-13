@@ -43,6 +43,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const assert = require('assert/strict');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
 const HTML_PATH = process.env.DD_HTML ||
@@ -125,7 +126,82 @@ function loadGame(seed) {
 }
 
 function click(win, el) {
+  assert.ok(el, 'expected clickable element');
   el.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+}
+
+function prepareTransitionCard(ctx, type) {
+  const { win } = ctx;
+  win.clearBoardEls();
+  win.DD.state.lockUntil = 0;
+  win.spawnSpecialAt(1, { type }, 0);
+  return win.document.querySelector('#board .card[data-cell="1"]');
+}
+
+function runMechanicsTests() {
+  let count = 0;
+  const test = (name, fn) => {
+    fn();
+    count++;
+    console.log(`ok ${count} - ${name}`);
+  };
+
+  test('stale end panel cannot replace the title screen', () => {
+    const ctx = loadGame(5001);
+    const { win, flush, errors } = ctx;
+    click(win, win.document.querySelector('#btn-start'));
+    flush(4000);
+    const card = prepareTransitionCard(ctx, 'monster');
+    win.DD.state.hp = 1;
+    win.DD.state.weapon = null;
+    win.DD.state.shield = null;
+    win.DD.state.board[1].v = 99;
+    click(win, card);
+    assert.equal(win.DD.state.screen, 'dead', 'lethal card should end the run');
+    win.showTitle();
+    const titleMarkup = win.document.querySelector('#overlay').innerHTML;
+    flush(1000);
+    assert.equal(win.DD.state.screen, 'title');
+    assert.equal(win.document.querySelector('#overlay').innerHTML, titleMarkup);
+    assert.match(titleMarkup, /DUNGEON DEAL/);
+    assert.deepEqual(errors, []);
+    win.close();
+  });
+
+  for (const [type, screen, delay] of [
+    ['event', 'event', 320],
+    ['merchant', 'merchant', 320],
+    ['stairs', 'perk', 360],
+  ]) {
+    test(`stale ${type} transition cannot replace a new run`, () => {
+      const ctx = loadGame(5100 + count);
+      const { win, flush, errors } = ctx;
+      click(win, win.document.querySelector('#btn-start'));
+      flush(4000);
+      click(win, prepareTransitionCard(ctx, type));
+      win.newRun();
+      flush(delay + 100);
+      assert.equal(win.DD.state.screen, 'play');
+      assert.equal(win.document.querySelector('#overlay').classList.contains('show'), false);
+      assert.deepEqual(errors, []);
+      win.close();
+    });
+
+    test(`${type} transition still fires in its original lifecycle`, () => {
+      const ctx = loadGame(5200 + count);
+      const { win, flush, errors } = ctx;
+      click(win, win.document.querySelector('#btn-start'));
+      flush(4000);
+      click(win, prepareTransitionCard(ctx, type));
+      flush(delay + 100);
+      assert.equal(win.DD.state.screen, screen);
+      assert.equal(win.document.querySelector('#overlay').classList.contains('show'), true);
+      assert.deepEqual(errors, []);
+      win.close();
+    });
+  }
+
+  console.log(`Dungeon Deal mechanics: ${count} passed`);
 }
 
 // ---------------------------------------------------------- policy logic ---
@@ -636,6 +712,10 @@ function summarize(label, results) {
 
 // --------------------------------------------------------------------- main --
 (function main() {
+  if (process.argv[2] === '--mechanics') {
+    runMechanicsTests();
+    return;
+  }
   const N = +(process.argv[2] || 40);
   const BASE_SEED = +(process.argv[3] || 1000);
   const t0 = Date.now();

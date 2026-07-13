@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node dungeondeal-sim.js",
     "depths": "node depths-sim.js",
+    "dungeondeal:mechanics": "node dungeondeal-sim.js --mechanics",
     "loopline": "node loopline-sim.js",
     "swarm": "node swarm-sim.js",
     "swarm:smoke": "node swarm-sim.js 1",
@@ -13,7 +14,7 @@
     "warband": "node warband-sim.js",
     "warband:mechanics": "node warband-sim.js --mechanics",
     "check:syntax": "node check-syntax.js",
-    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics"
+    "test": "npm run check:syntax && npm run warband:mechanics && npm run swarm:smoke && npm run swarm:mechanics && npm run dungeondeal:mechanics"
   },
   "dependencies": {
     "jsdom": "^27.0.1"

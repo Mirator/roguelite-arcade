@@ -427,6 +427,7 @@ function monsterBand(f){ return f <= 3 ? "ruins" : f <= 6 ? "crypt" : f <= 9 ? "
 
 // ---------- state ----------
 let S = null;
+let lifecycleGeneration = 0;
 let uid = 0;
 const cardEls = new Map();
 let heroEl = null;
@@ -449,6 +450,18 @@ function newState(){
     stats: { consumed: 0, slain: 0, goldEarned: 0 },
     floorLog: [],               // per-floor recap for the end screen
   };
+}
+function replaceState(nextState){
+  lifecycleGeneration++;
+  S = nextState;
+}
+function scheduleStateful(callback, delay){
+  const generation = lifecycleGeneration;
+  const state = S;
+  return setTimeout(() => {
+    if(lifecycleGeneration !== generation || S !== state) return;
+    callback();
+  }, delay);
 }
 // Timestamp-based lock: immune to background-tab timer throttling.
 const isLocked = () => S && Date.now() < S.lockUntil;
@@ -1010,7 +1023,7 @@ function endRun(won){
   const steps = S.floorLog.map(e => `F${e.f} <span style="color:var(--green)">✓</span>${e.hp}hp`);
   steps.push(won ? `F${S.floor} 👑` : `F${S.floor} <span style="color:var(--red)">✝</span>`);
   const timeline = steps.join(" <span style='color:var(--faint)'>→</span> ");
-  setTimeout(() => {
+  scheduleStateful(() => {
     overlay.innerHTML = `<div class="panel">
       <div class="bigicon">${won ? "👑" : "💀"}</div>
       <h1>${won ? "VICTORY" : "YOU DIED"}</h1>
@@ -1106,7 +1119,7 @@ function bossStageDown(c, cell, viaFire){
       grantRelic(cell);
       S.gold += 10; S.stats.goldEarned += 10;
       gainXp(8, cell);
-      setTimeout(() => {
+      scheduleStateful(() => {
         if(S.screen !== "dead" && S.screen !== "victory" && !S.board[cell]) spawnSpecialAt(cell, { type:"stairs" }, 0);
       }, 420);
       return false;
@@ -1360,18 +1373,18 @@ function resolveCard(cell){
     }
     case "event": {
       consumeCardEl(cell); moveHeroTo(cell);
-      setTimeout(openEvent, 320);
+      scheduleStateful(openEvent, 320);
       break;
     }
     case "merchant": {
       consumeCardEl(cell); moveHeroTo(cell);
-      setTimeout(openMerchant, 320);
+      scheduleStateful(openMerchant, 320);
       break;
     }
     case "stairs": {
       SND.play("stairs");
       consumeCardEl(cell); moveHeroTo(cell);
-      setTimeout(openPerkChoice, 360);
+      scheduleStateful(openPerkChoice, 360);
       break;
     }
   }
@@ -1607,14 +1620,14 @@ function startFloor(){
 }
 
 function newRun(){
-  S = Object.assign(newState(), { screen: "play" });
+  replaceState(Object.assign(newState(), { screen: "play" }));
   overlay.classList.remove("show");
   startFloor();
 }
 
 // ---------- title screen ----------
 function showTitle(){
-  S = newState();
+  replaceState(newState());
   document.body.dataset.theme = "";
   overlay.innerHTML = `<div class="panel">
     <div class="bigicon">♠️</div>
