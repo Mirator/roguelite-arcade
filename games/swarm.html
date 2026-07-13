@@ -1932,6 +1932,7 @@ function update(dt) {
     const pd = Math.hypot(player.x - e.x, player.y - e.y);
     if (pd < e.r + player.r + 2) hurtPlayer(e.dmg);
   }
+  if (state !== ST_PLAY) return;
 
   // --- spawn splitter minis (deferred) ---
   if (pendingMinis.length) {
@@ -2021,6 +2022,7 @@ function update(dt) {
       shells[i] = shells[shells.length - 1]; shells.pop();
     }
   }
+  if (state !== ST_PLAY) return;
 
   // --- lightning strikes ---
   for (let i = strikes.length - 1; i >= 0; i--) {
@@ -2143,6 +2145,7 @@ function update(dt) {
     }
     if (dead) { spits[i] = spits[spits.length - 1]; spits.pop(); }
   }
+  if (state !== ST_PLAY) return;
 
   // --- gems ---
   for (let i = gems.length - 1; i >= 0; i--) {
@@ -2832,6 +2835,7 @@ window.__swarm = {
   player, weapons, passives, enemies, gems, pickups, projectiles, chests, mines, glaives, strikes, shells, spits, rocks,
   tree: treeOwned, buyNode, respecTree, treeBonus,
   gainXp, hurtPlayer, spawnEnemy, spawnBoss, triggerEvent, openChest, dropChest,
+  testing: { update, startRun },
   get coins() { return coins; },
   get combo() { return combo; },
   get muted() { return muted; },

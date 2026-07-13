@@ -6,10 +6,12 @@ const fs = require("fs");
 const path = require("path");
 
 const defaultGame = path.resolve(__dirname, "../games/swarm.html");
-const firstArg = process.argv[2];
+const mechanicsMode = process.argv.includes("--mechanics");
+const positionalArgs = process.argv.slice(2).filter((arg) => arg !== "--mechanics");
+const firstArg = positionalArgs[0];
 const useDefaultGame = firstArg === undefined || (firstArg.trim() !== "" && Number.isFinite(Number(firstArg)));
 const gamePath = useDefaultGame ? defaultGame : firstArg;
-const runSecondsArg = useDefaultGame ? firstArg : process.argv[3];
+const runSecondsArg = useDefaultGame ? firstArg : positionalArgs[1];
 const html = fs.readFileSync(gamePath, "utf8");
 const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!m) { console.error("no script found"); process.exit(1); }
@@ -112,6 +114,53 @@ function step(dtMs) {
   }
   const cb = rafCb; rafCb = null;
   if (cb) cb(now);
+}
+
+function runMechanics() {
+  const checks = [];
+  const check = (name, condition, details) => {
+    if (!condition) throw new Error(`${name}: ${details}`);
+    checks.push(name);
+  };
+  const clearRunObjects = () => {
+    for (const group of [S.enemies, S.gems, S.pickups, S.projectiles, S.chests, S.mines, S.glaives, S.strikes, S.shells, S.spits]) {
+      group.length = 0;
+    }
+  };
+
+  S.testing.startRun();
+  clearRunObjects();
+  S.player.hp = 1;
+  S.player.invuln = 0;
+  S.player.revives = 0;
+  S.spits.push({ x: S.player.x, y: S.player.y, vx: 0, vy: 0, life: 1, dmg: 999, r: 6 });
+  S.chests.push({ x: S.player.x, y: S.player.y, t: 0, r: 0 });
+  const bankBefore = S.coins;
+  S.testing.update(0);
+  const deathStats = S.stats();
+  check("lethal projectile ends the run", deathStats.state === "dead", `state was ${deathStats.state}`);
+  check("later chest phase is skipped after death", S.chests.length === 1, `chest count was ${S.chests.length}`);
+  check("death modal is not replaced by chest modal", els.chestScreen._cls.has("hidden"), "chest modal became visible");
+  check("death banks the run exactly once", S.coins - bankBefore === deathStats.runCoins, `bank delta ${S.coins - bankBefore}, run coins ${deathStats.runCoins}`);
+
+  S.testing.startRun();
+  clearRunObjects();
+  S.player.hp = 1;
+  S.player.invuln = 0;
+  S.player.revives = 1;
+  const expectedReviveHp = Math.ceil(S.player.maxHp * 0.5);
+  S.spits.push({ x: S.player.x, y: S.player.y, vx: 0, vy: 0, life: 1, dmg: 999, r: 6 });
+  S.testing.update(0);
+  check("Phoenix keeps the run playing", S.stats().state === "play", `state was ${S.stats().state}`);
+  check("Phoenix consumes one revive", S.player.revives === 0, `revives were ${S.player.revives}`);
+  check("Phoenix restores half health", S.player.hp === expectedReviveHp, `hp was ${S.player.hp}, expected ${expectedReviveHp}`);
+
+  console.log(JSON.stringify({ suite: "swarm:mechanics", checks: checks.length, passed: checks }));
+}
+
+if (mechanicsMode) {
+  runMechanics();
+  process.exit(0);
 }
 
 // start
