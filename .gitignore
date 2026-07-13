@@ -6,6 +6,7 @@ node_modules/
 
 # Local tooling / editor config
 .claude/
+/plans/
 
 # Sim scratch output (keep the .js harnesses and results-*.md, drop raw logs)
 sims/*.log
