@@ -138,6 +138,26 @@ function prepareTransitionCard(ctx, type) {
   return win.document.querySelector('#board .card[data-cell="1"]');
 }
 
+function prepareBoss(ctx, hitsLeft = 2) {
+  const { win } = ctx;
+  win.clearBoardEls();
+  win.DD.state.lockUntil = 0;
+  win.DD.state.deck.length = 0;
+  const boss = win.makeBoss(5);
+  boss.hitsLeft = hitsLeft;
+  win.spawnSpecialAt(1, boss, 0);
+  return { boss, card: cardEl(win.document, 1) };
+}
+
+function castSpellAt(ctx, spell, card) {
+  const { win } = ctx;
+  win.DD.debug.give(spell);
+  win.DD.state.lockUntil = 0;
+  click(win, win.document.querySelector('.spell-chip'));
+  assert.equal(card.classList.contains('target'), true, `${spell} should target the boss`);
+  click(win, card);
+}
+
 function runMechanicsTests() {
   let count = 0;
   const test = (name, fn) => {
@@ -200,6 +220,67 @@ function runMechanicsTests() {
       win.close();
     });
   }
+
+  test('normal boss attack retains its per-hit XP and stage progress', () => {
+    const ctx = loadGame(5301);
+    const { win, errors } = ctx;
+    click(win, win.document.querySelector('#btn-start'));
+    win.DD.state.hp = 100;
+    win.DD.state.maxHp = 100;
+    const { boss, card } = prepareBoss(ctx);
+    click(win, card);
+    assert.equal(win.DD.state.xp, 2);
+    assert.equal(boss.si, 0);
+    assert.equal(boss.hitsLeft, 1);
+    assert.deepEqual(errors, []);
+    win.close();
+  });
+
+  test('Fireball retains full XP when it clears a mini-boss', () => {
+    const ctx = loadGame(5302);
+    const { win, errors } = ctx;
+    click(win, win.document.querySelector('#btn-start'));
+    const { boss, card } = prepareBoss(ctx);
+    castSpellAt(ctx, 'fire', card);
+    assert.equal(win.DD.state.xp, 10);
+    assert.equal(boss.si, 1);
+    assert.equal(win.DD.state.stats.slain, 1);
+    assert.deepEqual(errors, []);
+    win.close();
+  });
+
+  test('Bomb removes a nonfinal boss hit without awarding XP', () => {
+    const ctx = loadGame(5303);
+    const { win, errors } = ctx;
+    click(win, win.document.querySelector('#btn-start'));
+    const { boss, card } = prepareBoss(ctx);
+    castSpellAt(ctx, 'bomb', card);
+    assert.equal(win.DD.state.xp, 0);
+    assert.equal(boss.si, 0);
+    assert.equal(boss.hitsLeft, 1);
+    assert.equal(win.DD.state.board[1], boss);
+    assert.deepEqual(errors, []);
+    win.close();
+  });
+
+  test('Bomb awards no XP for a final mini-boss hit and preserves other rewards', () => {
+    const ctx = loadGame(5304);
+    const { win, flush, errors } = ctx;
+    click(win, win.document.querySelector('#btn-start'));
+    const goldBefore = win.DD.state.gold;
+    const relicsBefore = Object.keys(win.DD.state.relics).length;
+    const { boss, card } = prepareBoss(ctx, 1);
+    castSpellAt(ctx, 'bomb', card);
+    flush(500);
+    assert.equal(win.DD.state.xp, 0);
+    assert.equal(boss.si, 1);
+    assert.equal(win.DD.state.stats.slain, 1);
+    assert.equal(win.DD.state.gold, goldBefore + 10);
+    assert.equal(Object.keys(win.DD.state.relics).length, relicsBefore + 1);
+    assert.equal(win.DD.state.board[1].type, 'stairs');
+    assert.deepEqual(errors, []);
+    win.close();
+  });
 
   console.log(`Dungeon Deal mechanics: ${count} passed`);
 }

@@ -1123,9 +1123,9 @@ function lockFor(ms){
 }
 
 // ---------- boss handling ----------
-function bossStageDown(c, cell, viaFire){
-  c.hitsLeft = viaFire ? 0 : c.hitsLeft - 1;
-  gainXp(2 + (S.relics.crystal ? 1 : 0), cell);
+function bossStageDown(c, cell, { source, earnsXp }){
+  c.hitsLeft = source === "fireball" ? 0 : c.hitsLeft - 1;
+  if(earnsXp) gainXp(2 + (S.relics.crystal ? 1 : 0), cell);
   if(c.hitsLeft <= 0){
     c.si++;
     if(c.si >= c.stages.length){ // boss dead
@@ -1136,7 +1136,7 @@ function bossStageDown(c, cell, viaFire){
       // mini-boss: relic + gold, then the stairs appear in its place
       grantRelic(cell);
       S.gold += 10; S.stats.goldEarned += 10;
-      gainXp(8, cell);
+      if(earnsXp) gainXp(8, cell);
       scheduleStateful(() => {
         if(S.screen !== "dead" && S.screen !== "victory" && !S.board[cell]) spawnSpecialAt(cell, { type:"stairs" }, 0);
       }, 420);
@@ -1185,7 +1185,7 @@ function castOnCell(cell){
     floatText(cell, "🔥", "f-red");
     SND.play("spell");
     if(c.type === "boss"){
-      bossStageDown(c, cell, true);
+      bossStageDown(c, cell, { source:"fireball", earnsXp:true });
     } else {
       S.stats.slain++;
       gainXp(c.v + (c.type === "elite" ? 3 : 0) + (S.relics.crystal ? 1 : 0), cell);
@@ -1206,7 +1206,7 @@ function castOnCell(cell){
     floatText(cell, "💥", "f-red");
     SND.play("spell");
     if(c.type === "boss"){
-      bossStageDown(c, cell, false); // costs the boss one hit, hero takes nothing
+      bossStageDown(c, cell, { source:"bomb", earnsXp:false }); // costs the boss one hit, hero takes nothing
     } else {
       if(c.type === "monster" || c.type === "elite") S.stats.slain++;
       consumeCardEl(cell); // no XP, no loot — the blast leaves nothing
@@ -1275,7 +1275,7 @@ function resolveCard(cell){
       SND.play("fight");
       const died = damageHero(r.dmg, 100);
       if(died){ renderHUD(); endRun(false); return; }
-      if(bossStageDown(c, cell, false)) return; // victory handled inside
+      if(bossStageDown(c, cell, { source:"attack", earnsXp:true })) return; // victory handled inside
       break; // hero does NOT move during boss fight
     }
     case "weapon": {
