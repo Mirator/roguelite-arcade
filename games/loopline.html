@@ -129,7 +129,7 @@
   #homebtn{position:fixed; top:9px; right:10px; z-index:70; width:34px; height:34px;
     display:flex; align-items:center; justify-content:center; background:var(--panel2);
     border:1px solid var(--edge); border-radius:8px; color:var(--dim); font-size:17px;
-    text-decoration:none; line-height:1;}
+    text-decoration:none; line-height:1; padding:0;}
   #homebtn:hover{border-color:var(--gold); color:var(--gold);}
   #topbar{padding-right:56px;}
   #btn-pause,#btn-1,#btn-2,#btn-3,#btn-menu{min-width:42px; padding:5px 8px; text-align:center;}
@@ -200,7 +200,7 @@
   <div id="tt" class="hidden"></div>
   <div id="overlay"><div id="screen"></div></div>
   <div id="menuov" class="hidden"><div id="menu"></div></div>
-  <a id="homebtn" href="../index.html" title="Back to Arcade">⌂</a>
+  <button id="homebtn" title="Title screen">⌂</button>
 
 <script>
 'use strict';
@@ -398,6 +398,8 @@ function newRun(ng){
     backpack:[], hand:['grove','meadow'],
     selCard:-1, combat:null, floats:[], log:[],
     miniSpawned:false, bossSpawned:false,
+    miniBossTileIdx:-1, miniBossTelegraphed:false,
+    bossTileIdx:-1, bossTelegraphed:false,
     dawnAt:-99, time:0,
   };
   if(meta.up.pack)S.hand.push(randomDropCard());
@@ -659,6 +661,27 @@ function dawn(){
     }
   }
 }
+function pickBossTile(){
+  const n=S.loopTiles.length;
+  const half=n/2;
+  const spread=Math.max(1,Math.round(n*0.18));
+  const candidates=[];
+  for(let d=-spread;d<=spread;d++){
+    const idx=(((Math.round(half+d))%n)+n)%n;
+    if(idx!==0)candidates.push(idx);
+  }
+  const empties=candidates.filter(i=>!S.loopTiles[i].card);
+  return choice(empties.length?empties:candidates);
+}
+function describeTile(t){
+  const t0=S.loopTiles[0];
+  const dx=t.x-t0.x, dy=t.y-t0.y;
+  let v='',h='';
+  if(Math.abs(dy)>1)v=dy<0?'north':'south';
+  if(Math.abs(dx)>1)h=dx<0?'west':'east';
+  const dir=v+h;
+  return dir?('the '+dir+' stretch of the loop'):'the far side of the loop';
+}
 function onCampfire(){
   S.loop++;
   S.score+=(5+S.loop)*scoreMult();
@@ -667,17 +690,33 @@ function onCampfire(){
   const t0=S.loopTiles[0];
   addFloat(t0.x,t0.y,'Loop '+S.loop,'#e8b34b');
   ambientSpawns();
+  if(S.loop===MINI_LOOP-1&&!S.miniBossTelegraphed){
+    S.miniBossTelegraphed=true;
+    S.miniBossTileIdx=pickBossTile();
+    addLog('Something stirs at '+describeTile(S.loopTiles[S.miniBossTileIdx])+'...','hl');
+  }
   if(S.loop>=MINI_LOOP&&!S.miniSpawned){
     S.miniSpawned=true;
-    spawnEnemy(t0,'boneboss');
+    if(S.miniBossTileIdx<0)S.miniBossTileIdx=pickBossTile();
+    const bt=S.loopTiles[S.miniBossTileIdx];
+    bt.enemies=[];
+    spawnEnemy(bt,'boneboss');
     S.hero.hp=S.stats.maxHP;
-    addLog('The Bone Colossus blocks the campfire! The hero steels themselves (HP restored).','hl');
+    addLog('The Bone Colossus rises at '+describeTile(bt)+'! The hero steels themselves (HP restored).','hl');
+  }
+  if(S.loop===BOSS_LOOP-1&&!S.bossTelegraphed){
+    S.bossTelegraphed=true;
+    S.bossTileIdx=pickBossTile();
+    addLog('Something stirs at '+describeTile(S.loopTiles[S.bossTileIdx])+'...','hl');
   }
   if(S.loop>=BOSS_LOOP&&!S.bossSpawned){
     S.bossSpawned=true;
-    spawnEnemy(t0,'lich');
+    if(S.bossTileIdx<0)S.bossTileIdx=pickBossTile();
+    const bt=S.loopTiles[S.bossTileIdx];
+    bt.enemies=[];
+    spawnEnemy(bt,'lich');
     S.hero.hp=S.stats.maxHP;
-    addLog('The Lich rises at the campfire! The hero steels themselves (HP restored).','hl');
+    addLog('The Lich rises at '+describeTile(bt)+'! The hero steels themselves (HP restored).','hl');
   }
 }
 
@@ -823,7 +862,6 @@ function endRun(kind){
     '<button data-act="again" class="primary">New Run'+(S.ng?' (NG+'+S.ng+')':'')+'</button>'+
     (kind==='victory'?'<button data-act="ng" style="border-color:var(--purple);color:var(--purple)">New Run NG+'+(S.ng+1)+'</button>':'')+
     '<button data-act="title">Camp</button>'+
-    '<a class="btn" href="../index.html">Back to Arcade</a>'+
     '</div>');
 }
 function campHTML(){
@@ -856,7 +894,6 @@ function showTitle(){
     (meta.best.loops?'<div class="sub">Best: loop '+meta.best.loops+' &middot; score '+meta.best.score+' &middot; wins '+meta.best.wins+'</div>':'')+
     '<div class="btnrow"><button data-act="start" class="primary">Start Run</button>'+
     (meta.best.wins>0?'<button data-act="startng" style="border-color:var(--purple);color:var(--purple)">Start NG+1</button>':'')+
-    '<a class="btn" href="../index.html">Back to Arcade</a>'+
     '</div>');
 }
 function showScreen(html){$('screen').innerHTML=html;$('overlay').classList.remove('hidden');}
@@ -912,8 +949,24 @@ function draw(){
     const t=S.loopTiles[i];
     ctx.fillStyle=i===0?'#3a2c18':'#232b3b';
     roundRect(view.ox+t.x*c+1.5,view.oy+t.y*c+1.5,c-3,c-3,4);ctx.fill();
+    const miniTelegraph=S.miniBossTelegraphed&&!S.miniSpawned&&i===S.miniBossTileIdx;
+    const bigTelegraph=S.bossTelegraphed&&!S.bossSpawned&&i===S.bossTileIdx;
+    if(miniTelegraph||bigTelegraph){
+      const pulse=0.28+0.22*Math.sin(S.time*4);
+      ctx.fillStyle=bigTelegraph?('rgba(229,99,108,'+pulse.toFixed(3)+')'):('rgba(216,192,138,'+pulse.toFixed(3)+')');
+      roundRect(view.ox+t.x*c+1.5,view.oy+t.y*c+1.5,c-3,c-3,4);ctx.fill();
+    }
     if(t.card)drawGlyph(CARDS[t.card.type].glyph,CARDS[t.card.type].color,t.x,t.y,c*0.44);
     if(i===0)drawGlyph('♨','#e8b34b',t.x,t.y,c*0.5);
+    const miniBossHere=S.miniSpawned&&i===S.miniBossTileIdx&&t.enemies.some(e=>e.type==='boneboss'&&e.hp>0);
+    const lichHere=S.bossSpawned&&i===S.bossTileIdx&&t.enemies.some(e=>e.type==='lich'&&e.hp>0);
+    if(miniBossHere||lichHere){
+      const bcol=lichHere?'#e5636c':'#d8c08a';
+      ctx.strokeStyle=bcol;ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(view.ox+t.x*c+c/2,view.oy+t.y*c+c/2,c*0.46,0,7);ctx.stroke();
+      ctx.lineWidth=1;
+      drawGlyph('☠',bcol,t.x,t.y,c*0.4);
+    }
     for(let e=0;e<Math.min(3,t.enemies.length);e++){
       ctx.fillStyle=t.enemies[e].color;
       ctx.beginPath();
@@ -937,13 +990,20 @@ function draw(){
     const n=S.loopTiles[(S.heroIdx+1)%S.loopTiles.length];
     const f=S.combat?0:clamp(S.moveT/TILE_T,0,1);
     const [ax,ay]=cellCenter(t.x,t.y),[bx,by]=cellCenter(n.x,n.y);
-    const hx=ax+(bx-ax)*f,hy=ay+(by-ay)*f;
+    let hx=ax+(bx-ax)*f,hy=ay+(by-ay)*f;
+    let heroR=c*0.26;
+    if(S.combat){heroR=c*0.17;hy+=c*0.27;}
     ctx.fillStyle=S.hero.flash>0.4?'#ff8890':'#e8b34b';
-    ctx.beginPath();ctx.arc(hx,hy,c*0.26,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(hx,hy,heroR,0,7);ctx.fill();
     ctx.fillStyle='#161006';
-    ctx.font='bold '+Math.round(c*0.3)+'px sans-serif';
+    ctx.font='bold '+Math.round(heroR*1.15)+'px sans-serif';
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText('H',hx,hy+1);
+    if(S.combat){
+      drawSliver(hx,hy-heroR-7,c*0.36,Math.max(0,S.hero.hp)/S.stats.maxHP,'#e5636c');
+      if(S.hero.flash>0.15)drawImpactTick(hx,hy,S.hero.flash,'#ff8890');
+      drawMapCombatants(t);
+    }
   }
   for(const f of S.floats){
     if(f.panel)continue;
@@ -958,12 +1018,12 @@ function draw(){
   ctx.textAlign='center';ctx.font='bold 13px sans-serif';
   if(S.phase==='run'&&S.speed===0){
     ctx.fillStyle='#e8b34b';ctx.fillText('PAUSED',view.w/2,22);
-  }else if(S.phase==='run'&&!S.miniSpawned&&S.loop>=MINI_LOOP-1){
+  }else if(S.phase==='run'&&!S.miniSpawned&&S.miniBossTelegraphed){
     ctx.fillStyle='#d8c08a';
-    ctx.fillText('Something colossal stirs at the campfire (loop '+MINI_LOOP+')...',view.w/2,22);
-  }else if(S.phase==='run'&&!S.bossSpawned&&S.loop>=BOSS_LOOP-1){
+    ctx.fillText('Something colossal stirs at '+describeTile(S.loopTiles[S.miniBossTileIdx])+' (loop '+MINI_LOOP+')...',view.w/2,22);
+  }else if(S.phase==='run'&&!S.bossSpawned&&S.bossTelegraphed){
     ctx.fillStyle='#e5636c';
-    ctx.fillText('The Lich awaits at the campfire on loop '+BOSS_LOOP+'...',view.w/2,22);
+    ctx.fillText('The Lich stirs at '+describeTile(S.loopTiles[S.bossTileIdx])+' (loop '+BOSS_LOOP+')...',view.w/2,22);
   }
 }
 function traitIcons(e){
@@ -1021,6 +1081,40 @@ function drawCombat(){
 function bar(x,y,w,h,f,col,bg){
   ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);
   ctx.fillStyle=col;ctx.fillRect(x,y,w*clamp(f,0,1),h);
+}
+function drawSliver(cx,topY,w,frac,col){
+  const h=3;
+  ctx.fillStyle='#00000099';ctx.fillRect(cx-w/2,topY,w,h);
+  ctx.fillStyle=col;ctx.fillRect(cx-w/2,topY,w*clamp(frac,0,1),h);
+}
+function drawImpactTick(cx,cy,strength,col){
+  const n=4,r1=view.cell*0.22,r2=r1+strength*6;
+  ctx.save();
+  ctx.strokeStyle=col;ctx.globalAlpha=clamp(strength,0,1);ctx.lineWidth=2;
+  for(let k2=0;k2<n;k2++){
+    const ang=k2*(Math.PI/2)+Math.PI/4;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(ang)*r1,cy+Math.sin(ang)*r1);
+    ctx.lineTo(cx+Math.cos(ang)*r2,cy+Math.sin(ang)*r2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawMapCombatants(tile){
+  const c=view.cell;
+  const [tx,ty]=cellCenter(tile.x,tile.y);
+  const offs=[[0,-0.34],[0.32,0.04],[-0.32,0.04]];
+  S.combat.enemies.forEach((e,i)=>{
+    if(e.hp<=0)return;
+    const off=offs[i%offs.length];
+    const ex=tx+off[0]*c, ey=ty+off[1]*c;
+    const r=c*0.15;
+    ctx.fillStyle=e.flash>0.5?'#ffffff':e.color;
+    ctx.beginPath();ctx.arc(ex,ey,r,0,7);ctx.fill();
+    ctx.strokeStyle='#0d1017';ctx.lineWidth=1;ctx.stroke();
+    drawSliver(ex,ey-r-6,c*0.3,e.hp/e.maxHP,e.color);
+    if(e.flash>0.15)drawImpactTick(ex,ey,e.flash,'#ffffff');
+  });
 }
 function roundRect(x,y,w,h,r){
   ctx.beginPath();
@@ -1180,16 +1274,18 @@ $('btn-3').addEventListener('click',()=>setSpeed(3));
 $('btn-retreat').addEventListener('click',()=>{if(S&&S.phase==='run')endRun('retreat');});
 /* ---- pause menu (UI only) ---- */
 let menuPrevSpeed=1;
+let pendingMenuAction=null;
 function menuMainHTML(){
   return '<h2>Paused</h2>'+
     '<button data-mact="resume" class="primary">Resume</button>'+
     '<button data-mact="newrun">New Run</button>'+
-    '<a class="btn" href="../index.html">Back to Arcade</a>';
+    '<button data-mact="title" class="warn">Title screen</button>';
 }
 function menuConfirmHTML(){
+  const label=pendingMenuAction==='title'?'go to the title screen':'restart';
   return '<h2>Abandon run?</h2>'+
     '<div class="sub">Current progress is lost - nothing is banked.</div>'+
-    '<button data-mact="confirmyes" class="warn">Yes, abandon &amp; restart</button>'+
+    '<button data-mact="confirmyes" class="warn">Yes, abandon &amp; '+label+'</button>'+
     '<button data-mact="confirmno">Cancel</button>';
 }
 function openMenu(){
@@ -1203,15 +1299,27 @@ function closeMenu(resume){
   $('menuov').classList.add('hidden');
   if(resume!==false&&S&&S.phase==='run')setSpeed(menuPrevSpeed||1);
 }
+function goToTitle(){
+  if(S&&S.phase==='run'){S.phase='over';S.combat=null;}
+  if(!$('menuov').classList.contains('hidden'))closeMenu(false);
+  showTitle();
+}
 $('btn-menu').addEventListener('click',openMenu);
+$('homebtn').addEventListener('click',goToTitle);
 $('menuov').addEventListener('click',e=>{
   if(e.target===$('menuov')){closeMenu();return;}
   const b=e.target.closest('[data-mact]');if(!b)return;
   const act=b.dataset.mact;
   if(act==='resume')closeMenu();
-  else if(act==='newrun')$('menu').innerHTML=menuConfirmHTML();
+  else if(act==='newrun'){pendingMenuAction='newrun';$('menu').innerHTML=menuConfirmHTML();}
+  else if(act==='title'){pendingMenuAction='title';$('menu').innerHTML=menuConfirmHTML();}
   else if(act==='confirmno')$('menu').innerHTML=menuMainHTML();
-  else if(act==='confirmyes'){closeMenu(false);startRun(S?S.ng:0);}
+  else if(act==='confirmyes'){
+    closeMenu(false);
+    const action=pendingMenuAction;pendingMenuAction=null;
+    if(action==='title')goToTitle();
+    else startRun(S?S.ng:0);
+  }
 });
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;

@@ -33,15 +33,16 @@
 <body>
 <canvas id="game"></canvas>
 <div id="navBtns">
+  <button id="muteBtn" title="Sound on/off" aria-label="Sound">♪</button>
   <button id="menuBtn" title="Menu (Esc)" aria-label="Menu">☰</button>
-  <a id="homeBtn" href="../index.html" title="Back to Arcade" aria-label="Back to Arcade">⌂</a>
+  <button id="homeBtn" title="Title screen" aria-label="Title screen">⌂</button>
 </div>
 <div id="menuOverlay" hidden>
   <div id="menuPanel">
     <h2>Paused</h2>
     <button id="mResume">Resume</button>
-    <button id="mNewRun">New Run</button>
-    <a id="mArcade" href="../index.html">Back to Arcade</a>
+    <button id="mNewRun">Restart run</button>
+    <button id="mTitle">Title screen</button>
   </div>
 </div>
 <script>
@@ -127,13 +128,14 @@ function layoutFresh(){
 
 // ---------- Data definitions ----------
 var CLASSES = {
-  warrior:   { name:'Warrior',   color:'#ff8b5c', hp:38, atkBase:5,
-               lines:['Tough and strong.','Starts with a sword.','Whirlwind: hit all','adjacent enemies.'] },
-  ranger:    { name:'Ranger',    color:'#7ec850', hp:26, atkBase:3, bowRange:4,
-               lines:['Fragile but deadly.','Click far enemies to','shoot your bow (range 4).','Volley: 3 quick shots.'] },
-  alchemist: { name:'Alchemist', color:'#c9a0ff', hp:30, atkBase:4,
-               lines:['Master of mixtures.','Starts with 3 potions','and 3 acid flasks.','Transmute: reroll items.'] }
+  warrior:   { name:'Warrior',   color:'#ff8b5c', hp:38, atkBase:5, prof:'melee', diff:'HARD',
+               lines:['Tough and strong.','Wields melee weapons.','Whirlwind: hit all','adjacent enemies.'] },
+  ranger:    { name:'Ranger',    color:'#7ec850', hp:26, atkBase:3, prof:'bow', bowRange:4, diff:'EASY',
+               lines:['Fragile but deadly.','Needs a bow: click far','enemies to shoot them.','Volley: rapid shots.'] },
+  alchemist: { name:'Alchemist', color:'#c9a0ff', hp:30, atkBase:4, prof:'catalyst', diff:'MEDIUM',
+               lines:['Master of mixtures.','Catalysts boost flasks','and fire. Starts with 3','potions + 3 acid flasks.'] }
 };
+var WTYPE_LABEL = { melee:'Melee', bow:'Bow', catalyst:'Catalyst' };
 var ABILITIES = {
   warrior:   { key:'whirlwind', name:'Whirlwind', cd:8  },
   ranger:    { key:'volley',    name:'Volley',    cd:8  },
@@ -142,12 +144,12 @@ var ABILITIES = {
 
 var MON_TYPES = [
   { key:'rat',    glyph:'r', name:'rat',            color:'#a58b6f', hp:5,  atk:2,  def:0, gold:2,  xp:3,  min:1, max:2,  w:5, ai:'melee' },
-  { key:'kobold', glyph:'k', name:'kobold slinger', color:'#d8c07a', hp:6,  atk:3,  def:0, gold:5,  xp:5,  min:1, max:4,  w:3, ai:'ranged', range:6, cool:1, proj:'*', projColor:'#d8c07a' },
+  { key:'kobold', glyph:'k', name:'kobold slinger', color:'#d8c07a', hp:6,  atk:3,  def:0, gold:5,  xp:5,  min:1, max:4,  w:3, ai:'ranged', range:4, cool:1, proj:'*', projColor:'#d8c07a' },
   { key:'goblin', glyph:'g', name:'goblin',         color:'#7ec850', hp:9,  atk:4,  def:1, gold:6,  xp:5,  min:1, max:5,  w:4, ai:'melee' },
   { key:'spider', glyph:'s', name:'cave spider',    color:'#79d2b8', hp:10, atk:3,  def:1, gold:7,  xp:7,  min:2, max:6,  w:3, ai:'melee', poison:true },
   { key:'orc',    glyph:'o', name:'orc',            color:'#e0763d', hp:16, atk:6,  def:2, gold:11, xp:10, min:3, max:8,  w:4, ai:'melee' },
   { key:'zombie', glyph:'z', name:'zombie',         color:'#9aa88a', hp:26, atk:8,  def:1, gold:9,  xp:12, min:4, max:9,  w:3, ai:'melee', slow:true },
-  { key:'mage',   glyph:'m', name:'fire mage',      color:'#ff8b5c', hp:12, atk:5,  def:1, gold:15, xp:12, min:4, max:10, w:2, ai:'ranged', range:7, cool:2, burn:true, proj:'✦', projColor:'#ff8b5c' },
+  { key:'mage',   glyph:'m', name:'fire mage',      color:'#ff8b5c', hp:12, atk:5,  def:1, gold:15, xp:12, min:4, max:10, w:1, ai:'ranged', range:6, cool:3, burn:true, proj:'✦', projColor:'#ff8b5c' },
   { key:'troll',  glyph:'T', name:'troll',          color:'#c06be0', hp:30, atk:10, def:3, gold:24, xp:16, min:5, max:10, w:3, ai:'melee' },
   { key:'wraith', glyph:'w', name:'wraith',         color:'#9fb9ff', hp:18, atk:7,  def:2, gold:18, xp:14, min:6, max:10, w:3, ai:'phase' }
 ];
@@ -157,6 +159,8 @@ var MINI_DEF = { key:'brood', glyph:'S', name:'Broodmother', color:'#9be05a',
                  hp:46, atk:9, def:2, gold:60, xp:30, ai:'melee', poison:true };
 
 var WEAPON_NAMES = ['Dagger','Short Sword','Mace','Long Sword','War Axe','Battle Axe','Claymore','Warhammer','Rune Blade','Void Edge','Star Cleaver'];
+var BOW_NAMES    = ['Sling','Shortbow','Hunting Bow','Recurve Bow','Longbow','War Bow','Siege Bow','Storm Bow','Rune Bow','Void Bow','Star Bow'];
+var CATALYST_NAMES = ['Vial Rack','Alembic','Catalyst Rod','Philter Staff','Transmuter','Hermetic Staff','Rune Alembic','Void Retort','Star Crucible','Dragon Flask','Omni Catalyst'];
 var ARMOR_NAMES  = ['Leather Vest','Studded Armor','Ring Mail','Chainmail','Scale Mail','Banded Mail','Half Plate','Plate Armor','Rune Plate','Void Mail','Star Aegis'];
 var HELM_NAMES   = ['Leather Cap','Iron Helm','Great Helm','Winged Crown','Void Visage'];
 var BOOT_NAMES   = ['Worn Shoes','Iron Boots','Greaves','Windstriders','Void Treads'];
@@ -191,17 +195,74 @@ var RING_KINDS = ['ring_regen','ring_str','ring_prot'];
 var SCROLL_KINDS = ['scroll_fire','scroll_tele','scroll_map'];
 var CONSUME_KINDS = ['potion','flask','scroll_fire','scroll_tele','scroll_map','ring_regen','ring_str','ring_prot'];
 
-var BOONS = {
-  vigor:     { name:'Vigor',        desc:'+8 max HP, heal 8' },
-  might:     { name:'Might',        desc:'+2 attack' },
-  stone:     { name:'Stoneskin',    desc:'+1 defense' },
-  eagle:     { name:'Eagle Eyes',   desc:'+1 sight radius', max:3 },
-  antivenom: { name:'Mithridatism', desc:'Immune to poison', max:1 },
-  ashen:     { name:'Ashen Skin',   desc:'Burning deals only 1', max:1 },
-  focus:     { name:'Battle Focus', desc:'Ability cooldown -2', max:2 },
-  greed:     { name:'Greed',        desc:'+30% gold from all sources', max:1 }
+// Class skill trees: 3 branches x 3 tiers; a node requires the previous tier in its branch.
+var SKILLS = {
+  warrior: [
+    { key:'w_might1', br:0, tier:0, name:'Strength',        desc:'+2 attack' },
+    { key:'w_might2', br:0, tier:1, name:'Greater Strength',desc:'+2 attack' },
+    { key:'w_exec',   br:0, tier:2, name:'Executioner',     desc:'Whirlwind deals +50%' },
+    { key:'w_plate',  br:1, tier:0, name:'Iron Skin',       desc:'+1 defense' },
+    { key:'w_tough',  br:1, tier:1, name:'Toughness',       desc:'+10 max HP' },
+    { key:'w_jugg',   br:1, tier:2, name:'Juggernaut',      desc:'+2 defense, poison immune' },
+    { key:'w_swift',  br:2, tier:0, name:'Battle Flow',     desc:'Whirlwind cooldown -2' },
+    { key:'w_steal',  br:2, tier:1, name:'Bloodletter',     desc:'Melee kills heal 2 HP' },
+    { key:'w_berserk',br:2, tier:2, name:'Berserker',       desc:'+4 attack below 40% HP' }
+  ],
+  ranger: [
+    { key:'r_aim1',  br:0, tier:0, name:'Marksman',        desc:'+1 bow damage' },
+    { key:'r_range', br:0, tier:1, name:'Long Shot',       desc:'+1 bow range' },
+    { key:'r_volley',br:0, tier:2, name:'Storm of Arrows', desc:'Volley fires 4 arrows' },
+    { key:'r_eyes',  br:1, tier:0, name:'Keen Eyes',       desc:'+1 sight radius' },
+    { key:'r_traps', br:1, tier:1, name:'Trap Sense',      desc:'Spot traps 2 tiles away' },
+    { key:'r_dodge', br:1, tier:2, name:'Evasion',         desc:'15% chance to dodge melee' },
+    { key:'r_tough', br:2, tier:0, name:'Endurance',       desc:'+8 max HP' },
+    { key:'r_venom', br:2, tier:1, name:'Snake Blood',     desc:'Immune to poison' },
+    { key:'r_regen', br:2, tier:2, name:'Wildheart',       desc:'+1 passive regen' }
+  ],
+  alchemist: [
+    { key:'a_flask1', br:0, tier:0, name:'Concentrate',    desc:'Flasks +4 damage' },
+    { key:'a_aoe',    br:0, tier:1, name:'Volatile Mix',   desc:'Flask blast radius 2' },
+    { key:'a_melt',   br:0, tier:2, name:'Caustic',        desc:'Flask melt lasts twice as long' },
+    { key:'a_tough',  br:1, tier:0, name:'Iron Liver',     desc:'+8 max HP, +1 defense' },
+    { key:'a_cleanse',br:1, tier:1, name:'Panacea',        desc:'Potions cure poison & burn' },
+    { key:'a_pot',    br:1, tier:2, name:'Distillation',   desc:'Potions heal +50%' },
+    { key:'a_fire',   br:2, tier:0, name:'Pyromancy',      desc:'Fireballs +8 damage' },
+    { key:'a_trans',  br:2, tier:1, name:'Quick Hands',    desc:'Transmute cooldown -3' },
+    { key:'a_cat',    br:2, tier:2, name:'Grand Catalyst', desc:'Catalyst power counts double' }
+  ]
+};
+var BRANCH_NAMES = {
+  warrior:['Arms','Bulwark','Fury'],
+  ranger:['Marksmanship','Awareness','Survival'],
+  alchemist:['Chemistry','Vitality','Arcana']
 };
 var GEAR_SLOTS = ['weapon','armor','helm','boots'];
+
+// Depth-band themes: palette + monster pool + generator flavor
+var THEMES = [
+  { name:'Caves',          min:1,  max:3,  gen:'caves',
+    wall:'#45527a', wallBg:'#1a2233', floorBg:'#131a26', dot:'#3c4a66',
+    pool:['rat','rat','kobold','kobold','goblin','goblin','goblin','spider'] },
+  { name:'Crypt',          min:4,  max:6,  gen:'crypt',
+    wall:'#7a8a5f', wallBg:'#1c2216', floorBg:'#14180f', dot:'#4a5540',
+    pool:['zombie','zombie','zombie','wraith','mage','orc','orc','spider'] },
+  { name:'Fungal Warrens', min:7,  max:9,  gen:'fungal',
+    wall:'#8a5f9a', wallBg:'#221a2c', floorBg:'#170f1f', dot:'#5f4a70',
+    pool:['spider','spider','troll','troll','mage','mage','wraith','zombie'] },
+  { name:'Sanctum',        min:10, max:10, gen:'sanctum',
+    wall:'#9a5f5f', wallBg:'#2a1a1a', floorBg:'#1e0f0f', dot:'#6e4a4a',
+    pool:['troll','wraith','mage'] }
+];
+function themeFor(d){
+  for (var i=0; i<THEMES.length; i++)
+    if (d >= THEMES[i].min && d <= THEMES[i].max) return THEMES[i];
+  return THEMES[0];
+}
+var MODIFIERS = [
+  { key:'dark',     name:'Darkness',   desc:'your torch gutters — sight is dimmed' },
+  { key:'infested', name:'Infested',   desc:'the walls crawl with monsters' },
+  { key:'rich',     name:'Rich Veins', desc:'more gold... and more champions' }
+];
 
 var PERKS = [
   { key:'pockets',  name:'Deeper Pockets',   desc:'+1 starting potion',              cost:30 },
@@ -227,9 +288,17 @@ var shakeT0 = -9999, shakeMag = 0;
 var walkQueue = [], walkAttack = null, walkKnown = null, lastStep = 0;
 var mouseX = -1, mouseY = -1, hoverTX = -1, hoverTY = -1, hoverPath = null;
 
-function potionHeal(){ return 12 + (S ? S.depth*2 : 2); }
-function fireballDmg(){ return 10 + (S ? S.depth*2 : 2); }
-function acidDmg(){ return 6 + (S ? S.depth*2 : 2); }
+function potionHeal(){
+  var h = 12 + (S ? S.depth*2 : 2);
+  if (S && S.skills && S.skills.a_pot) h = Math.round(h*1.5);
+  return h;
+}
+function fireballDmg(){
+  return 10 + (S ? S.depth*2 : 2) + (S && S.skills && S.skills.a_fire ? 8 : 0) + catalystPower();
+}
+function acidDmg(){
+  return 6 + (S ? S.depth*2 : 2) + (S && S.skills && S.skills.a_flask1 ? 4 : 0) + catalystPower()*2;
+}
 
 function log(text, color){
   S.msgs.push({ text:text, color:color||'#9fb0c3' });
@@ -244,6 +313,50 @@ function addProjectile(x0,y0,x1,y1,glyph,color){
 function addBoom(x,y){ booms.push({x:x,y:y,t0:performance.now()}); }
 function shake(mag){ shakeT0 = performance.now(); shakeMag = mag; }
 
+// ---------- Tiny WebAudio synth (muteable, safe when unavailable) ----------
+var audioCtx = null;
+var muted = lsGet('depths_mute') === 1;
+function ac(){
+  if (audioCtx) return audioCtx;
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  } catch(e){ audioCtx = null; }
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, delay, slideTo){
+  var c = ac(); if (!c) return;
+  try {
+    var t0 = c.currentTime + (delay||0);
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo), t0+dur);
+    g.gain.setValueAtTime(vol||0.08, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.02);
+  } catch(e){}
+}
+function sfx(name){
+  if (muted) return;
+  switch(name){
+    case 'hit':     tone(200, 0.06, 'square', 0.06); break;
+    case 'kill':    tone(180, 0.14, 'square', 0.07, 0, 70); break;
+    case 'hurt':    tone(110, 0.13, 'sawtooth', 0.08, 0, 70); break;
+    case 'shoot':   tone(900, 0.04, 'square', 0.045, 0, 500); break;
+    case 'pickup':  tone(640, 0.05, 'sine', 0.07); tone(880, 0.06, 'sine', 0.07, 0.05); break;
+    case 'gold':    tone(988, 0.05, 'sine', 0.06); tone(1319, 0.07, 'sine', 0.06, 0.05); break;
+    case 'potion':  tone(300, 0.09, 'sine', 0.08, 0, 520); break;
+    case 'level':   tone(523, 0.08, 'square', 0.06); tone(659, 0.08, 'square', 0.06, 0.08); tone(784, 0.12, 'square', 0.06, 0.16); break;
+    case 'descend': tone(220, 0.3, 'sawtooth', 0.07, 0, 70); break;
+    case 'boom':    tone(90, 0.22, 'sawtooth', 0.1, 0, 40); break;
+    case 'death':   tone(150, 0.6, 'sawtooth', 0.09, 0, 35); break;
+    case 'win':     tone(523, 0.1, 'square', 0.06); tone(659, 0.1, 'square', 0.06, 0.1);
+                    tone(784, 0.1, 'square', 0.06, 0.2); tone(1046, 0.25, 'square', 0.07, 0.3); break;
+  }
+}
+
 // ---------- Inventory / stats helpers ----------
 var INV_ORDER = CONSUME_KINDS;
 function invCount(kind){ return S.inv[kind]||0; }
@@ -251,7 +364,7 @@ function invAdd(kind,n){ S.inv[kind] = (S.inv[kind]||0) + n; }
 function invRemove(kind,n){ S.inv[kind] = Math.max(0,(S.inv[kind]||0) - n); }
 function invKinds(){ return INV_ORDER.filter(function(k){ return invCount(k)>0; }); }
 function ringCountEquipped(kind){ return (S.rings[0]===kind?1:0)+(S.rings[1]===kind?1:0); }
-function boonC(k){ return S.boonCount[k]||0; }
+function sk(key){ return !!(S && S.skills && S.skills[key]); }
 function equipBonus(k){
   var s = 0;
   for (var i=0; i<GEAR_SLOTS.length; i++){
@@ -263,34 +376,121 @@ function equipBonus(k){
   }
   return s;
 }
-function pAtk(){
-  var w = S.equip.weapon;
-  return CLASSES[S.cls].atkBase + (w?w.power:0) + equipBonus('atk')
-       + 2*ringCountEquipped('ring_str') + 2*boonC('might');
+// class-weapon proficiency: melee scales with melee weapons, bows shoot, catalysts brew
+function weaponMeleeContrib(){
+  var g = S.equip.weapon;
+  if (!g) return 0;
+  if (g.wtype === 'melee')
+    return CLASSES[S.cls].prof === 'melee' ? g.power : Math.ceil(g.power*0.6);
+  return Math.floor(g.power*0.3);   // swinging a bow or alembic is desperate work
 }
+function bowPower(){
+  var g = S.equip.weapon;
+  return (g && g.wtype === 'bow') ? g.power : 0;
+}
+function hasBow(){ var g = S.equip.weapon; return !!(g && g.wtype === 'bow'); }
+function catalystPower(){
+  if (!S) return 0;
+  var g = S.equip.weapon;
+  var p = (g && g.wtype === 'catalyst') ? g.power : 0;
+  return sk('a_cat') ? p*2 : p;
+}
+function pAtk(){
+  var a = CLASSES[S.cls].atkBase + weaponMeleeContrib() + equipBonus('atk')
+        + 2*ringCountEquipped('ring_str')
+        + (sk('w_might1')?2:0) + (sk('w_might2')?2:0);
+  if (sk('w_berserk') && S.hp < S.maxHp*0.4) a += 4;
+  return a;
+}
+function rangedAtk(){
+  return Math.max(1, bowPower() + equipBonus('atk') + 2*ringCountEquipped('ring_str')
+       + (sk('r_aim1')?1:0) - 1);
+}
+function bowRangeCur(){ return CLASSES.ranger.bowRange + (sk('r_range')?1:0); }
 function pDef(){
   var d = 0;
   if (S.equip.armor) d += S.equip.armor.power;
   if (S.equip.helm)  d += S.equip.helm.power;
   if (S.equip.boots) d += S.equip.boots.power;
-  return d + equipBonus('def') + 2*ringCountEquipped('ring_prot') + boonC('stone');
+  return d + equipBonus('def') + 2*ringCountEquipped('ring_prot')
+       + (sk('w_plate')?1:0) + (sk('w_jugg')?2:0) + (sk('a_tough')?1:0);
 }
-function regenPower(){ return ringCountEquipped('ring_regen') + equipBonus('regen'); }
+function poisonImmune(){ return sk('w_jugg') || sk('r_venom'); }
+function regenPower(){ return ringCountEquipped('ring_regen') + equipBonus('regen') + (sk('r_regen')?1:0); }
 function refreshDerived(){
   var nm = Math.max(5, S.baseMaxHp + equipBonus('hp'));
   S.maxHp = nm;
   if (S.hp > nm) S.hp = nm;
 }
 function xpNeeded(level){ return 14 + (level-1)*9; }
-function goldGain(n){ return Math.round(n * (boonC('greed') ? 1.3 : 1)); }
-function abilityCdMax(){ return Math.max(3, ABILITIES[S.cls].cd - 2*boonC('focus')); }
+function goldGain(n){ return Math.round(n); }
+function abilityCdMax(){
+  var cd = ABILITIES[S.cls].cd;
+  if (sk('w_swift')) cd -= 2;
+  if (sk('a_trans')) cd -= 3;
+  return Math.max(3, cd);
+}
+// skill helpers
+function skillDef(key){
+  var list = SKILLS[S.cls];
+  for (var i=0; i<list.length; i++) if (list[i].key===key) return list[i];
+  return null;
+}
+function skillPrereqOk(node){
+  if (node.tier === 0) return true;
+  var list = SKILLS[S.cls];
+  for (var i=0; i<list.length; i++)
+    if (list[i].br===node.br && list[i].tier===node.tier-1) return !!S.skills[list[i].key];
+  return true;
+}
+function takeSkill(key){
+  var node = skillDef(key);
+  if (!node || S.skills[key]) return false;
+  if (S.skillPts <= 0){ log('No skill points. Level up to earn more.', '#7d8ea3'); return false; }
+  if (!skillPrereqOk(node)){ log('That skill needs its branch unlocked first.', '#7d8ea3'); return false; }
+  S.skills[key] = true;
+  S.skillPts--;
+  if (key==='w_tough'){ S.baseMaxHp += 10; refreshDerived(); S.hp = Math.min(S.maxHp, S.hp+10); }
+  if (key==='r_tough' || key==='a_tough'){ S.baseMaxHp += 8; refreshDerived(); S.hp = Math.min(S.maxHp, S.hp+8); }
+  if (key==='r_eyes'){ S.fovR = Math.min(12, S.fovR+1); computeFOV(); }
+  log('↑ Learned: '+node.name+' — '+node.desc, '#ffd75f');
+  sfx('level');
+  return true;
+}
+function respecSkills(){
+  var refunded = 0;
+  for (var k in S.skills){
+    if (!S.skills[k]) continue;
+    refunded++;
+    if (k==='w_tough'){ S.baseMaxHp -= 10; }
+    if (k==='r_tough' || k==='a_tough'){ S.baseMaxHp -= 8; }
+    if (k==='r_eyes'){ S.fovR = Math.max(8, S.fovR-1); }
+  }
+  S.skills = {};
+  S.skillPts += refunded;
+  refreshDerived();
+  if (S.hp > S.maxHp) S.hp = S.maxHp;
+  computeFOV();
+  log('Your mind clears — '+refunded+' skill points refunded.', '#c9a0ff');
+}
 
 // ---------- Gear generation ----------
-function gearBaseName(slot,power){
-  if (slot==='weapon') return WEAPON_NAMES[Math.max(0,Math.min(power-1,WEAPON_NAMES.length-1))];
-  if (slot==='armor')  return ARMOR_NAMES[Math.max(0,Math.min(power-1,ARMOR_NAMES.length-1))];
-  if (slot==='helm')   return HELM_NAMES[Math.max(0,Math.min(power-1,HELM_NAMES.length-1))];
-  return BOOT_NAMES[Math.max(0,Math.min(power-1,BOOT_NAMES.length-1))];
+function gearBaseName(slot,power,wtype){
+  var t = function(arr){ return arr[Math.max(0,Math.min(power-1,arr.length-1))]; };
+  if (slot==='weapon'){
+    if (wtype==='bow') return t(BOW_NAMES);
+    if (wtype==='catalyst') return t(CATALYST_NAMES);
+    return t(WEAPON_NAMES);
+  }
+  if (slot==='armor')  return t(ARMOR_NAMES);
+  if (slot==='helm')   return t(HELM_NAMES);
+  return t(BOOT_NAMES);
+}
+function rollWtype(){
+  // weighted toward the current class's proficiency so drops feel usable
+  var prof = S ? CLASSES[S.cls].prof : null;
+  if (prof && Math.random() < 0.55) return prof;
+  return choice(['melee','bow','catalyst']);
 }
 function rollAffix(){
   var r = Math.random();
@@ -305,11 +505,12 @@ function affixText(a){
   if (a.k==='hp')  return (a.v>0?'+':'')+a.v+' HP';
   return (a.v>0?'+':'')+a.v+' regen';
 }
-function makeGear(depth, slot, forceRarity, noCurse){
+function makeGear(depth, slot, forceRarity, noCurse, forceWtype){
   slot = slot || choice(GEAR_SLOTS);
   var power;
   if (slot==='weapon' || slot==='armor') power = Math.max(1, depth + irand(0,1));
   else power = Math.max(1, Math.ceil(depth/2));
+  var wtype = slot==='weapon' ? (forceWtype || rollWtype()) : null;
   var r = Math.random();
   var rarity = forceRarity || (r<0.6 ? 'common' : (r<0.9 ? 'magic' : 'rare'));
   var affixes = [];
@@ -317,10 +518,10 @@ function makeGear(depth, slot, forceRarity, noCurse){
   if (rarity==='rare'){ affixes.push(rollAffix()); affixes.push(rollAffix()); }
   var cursed = !noCurse && rarity!=='common' && Math.random()<0.15;
   var curse = cursed ? choice([{k:'atk',v:-2},{k:'def',v:-1},{k:'hp',v:-8}]) : null;
-  var name = gearBaseName(slot,power);
+  var name = gearBaseName(slot,power,wtype);
   if (rarity==='magic') name = choice(MAGIC_PRE)+' '+name;
   if (rarity==='rare')  name = choice(RARE_PRE)+' '+name;
-  return { slot:slot, power:power, rarity:rarity, affixes:affixes,
+  return { slot:slot, power:power, wtype:wtype, rarity:rarity, affixes:affixes,
            cursed:cursed, curse:curse, known:false, name:name };
 }
 function gearColor(g){
@@ -328,24 +529,57 @@ function gearColor(g){
   return RARITY_COLOR[g.rarity];
 }
 function gearStatText(g){
-  var parts = [(g.slot==='weapon'?'+':'')+g.power+(g.slot==='weapon'?' atk':' def')];
+  var parts = [];
+  if (g.slot==='weapon') parts.push('['+WTYPE_LABEL[g.wtype||'melee']+'] +'+g.power);
+  else parts.push('+'+g.power+' def');
   for (var i=0; i<g.affixes.length; i++) parts.push(affixText(g.affixes[i]));
   if (g.cursed && g.known) parts.push('CURSED: '+affixText(g.curse));
   return parts.join(', ');
 }
-function gearGlyph(slot){
-  return slot==='weapon' ? '/' : (slot==='armor' ? ']' : (slot==='helm' ? '[' : ','));
+function gearGlyph(slot, wtype){
+  if (slot==='weapon') return wtype==='bow' ? ')' : (wtype==='catalyst' ? '¡' : '/');
+  return slot==='armor' ? ']' : (slot==='helm' ? '[' : ',');
+}
+function gearValue(g){
+  var v = 8 + g.power*7;
+  for (var i=0; i<g.affixes.length; i++) v += 10;
+  if (g.rarity==='magic') v = Math.round(v*1.6);
+  if (g.rarity==='rare')  v = Math.round(v*2.4);
+  return v;
+}
+var KIND_VALUE = { potion:16, flask:16, scroll_fire:24, scroll_tele:20, scroll_map:20,
+                   ring_regen:45, ring_str:45, ring_prot:45 };
+function sellPrice(v){ return Math.max(1, Math.round(v*0.4)); }
+// effective stats a piece of gear would give THIS class (for hover comparison)
+function gearEffStats(g){
+  var st = { atk:0, def:0, hp:0, regen:0 };
+  if (g){
+    if (g.slot==='weapon'){
+      if (g.wtype==='melee') st.atk += CLASSES[S.cls].prof==='melee' ? g.power : Math.ceil(g.power*0.6);
+      else if (g.wtype==='bow') st.atk += (S.cls==='ranger') ? g.power : Math.floor(g.power*0.3);
+      else st.atk += (S.cls==='alchemist') ? g.power : Math.floor(g.power*0.3);
+    } else st.def += g.power;
+    for (var i=0; i<g.affixes.length; i++){
+      var a = g.affixes[i];
+      if (st[a.k] !== undefined) st[a.k] += a.v;
+    }
+    if (g.cursed && g.known && g.curse && st[g.curse.k] !== undefined) st[g.curse.k] += g.curse.v;
+  }
+  return st;
 }
 
 // ---------- Map generation ----------
 function genFloor(depth){
   S.depth = depth;
+  S.theme = themeFor(depth);
+  S.modifier = (depth>=2 && depth<MAX_DEPTH && Math.random()<0.4) ? choice(MODIFIERS) : null;
   var map = new Uint8Array(COLS*ROWS);
   var seen = new Uint8Array(COLS*ROWS);
   var vis  = new Uint8Array(COLS*ROWS);
   var rooms = [];
   var isFinal = (depth === MAX_DEPTH);
   var isArena = (depth === 7);
+  var rich = S.modifier && S.modifier.key==='rich';
 
   function carveRoom(r){
     for (var y=r.y; y<r.y+r.h; y++)
@@ -364,9 +598,14 @@ function genFloor(depth){
     carveH(rooms[0].cx, rooms[1].x+1, rooms[0].cy);
     carveH(rooms[1].x+rooms[1].w-2, rooms[2].cx, rooms[2].cy);
   } else {
-    var maxRooms = 10 + Math.min(4, depth);
-    for (var attempt=0; attempt<220 && rooms.length<maxRooms; attempt++){
-      var w = irand(4,9), h = irand(3,7);
+    // generator flavor per theme: crypt = warren of small cells, fungal = few big caverns
+    var gen = S.theme.gen;
+    var maxRooms = gen==='crypt' ? 14 + Math.min(3,depth) : (gen==='fungal' ? 8 : 10 + Math.min(4, depth));
+    var wLo = gen==='crypt' ? 3 : (gen==='fungal' ? 6 : 4);
+    var wHi = gen==='crypt' ? 6 : (gen==='fungal' ? 11 : 9);
+    var hLo = 3, hHi = gen==='crypt' ? 5 : (gen==='fungal' ? 8 : 7);
+    for (var attempt=0; attempt<260 && rooms.length<maxRooms; attempt++){
+      var w = irand(wLo,wHi), h = irand(hLo,hHi);
       var x = irand(1, COLS-w-2), y = irand(1, ROWS-h-2);
       var overlaps = false;
       for (var i=0; i<rooms.length; i++){
@@ -447,7 +686,8 @@ function genFloor(depth){
 
   function spawnMonster(def, x, y, opts){
     opts = opts || {};
-    var hpBoost = depth - 1, atkBoost = Math.floor((depth-1)/3);
+    var hpBoost = depth - 1 + Math.max(0,(depth-6)*3);
+    var atkBoost = Math.floor((depth-1)/3) + (depth>=7?2:0);
     var m = {
       id:S.nextId++, x:x, y:y, key:def.key,
       glyph:def.glyph, name:def.name, color:def.color,
@@ -471,20 +711,20 @@ function genFloor(depth){
     S.monsters.push(m);
     return m;
   }
-  function weightedDef(d){
-    var pool = [];
-    for (var k=0; k<MON_TYPES.length; k++){
-      var t = MON_TYPES[k];
-      if (d >= t.min && d <= t.max)
-        for (var j=0; j<t.w; j++) pool.push(t);
-    }
-    return pool.length ? choice(pool) : MON_TYPES[0];
+  function weightedDef(){
+    // draw from the theme's pool so each depth band feels distinct
+    var key = choice(S.theme.pool);
+    for (var k=0; k<MON_TYPES.length; k++)
+      if (MON_TYPES[k].key === key) return MON_TYPES[k];
+    return MON_TYPES[0];
   }
   var nMon = isFinal ? 8 : (Math.min(16, 3 + Math.floor(depth*1.5)) + (isArena?4:0));
+  if (S.modifier && S.modifier.key==='infested') nMon += 5;
+  var champChance = rich ? 0.25 : 0.12;
   for (i=0; i<nMon; i++){
     var t = isFinal ? takeTileOutsideBoss() : takeTile();
     if (!t) break;
-    spawnMonster(weightedDef(depth), t[0], t[1], { champ: Math.random()<0.12 });
+    spawnMonster(weightedDef(), t[0], t[1], { champ: Math.random()<champChance });
   }
   if (isFinal){
     var bx = far.cx, by = far.cy;
@@ -514,7 +754,8 @@ function genFloor(depth){
   var nPotion = irand(2,3);
   for (i=0; i<nPotion; i++){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'potion'}); }
   var nGold = irand(3,5);
-  for (i=0; i<nGold; i++){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'gold', amt: 5 + irand(0, 8*depth)}); }
+  var goldMul = rich ? 1.8 : 1;
+  for (i=0; i<nGold; i++){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'gold', amt: Math.round((5 + irand(0, 8*depth))*goldMul)}); }
   if (Math.random() < 0.55){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'gear', gear:makeGear(depth,'weapon')}); }
   if (Math.random() < 0.55){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'gear', gear:makeGear(depth,'armor')}); }
   if (depth>=2 && Math.random() < 0.4){ t = takeTile(); if (t) S.items.push({x:t[0],y:t[1],type:'gear', gear:makeGear(depth,'helm')}); }
@@ -555,6 +796,30 @@ function genFloor(depth){
     if (t) S.traps.push({ x:t[0], y:t[1], type: Math.random()<0.55?'spike':'dart', revealed:false, sprung:false });
   }
 
+  // monster den: sleeping pack guarding a rare prize
+  if (!isFinal && !isArena && depth>=2 && Math.random()<0.25 && rooms.length>4){
+    var den = null;
+    for (i=rooms.length-1; i>=2; i--){
+      if (rooms[i]!==far && rooms[i]!==shopRoom && rooms[i]!==vaultRoom && rooms[i]!==rooms[0]){ den = rooms[i]; break; }
+    }
+    if (den){
+      var dtiles = [];
+      for (ty=den.y; ty<den.y+den.h; ty++)
+        for (tx=den.x; tx<den.x+den.w; tx++)
+          if (!occupied(tx,ty) && !itemAt(tx,ty)) dtiles.push([tx,ty]);
+      var takeD = function(){ if(!dtiles.length) return null; var k=irand(0,dtiles.length-1); var t=dtiles[k]; dtiles.splice(k,1); return t; };
+      for (i=0; i<3; i++){ t=takeD(); if (t) spawnMonster(weightedDef(), t[0], t[1], {}); }
+      t=takeD(); if (t) S.items.push({x:t[0],y:t[1],type:'gear', gear:makeGear(depth,null,'rare')});
+      t=takeD(); if (t) S.items.push({x:t[0],y:t[1],type:'gold', amt:Math.round((15+8*depth)*goldMul)});
+    }
+  }
+
+  // altar event tile
+  if (depth>=2 && depth<MAX_DEPTH && Math.random()<0.5){
+    t = takeTile();
+    if (t) S.items.push({x:t[0],y:t[1],type:'altar'});
+  }
+
   if (hasPerk('memory')){
     for (i=0; i<rooms.length; i++){
       if (Math.random()<0.5) continue;
@@ -566,22 +831,25 @@ function genFloor(depth){
   }
 
   computeFOV();
+  if (S.modifier)
+    log('⚠ '+S.modifier.name+' — '+S.modifier.desc+'.', '#f0b46a');
 }
 
 function shopPrice(p){ return Math.round(p * (hasPerk('haggle') ? 0.8 : 1)); }
 function makeShopWares(depth){
   var candidates = [
-    { kind:'potion',      price:shopPrice(30 + depth*2) },
-    { kind:'potion',      price:shopPrice(30 + depth*2) },
-    { kind:'flask',       price:shopPrice(32 + depth*2) },
-    { kind:'scroll_fire', price:shopPrice(50 + depth*2) },
-    { kind:'scroll_tele', price:shopPrice(40 + depth*2) },
-    { kind:'scroll_map',  price:shopPrice(40 + depth*2) },
-    { kind:choice(RING_KINDS), price:shopPrice(90 + depth*3) },
-    { kind:'gear', gear:makeGear(depth+1, choice(GEAR_SLOTS), null, true), price:shopPrice(70 + depth*5) }
+    { kind:'potion',      price:shopPrice(45 + depth*3) },
+    { kind:'potion',      price:shopPrice(45 + depth*3) },
+    { kind:'flask',       price:shopPrice(48 + depth*2) },
+    { kind:'scroll_fire', price:shopPrice(70 + depth*3) },
+    { kind:'scroll_tele', price:shopPrice(55 + depth*2) },
+    { kind:'scroll_map',  price:shopPrice(55 + depth*2) },
+    { kind:choice(RING_KINDS), price:shopPrice(130 + depth*4) },
+    { kind:'gear', gear:makeGear(depth+1, choice(GEAR_SLOTS), null, true), price:shopPrice(100 + depth*8) },
+    { kind:'crate', price:shopPrice(60 + depth*10) }
   ];
   var wares = [];
-  while (wares.length < 4 && candidates.length){
+  while (wares.length < 5 && candidates.length){
     var k = irand(0, candidates.length-1);
     wares.push(candidates[k]);
     candidates.splice(k,1);
@@ -598,8 +866,9 @@ function newRun(clsKey){
     px:0, py:0,
     baseMaxHp: cdef.hp + (hasPerk('vital')?5:0),
     hp:0, maxHp:0,
-    level:1, xp:0, pendingLevels:0, boonChoices:null,
-    boonCount:{}, fovR:8,
+    level:1, xp:0, skillPts:0, lvlPending:false,
+    skills:{}, respecs:0, fovR:8,
+    theme:themeFor(1), modifier:null,
     abilityCd:0,
     equip:{ weapon:null, armor:null, helm:null, boots:null },
     pack:[],
@@ -613,8 +882,9 @@ function newRun(clsKey){
     bossRoom:null,
     msgs:[], nextId:1, causeOfDeath:'', flashT:-9999
   };
-  if (cls==='warrior') S.equip.weapon = makeGear(2,'weapon','common',true);
-  if (cls==='alchemist') S.inv.flask = 3;
+  if (cls==='warrior'){ S.equip.weapon = makeGear(2,'weapon','common',true,'melee'); S.equip.armor = makeGear(2,'armor','common',true); }
+  if (cls==='ranger')  S.equip.weapon = makeGear(2,'weapon','common',true,'bow');
+  if (cls==='alchemist'){ S.equip.weapon = makeGear(2,'weapon','common',true,'catalyst'); S.inv.flask = 4; S.equip.armor = makeGear(1,'armor','common',true); }
   if (hasPerk('soulfire')) invAdd('scroll_fire',1);
   if (hasPerk('relic')){
     var g = makeGear(2, choice(GEAR_SLOTS), 'magic', true);
@@ -639,7 +909,7 @@ function computeFOV(){
   var vis = S.vis; vis.fill(0);
   var seen = S.seen, map = S.map;
   var px = S.px, py = S.py;
-  var R = S.fovR;
+  var R = Math.max(4, S.fovR - (S.modifier && S.modifier.key==='dark' ? 3 : 0));
   vis[idx(px,py)] = 1; seen[idx(px,py)] = 1;
   for (var dy=-R; dy<=R; dy++){
     for (var dx=-R; dx<=R; dx++){
@@ -792,8 +1062,10 @@ function damageMonster(m, dmg, silent){
     while (S.xp >= xpNeeded(S.level)){
       S.xp -= xpNeeded(S.level);
       S.level++;
-      S.pendingLevels++;
+      S.skillPts++;
+      S.lvlPending = true;
     }
+    sfx('kill');
     S.monsters.splice(S.monsters.indexOf(m),1);
     return true;
   }
@@ -802,11 +1074,14 @@ function damageMonster(m, dmg, silent){
 }
 function playerAttack(m){
   var dmg = Math.max(1, pAtk() - m.def + irand(-1,2));
-  damageMonster(m, dmg);
+  sfx('hit');
+  if (damageMonster(m, dmg) && sk('w_steal'))
+    S.hp = Math.min(S.maxHp, S.hp+2);
 }
 function playerShoot(m){
   addProjectile(S.px,S.py,m.x,m.y,'»','#e8e0c0');
-  var dmg = Math.max(1, pAtk()+2 - m.def + irand(-1,2));
+  sfx('shoot');
+  var dmg = Math.max(1, rangedAtk() - m.def + irand(-1,2));
   var name = m.name;
   var dead = damageMonster(m, dmg, true);
   log(dead ? 'Your arrow fells the '+name+'!' : 'Your arrow hits the '+name+' for '+dmg+'.', '#c9d4e0');
@@ -814,6 +1089,7 @@ function playerShoot(m){
 function hurtPlayer(dmg, cause, color){
   S.hp -= dmg;
   addFloater(S.px, S.py, '-'+dmg, color||'#ff5c5c');
+  sfx('hurt');
   shake(4);
   S.flashT = performance.now();
   if (S.hp <= 0){
@@ -822,17 +1098,22 @@ function hurtPlayer(dmg, cause, color){
   }
 }
 function applyPoison(turns,dmg){
-  if (boonC('antivenom')){ log('Your blood neutralizes the venom.', '#7ee787'); return; }
+  if (poisonImmune()){ log('Your blood neutralizes the venom.', '#7ee787'); return; }
   S.poison = { t:turns, dmg:dmg };
 }
 function monsterMelee(m, atkOverride){
+  if (sk('r_dodge') && Math.random() < 0.15){
+    addFloater(S.px, S.py, 'dodge!', '#7ec850');
+    log('You slip aside from the '+m.name+'.', '#7ec850');
+    return;
+  }
   var atk = atkOverride || m.atk;
   var dmg = Math.max(1, atk - pDef() + irand(-1,2));
   hurtPlayer(dmg, 'Slain by a '+m.name+' on depth '+S.depth+'.');
   log('The '+m.name+' hits you for '+dmg+'.', '#ff8a8a');
   if (m.poison && Math.random() < 0.6){
     applyPoison(3 + Math.floor(S.depth/3), 2);
-    if (!boonC('antivenom')) log('Venom courses through you!', '#7ee787');
+    if (!poisonImmune()) log('Venom courses through you!', '#7ee787');
   }
 }
 function monsterShoot(m){
@@ -840,7 +1121,7 @@ function monsterShoot(m){
   var dmg = Math.max(1, m.atk + irand(0,2) - pDef());
   hurtPlayer(dmg, 'Shot down by a '+m.name+' on depth '+S.depth+'.', m.burn?'#ffb04f':'#ff5c5c');
   if (m.burn){
-    S.burn = { t:3, dmg: boonC('ashen')?1:2 };
+    S.burn = { t:2, dmg:2 };
     log('The '+m.name+"'s bolt sears you for "+dmg+'. You are burning!', '#ffb04f');
   } else {
     log('The '+m.name+' hits you for '+dmg+' from afar.', '#ff8a8a');
@@ -1001,14 +1282,15 @@ function tickStatus(){
   }
   if (S.burn.t > 0){
     S.burn.t--;
-    hurtPlayer(boonC('ashen')?1:S.burn.dmg, 'Burned to ash on depth '+S.depth+'.', '#ffb04f');
+    hurtPlayer(S.burn.dmg, 'Burned to ash on depth '+S.depth+'.', '#ffb04f');
     if (S.burn.t === 0) log('The flames gutter out.', '#ffb04f');
   }
 }
 function revealAdjacentTraps(){
+  var reach = sk('r_traps') ? 2 : 1;
   for (var i=0; i<S.traps.length; i++){
     var t = S.traps[i];
-    if (!t.revealed && !t.sprung && manhattan(t.x,t.y,S.px,S.py) <= 1 && S.vis[idx(t.x,t.y)]){
+    if (!t.revealed && !t.sprung && manhattan(t.x,t.y,S.px,S.py) <= reach && S.vis[idx(t.x,t.y)]){
       t.revealed = true;
       log('You spot a '+(t.type==='spike'?'spike trap':'dart trap')+'!', '#f0b46a');
     }
@@ -1024,41 +1306,18 @@ function shopProximity(){
     }
   }
 }
-function rollBoonChoices(){
-  var eligible = [];
-  for (var k in BOONS){
-    var b = BOONS[k];
-    if (b.max && boonC(k) >= b.max) continue;
-    eligible.push(k);
-  }
-  var picks = [];
-  while (picks.length < 3 && eligible.length){
-    var i = irand(0, eligible.length-1);
-    picks.push(eligible[i]);
-    eligible.splice(i,1);
-  }
-  while (picks.length < 3) picks.push(picks.length%2 ? 'vigor' : 'might');
-  return picks;
-}
-function openLevelUp(){
+function openSkills(){
   stopWalk();
-  S.boonChoices = rollBoonChoices();
-  ui.mode = 'levelup';
-}
-function applyBoon(k){
-  S.boonCount[k] = boonC(k)+1;
-  if (k==='vigor'){ S.baseMaxHp += 8; refreshDerived(); S.hp = Math.min(S.maxHp, S.hp+8); }
-  if (k==='eagle'){ S.fovR = Math.min(12, S.fovR+1); computeFOV(); }
-  log('Level '+S.level+': '+BOONS[k].name+'!', '#ffd75f');
-  S.pendingLevels--;
-  if (S.pendingLevels > 0) openLevelUp();
-  else { ui.mode = 'play'; S.boonChoices = null; }
+  ui.mode = 'levelup';   // skill-tree panel (mode name kept for harness compat)
 }
 function maybeLevelUp(){
-  if (S.pendingLevels > 0 && screen==='game' && ui.mode!=='levelup'){
+  if (S.lvlPending && screen==='game' && ui.mode!=='levelup'){
+    S.lvlPending = false;
     addFloater(S.px, S.py, 'LEVEL UP!', '#ffd75f');
     addBoom(S.px, S.py);
-    openLevelUp();
+    log('↑ Level '+S.level+'! You gain a skill point.', '#ffd75f');
+    sfx('level');
+    openSkills();
   }
 }
 function endTurn(){
@@ -1087,6 +1346,7 @@ function die(){
   saveBest(S.depth);
   bankSouls(false);
   screen = 'dead';
+  sfx('death');
   startFade();
   log('You died.', '#ff5c5c');
 }
@@ -1097,6 +1357,7 @@ function winGame(){
   lsSet('depths_wins', loadWins()+1);
   bankSouls(true);
   screen = 'win';
+  sfx('win');
   startFade();
 }
 
@@ -1163,6 +1424,7 @@ function enterTile(x,y){
     if (it.type === 'gold'){
       var amt = goldGain(it.amt);
       S.gold += amt;
+      sfx('gold');
       log('You pick up '+amt+' gold.', '#ffd700');
       addFloater(x,y,'+'+amt+'$','#ffd700');
     } else if (it.type === 'gear'){
@@ -1174,8 +1436,14 @@ function enterTile(x,y){
       S.items.splice(S.items.indexOf(it),1);
       winGame();
       return;
+    } else if (it.type === 'altar'){
+      stopWalk();
+      ui.mode = 'event';
+      log('A blood-dark altar hums beneath your feet...', '#c9a0ff');
+      return;   // altar stays until a choice is made
     } else if (KIND_INFO[it.type]){
       invAdd(it.type,1);
+      sfx('pickup');
       log('You pick up a '+KIND_INFO[it.type].name+'.', KIND_INFO[it.type].color);
     }
     var k = S.items.indexOf(it);
@@ -1216,6 +1484,7 @@ function descend(){
   saveBest(d);
   genFloor(d);
   walkQueue = []; walkAttack = null; hoverPath = null;
+  sfx('descend');
   log('You descend to depth '+d+'. (+'+heal+' HP)', '#e8d9a0');
   if (d === MAX_DEPTH) log('A dreadful presence stirs here...', '#ff4f6e');
   else if (d === 5) log('Something skitters in the dark ahead...', '#9be05a');
@@ -1228,7 +1497,13 @@ function drinkPotion(){
   var heal = potionHeal();
   S.hp = Math.min(S.maxHp, S.hp + heal);
   addFloater(S.px, S.py, '+'+heal, '#7ee787');
-  log('You drink a potion. (+'+heal+' HP)', '#7ee787');
+  sfx('potion');
+  if (sk('a_cleanse') && (S.poison.t>0 || S.burn.t>0)){
+    S.poison.t = 0; S.burn.t = 0;
+    log('You drink a potion. (+'+heal+' HP, ailments cured)', '#7ee787');
+  } else {
+    log('You drink a potion. (+'+heal+' HP)', '#7ee787');
+  }
   monstersAct();
   endTurn();
 }
@@ -1287,14 +1562,16 @@ function throwAcid(tx,ty){
   ui.mode = 'play'; ui.targetKind = null;
   addProjectile(S.px,S.py,tx,ty,'!','#9be05a');
   addBoom(tx,ty);
+  sfx('boom');
   var dmg = acidDmg();
+  var rad = sk('a_aoe') ? 2 : 1;
   var hits = 0;
   for (var i=S.monsters.length-1; i>=0; i--){
     var m = S.monsters[i];
-    if (cheby(m.x,m.y,tx,ty) <= 1 && S.vis[idx(m.x,m.y)]){
+    if (cheby(m.x,m.y,tx,ty) <= rad && S.vis[idx(m.x,m.y)]){
       hits++;
       if (!damageMonster(m, dmg + irand(0,3), true)){
-        m.dotT = 3; m.dotDmg = 2;
+        m.dotT = sk('a_melt') ? 6 : 3; m.dotDmg = 2;
       }
     }
   }
@@ -1346,9 +1623,12 @@ function useAbility(){
     if (!targets.length){ log('No enemies in reach for Whirlwind.', '#7d8ea3'); return; }
     shake(5);
     addBoom(S.px,S.py);
+    sfx('boom');
+    var mult = sk('w_exec') ? 1.5 : 1;
     for (var i=targets.length-1; i>=0; i--){
       var m = targets[i];
-      damageMonster(m, Math.max(1, pAtk()+1 - m.def + irand(0,2)), true);
+      var dead = damageMonster(m, Math.max(1, Math.round((pAtk()+1)*mult) - m.def + irand(0,2)), true);
+      if (dead && sk('w_steal')) S.hp = Math.min(S.maxHp, S.hp+2);
     }
     log('You whirl, striking '+targets.length+' '+(targets.length===1?'enemy':'enemies')+'!', '#ff8b5c');
     S.abilityCd = abilityCdMax();
@@ -1357,19 +1637,21 @@ function useAbility(){
     return;
   }
   if (a === 'volley'){
-    var range = CLASSES.ranger.bowRange;
+    if (!hasBow()){ log('You need a bow to loose a volley.', '#7d8ea3'); return; }
+    var range = bowRangeCur();
     var inRange = S.monsters.filter(function(m){
       return S.vis[idx(m.x,m.y)] && cheby(m.x,m.y,S.px,S.py) <= range && losClear(m.x,m.y,S.px,S.py);
     });
     if (!inRange.length){ log('No targets in bow range for Volley.', '#7d8ea3'); return; }
     inRange.sort(function(m1,m2){ return cheby(m1.x,m1.y,S.px,S.py)-cheby(m2.x,m2.y,S.px,S.py); });
-    var shots = 3, hitsCount = 0;
+    var shots = sk('r_volley') ? 4 : 3, hitsCount = 0;
+    sfx('shoot');
     while (shots-- > 0){
       var live = inRange.filter(function(m){ return S.monsters.indexOf(m)>=0; });
       if (!live.length) break;
       var tgt = live[hitsCount % live.length];
       addProjectile(S.px,S.py,tgt.x,tgt.y,'»','#e8e0c0');
-      damageMonster(tgt, Math.max(1, pAtk()+2 - tgt.def + irand(-1,2)), true);
+      damageMonster(tgt, Math.max(1, rangedAtk() - tgt.def + irand(-1,2)), true);
       hitsCount++;
     }
     log('You loose a volley of '+hitsCount+' arrows!', '#7ec850');
@@ -1419,33 +1701,183 @@ function shopServiceRows(){
   for (var i=0; i<GEAR_SLOTS.length; i++){
     var g = S.equip[GEAR_SLOTS[i]];
     if (g && g.cursed && g.known)
-      rows.push({ service:'uncurse', slot:GEAR_SLOTS[i], price:shopPrice(25*S.depth), name:'Uncurse '+g.name });
+      rows.push({ service:'uncurse', slot:GEAR_SLOTS[i], price:shopPrice(35*S.depth), name:'Uncurse '+g.name });
   }
+  var spent = 0;
+  for (var k in S.skills) if (S.skills[k]) spent++;
+  if (spent > 0)
+    rows.push({ service:'respec', price:shopPrice(100 + 60*S.respecs), name:'Respec skills ('+spent+' points back)' });
   return rows;
 }
 function buyWare(i){
   var w = S.shopWares[i];
   if (!w) return;
   if (S.gold < w.price){ log('"You cannot afford that."', '#7d8ea3'); return; }
+  S.gold -= w.price;
+  sfx('gold');
   if (w.kind === 'gear'){
-    S.gold -= w.price;
     log('You buy the '+w.gear.name+'.', gearColor(w.gear));
     pickupGear(w.gear);
+  } else if (w.kind === 'crate'){
+    var roll = Math.random();
+    if (roll < 0.15){
+      var g = makeGear(S.depth+1, null, 'rare', true);
+      log('The crate holds a '+g.name+'!', gearColor(g));
+      pickupGear(g);
+    } else if (roll < 0.5){
+      var g2 = makeGear(S.depth+1, null, 'magic', true);
+      log('The crate holds a '+g2.name+'.', gearColor(g2));
+      pickupGear(g2);
+    } else if (roll < 0.8){
+      var kind = choice(['potion','potion','flask','scroll_fire','scroll_tele','scroll_map',choice(RING_KINDS)]);
+      invAdd(kind, 1);
+      var kind2 = choice(['potion','flask']);
+      invAdd(kind2, 1);
+      log('The crate holds a '+KIND_INFO[kind].name+' and a '+KIND_INFO[kind2].name+'.', '#c9d4e0');
+    } else {
+      S.gold += 10;
+      log('The crate holds... straw. And 10 gold.', '#7d8ea3');
+    }
   } else {
-    S.gold -= w.price;
     invAdd(w.kind,1);
     log('You buy a '+KIND_INFO[w.kind].name+'.', KIND_INFO[w.kind].color);
   }
   S.shopWares.splice(i,1);
 }
-function buyUncurse(slot, price){
-  if (S.gold < price){ log('"Curses cost coin to lift."', '#7d8ea3'); return; }
-  var g = S.equip[slot];
-  if (!g || !g.cursed) return;
-  S.gold -= price;
-  g.cursed = false; g.curse = null;
-  log('The shopkeeper mutters a rite — the '+g.name+' is cleansed!', '#7fd4ff');
-  refreshDerived();
+function buyService(row){
+  if (S.gold < row.price){ log('"That service costs coin."', '#7d8ea3'); return; }
+  if (row.service === 'uncurse'){
+    var g = S.equip[row.slot];
+    if (!g || !g.cursed) return;
+    S.gold -= row.price;
+    sfx('gold');
+    g.cursed = false; g.curse = null;
+    log('The shopkeeper mutters a rite — the '+g.name+' is cleansed!', '#7fd4ff');
+    refreshDerived();
+    return;
+  }
+  if (row.service === 'respec'){
+    S.gold -= row.price;
+    S.respecs++;
+    sfx('level');
+    respecSkills();
+  }
+}
+function canSellHere(){
+  return !!(S.keeper && manhattan(S.px,S.py,S.keeper.x,S.keeper.y) <= 1);
+}
+function sellPackGear(i){
+  var g = S.pack[i];
+  if (!g) return;
+  var v = sellPrice(gearValue(g));
+  S.pack.splice(i,1);
+  S.gold += v;
+  sfx('gold');
+  log('Sold the '+g.name+' for '+v+' gold.', '#ffd700');
+}
+function sellKind(kind){
+  if (invCount(kind) <= 0) return;
+  invRemove(kind,1);
+  var v = sellPrice(KIND_VALUE[kind]||10);
+  S.gold += v;
+  sfx('gold');
+  log('Sold a '+KIND_INFO[kind].name+' for '+v+' gold.', '#ffd700');
+}
+
+// ---------- Altar event ----------
+function eventLayout(){
+  var w = Math.min(430, Math.max(300, W-30));
+  var h = 96 + 3*46 + 14;
+  var p = panelBase(w,h);
+  var rows = [];
+  for (var i=0; i<3; i++)
+    rows.push({ i:i, rect:{ x:p.x+12, y:p.y+86+i*46, w:w-24, h:40 } });
+  return { panel:p, rows:rows };
+}
+function removeAltarHere(){
+  var it = itemAt(S.px,S.py);
+  if (it && it.type==='altar') S.items.splice(S.items.indexOf(it),1);
+}
+function eventChoose(i){
+  var cost = Math.floor(S.maxHp*0.2);
+  if (i === 0){   // offer blood
+    if (S.hp <= cost+1){ log('You are too weak to offer blood.', '#7d8ea3'); return; }
+    S.hp -= cost;
+    addFloater(S.px,S.py,'-'+cost,'#ff5c5c');
+    addBoom(S.px,S.py);
+    sfx('hurt');
+    var roll = Math.random();
+    if (roll < 0.6){
+      var g = makeGear(S.depth, null, 'rare');
+      log('The altar drinks deep — a '+g.name+' rises from the stone!', '#ffd75f');
+      pickupGear(g);
+    } else if (roll < 0.85){
+      var amt = 30 + 15*S.depth;
+      S.gold += amt;
+      log('The altar drinks deep — '+amt+' gold wells up.', '#ffd700');
+    } else {
+      invAdd('potion',2);
+      log('The altar drinks deep — two potions condense from the air.', '#ff7fb1');
+    }
+    removeAltarHere();
+    ui.mode = 'play';
+    return;
+  }
+  if (i === 1){   // pray
+    var roll2 = Math.random();
+    if (roll2 < 0.4){
+      S.hp = S.maxHp;
+      sfx('potion');
+      log('Warm light floods you — fully healed.', '#7ee787');
+    } else if (roll2 < 0.7){
+      S.gold += 25;
+      sfx('gold');
+      log('A small blessing: 25 gold at your feet.', '#ffd700');
+    } else {
+      applyPoison(4, 2);
+      sfx('hurt');
+      log('The altar demands more than words. You feel ill.', '#7ee787');
+    }
+    removeAltarHere();
+    ui.mode = 'play';
+    return;
+  }
+  ui.mode = 'play';   // leave: altar remains
+  log('You step back from the altar.', '#7d8ea3');
+}
+function eventClick(mx,my){
+  var L = eventLayout();
+  if (!hit(L.panel,mx,my)){ eventChoose(2); return; }
+  for (var i=0; i<L.rows.length; i++)
+    if (hit(L.rows[i].rect,mx,my)){ eventChoose(L.rows[i].i); return; }
+}
+function drawEvent(){
+  var L = eventLayout(), p = L.panel;
+  ctx.fillStyle = 'rgba(5,7,10,0.6)';
+  ctx.fillRect(0,0,W,H);
+  drawPanelFrame(p, 'The Blood Altar');
+  ctx.font = '11px Menlo, Consolas, monospace';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillStyle = '#9fb0c3';
+  ctx.fillText('Old power sleeps here. It wants something.', p.x+14, p.y+44);
+  var cost = Math.floor(S.maxHp*0.2);
+  var labels = [
+    ['Offer blood ('+cost+' HP)', 'It rewards sacrifice... usually.', '#ff5c5c'],
+    ['Pray', 'Cheap words, uncertain grace.', '#c9a0ff'],
+    ['Leave', 'Walk away.', '#7d8ea3']
+  ];
+  for (var i=0; i<L.rows.length; i++){
+    var rr = L.rows[i].rect;
+    var hov = hit(rr, mouseX, mouseY);
+    drawRow(rr, hov, labels[i][2]);
+    ctx.font = 'bold 12px Menlo, Consolas, monospace';
+    ctx.textAlign='left';
+    ctx.fillStyle = labels[i][2];
+    ctx.fillText(labels[i][0], rr.x+10, rr.y+13);
+    ctx.font = '10px Menlo, Consolas, monospace';
+    ctx.fillStyle = '#7d8ea3';
+    ctx.fillText(labels[i][1], rr.x+10, rr.y+28);
+  }
 }
 
 // ---------- Auto-walk ----------
@@ -1457,9 +1889,9 @@ function startWalk(path, attackTarget){
 }
 function stopWalk(){ walkQueue = []; walkAttack = null; }
 function rangerCanShoot(m){
-  if (S.cls !== 'ranger') return false;
+  if (S.cls !== 'ranger' || !hasBow()) return false;
   var d = cheby(m.x,m.y,S.px,S.py);
-  return d >= 2 && d <= CLASSES.ranger.bowRange &&
+  return d >= 2 && d <= bowRangeCur() &&
          S.vis[idx(m.x,m.y)] && losClear(m.x,m.y,S.px,S.py);
 }
 function walkTick(now){
@@ -1527,6 +1959,7 @@ function hudLayout(){
   var x = 14, y = top+96, h = 24, gap = 8;
   var L = { top:top };
   L.potion = { x:x, y:y, w:110, h:h }; x += 110+gap;
+  L.level = { x:42, y:top+22, w:216, h:14 };   // XP bar + Lv label: click to open skills
   if (S && (S.cls==='alchemist' || invCount('flask')>0)){
     L.flask = { x:x, y:y, w:96, h:h }; x += 96+gap;
   } else L.flask = null;
@@ -1559,8 +1992,13 @@ function invLayout(){
     y += rowH;
   }
   y += 12;
-  for (i=0; i<S.pack.length; i++){
-    rows.push({ type:'pack', i:i, rect:{x:p.x+12, y:y, w:w-24, h:rowH-3} });
+  // pack grouped by slot for scannability (row.i stays the true pack index)
+  var order = [];
+  for (var so=0; so<GEAR_SLOTS.length; so++)
+    for (i=0; i<S.pack.length; i++)
+      if (S.pack[i].slot === GEAR_SLOTS[so]) order.push(i);
+  for (var oi=0; oi<order.length; oi++){
+    rows.push({ type:'pack', i:order[oi], rect:{x:p.x+12, y:y, w:w-24, h:rowH-3} });
     y += rowH;
   }
   y += S.pack.length ? 12 : 0;
@@ -1568,15 +2006,17 @@ function invLayout(){
     rows.push({ type:'use', kind:kinds[i], rect:{x:p.x+12, y:y, w:w-24, h:rowH-3} });
     y += rowH;
   }
-  return { panel:p, close:{x:p.x+w-32, y:p.y+8, w:24, h:24}, rows:rows };
+  return { panel:p, close:{x:p.x+w-32, y:p.y+8, w:24, h:24}, rows:rows, sellW:70 };
 }
 function shopLayout(){
   var wares = S.shopWares || [];
   var services = shopServiceRows();
-  var rowH = 36;
-  var w = Math.min(460, Math.max(300, W-30));
+  var sellables = S.pack.slice(0, 6);   // sell section: pack gear
+  var rowH = 36, sellH = 26;
+  var w = Math.min(480, Math.max(300, W-30));
   var n = Math.max(1, wares.length + services.length);
-  var h = 96 + n*rowH + 14;
+  var h = 96 + n*rowH + (sellables.length ? 26 + sellables.length*sellH : 0) + 14;
+  h = Math.min(h, H-HUD_H-16);
   var p = panelBase(w,h);
   var rows = [];
   var y0 = p.y + 86;
@@ -1585,22 +2025,33 @@ function shopLayout(){
     rows.push({ type:'ware', i:i, rect:{ x:p.x+12, y:y0+i*rowH, w:w-24, h:rowH-4 } });
   for (i=0; i<services.length; i++)
     rows.push({ type:'service', service:services[i], rect:{ x:p.x+12, y:y0+(wares.length+i)*rowH, w:w-24, h:rowH-4 } });
-  return { panel:p, close:{ x:p.x+w-32, y:p.y+8, w:24, h:24 }, rows:rows };
+  var ySell = y0 + (wares.length+services.length)*rowH + 24;
+  for (i=0; i<sellables.length; i++)
+    rows.push({ type:'sell', i:i, rect:{ x:p.x+12, y:ySell+i*sellH, w:w-24, h:sellH-3 } });
+  return { panel:p, close:{ x:p.x+w-32, y:p.y+8, w:24, h:24 }, rows:rows, sellY:ySell-18 };
 }
 function levelLayout(){
-  var w = Math.min(430, Math.max(300, W-30));
-  var h = 110 + 3*54;
+  // class skill tree: 3 branch columns x 3 tiers; rows carry node state for the UI + sims
+  var w = Math.min(620, Math.max(320, W-30));
+  var h = 118 + 3*62 + 16;
   var p = panelBase(w,h);
+  var colW = Math.floor((w-52)/3);
   var rows = [];
-  for (var i=0; i<3; i++)
-    rows.push({ i:i, rect:{ x:p.x+12, y:p.y+92+i*54, w:w-24, h:48 } });
-  return { panel:p, rows:rows };
+  var list = SKILLS[S.cls];
+  for (var i=0; i<list.length; i++){
+    var n = list[i];
+    rows.push({
+      i:i, key:n.key, br:n.br, tier:n.tier,
+      taken: !!S.skills[n.key],
+      avail: !S.skills[n.key] && S.skillPts>0 && skillPrereqOk(n),
+      rect:{ x:p.x+14+n.br*(colW+12), y:p.y+108+n.tier*62, w:colW, h:56 }
+    });
+  }
+  return { panel:p, close:{x:p.x+w-32, y:p.y+8, w:24, h:24}, rows:rows };
 }
 function endLayout(){
-  var p = panelBase(Math.min(480, W-40), 352);
-  return { panel:p,
-           newRun:{ x:Math.round(W/2-80), y:p.y+258, w:160, h:38 },
-           arcade:{ x:Math.round(W/2-80), y:p.y+304, w:160, h:26 } };
+  var p = panelBase(Math.min(480, W-40), 330);
+  return { panel:p, newRun:{ x:Math.round(W/2-80), y:p.y+264, w:160, h:38 } };
 }
 function titleLayout(){
   var w = Math.min(660, Math.max(320, W-30)), h = 470;
@@ -1630,7 +2081,7 @@ function tileFromPixel(mx,my){
 }
 canvas.addEventListener('mousemove', function(e){
   mouseX = e.clientX; mouseY = e.clientY;
-  if (screen !== 'game' || ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'levelup'){
+  if (screen !== 'game' || ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'levelup' || ui.mode === 'event'){
     hoverPath = null; hoverTX = -1; hoverTY = -1; return;
   }
   var t = tileFromPixel(mouseX, mouseY);
@@ -1665,13 +2116,12 @@ canvas.addEventListener('mousedown', function(e){
 
   if (screen === 'title'){ titleClick(mx,my); return; }
   if (screen === 'dead' || screen === 'win'){
-    var EL = endLayout();
-    if (hit(EL.newRun, mx, my)){ screen = 'title'; startFade(); }
-    else if (hit(EL.arcade, mx, my)){ window.location.href = '../index.html'; }
+    if (hit(endLayout().newRun, mx, my)){ screen = 'title'; startFade(); }
     return;
   }
 
   if (ui.mode === 'levelup'){ levelClick(mx,my); return; }
+  if (ui.mode === 'event'){ eventClick(mx,my); return; }
   if (ui.mode === 'inventory'){ invClick(mx,my); return; }
   if (ui.mode === 'shop'){ shopClick(mx,my); return; }
   if (ui.mode === 'target'){ targetClick(mx,my); return; }
@@ -1679,6 +2129,7 @@ canvas.addEventListener('mousedown', function(e){
   // ---- play mode ----
   stopWalk();
   var hud = hudLayout();
+  if (hit(hud.level,mx,my)){ openSkills(); return; }
   if (hit(hud.potion,mx,my)){ drinkPotion(); return; }
   if (hud.flask && hit(hud.flask,mx,my)){
     if (invCount('flask') <= 0){ log('You have no acid flasks.', '#7d8ea3'); return; }
@@ -1775,9 +2226,11 @@ function titleClick(mx,my){
 }
 function levelClick(mx,my){
   var L = levelLayout();
+  if (hit(L.close,mx,my) || !hit(L.panel,mx,my)){ ui.mode = 'play'; return; }
   for (var i=0; i<L.rows.length; i++){
-    if (hit(L.rows[i].rect,mx,my) && S.boonChoices && S.boonChoices[i]){
-      applyBoon(S.boonChoices[i]);
+    if (hit(L.rows[i].rect,mx,my)){
+      takeSkill(L.rows[i].key);
+      if (S.skillPts <= 0) ui.mode = 'play';   // spent the last point: resume
       return;
     }
   }
@@ -1802,12 +2255,14 @@ function invClick(mx,my){
     }
     if (row.type === 'pack'){
       if (S.transmuting){ transmuteGear(row.i); return; }
+      if (canSellHere() && mx > row.rect.x+row.rect.w-L.sellW){ sellPackGear(row.i); return; }
       equipGear(S.pack[row.i]);
       return;
     }
     if (row.type === 'use'){
       var kind = row.kind;
       if (S.transmuting){ transmuteKind(kind); return; }
+      if (canSellHere() && mx > row.rect.x+row.rect.w-L.sellW){ sellKind(kind); return; }
       if (kind === 'potion'){ ui.mode='play'; drinkPotion(); }
       else if (kind === 'flask'){
         ui.mode = 'target'; ui.targetKind = 'acid';
@@ -1830,7 +2285,8 @@ function shopClick(mx,my){
   for (var i=0; i<L.rows.length; i++){
     if (hit(L.rows[i].rect,mx,my)){
       if (L.rows[i].type === 'ware') buyWare(L.rows[i].i);
-      else buyUncurse(L.rows[i].service.slot, L.rows[i].service.price);
+      else if (L.rows[i].type === 'service') buyService(L.rows[i].service);
+      else sellPackGear(L.rows[i].i);
       return;
     }
   }
@@ -1852,7 +2308,8 @@ window.addEventListener('keydown', function(e){
   if (e.key === 'Escape'){
     e.preventDefault();
     if (menuOpen){ closeMenu(); return; }
-    if (ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'target'){
+    if (ui.mode === 'event'){ eventChoose(2); return; }
+    if (ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'target' || ui.mode === 'levelup'){
       ui.mode = 'play'; ui.targetKind = null;
       if (S.transmuting) S.transmuting = false;
       return;
@@ -1894,10 +2351,11 @@ function drawMap(){
       var ii = idx(x,y);
       if (!seen[ii]) continue;
       var lit = vis[ii] === 1;
-      ctx.fillStyle = lit ? (map[ii]===1 ? '#131a26' : '#1a2233') : '#0a0d13';
+      var th = S.theme || THEMES[0];
+      ctx.fillStyle = lit ? (map[ii]===1 ? th.floorBg : th.wallBg) : '#0a0d13';
       ctx.fillRect(px(x), py2(y), tile, tile);
-      if (map[ii] === 0) drawGlyph('#', x, y, '#45527a', lit?0.95:0.35);
-      else drawGlyph('·', x, y, '#3c4a66', lit?0.8:0.3);
+      if (map[ii] === 0) drawGlyph('#', x, y, th.wall, lit?0.95:0.35);
+      else drawGlyph('·', x, y, th.dot, lit?0.8:0.3);
     }
   }
   if (S.stairs && seen[idx(S.stairs.x, S.stairs.y)]){
@@ -1920,7 +2378,8 @@ function drawItems(now){
     var g='?', c='#fff', sc=0.78;
     if (it.type==='potion'){ g='%'; c='#ff7fb1'; }
     else if (it.type==='gold'){ g='$'; c='#ffd700'; }
-    else if (it.type==='gear'){ g=gearGlyph(it.gear.slot); c=RARITY_COLOR[it.gear.rarity]; }
+    else if (it.type==='gear'){ g=gearGlyph(it.gear.slot, it.gear.wtype); c=RARITY_COLOR[it.gear.rarity]; }
+    else if (it.type==='altar'){ g='_'; c='#c9a0ff'; sc=0.9; }
     else if (it.type==='chest'){ g='□'; c='#d8a848'; }
     else if (it.type==='amulet'){ g='"'; c='#c9a0ff'; sc = 0.95 + 0.12*Math.sin(now/280); }
     else if (KIND_INFO[it.type]){ g=KIND_INFO[it.type].glyph; c=KIND_INFO[it.type].color; }
@@ -1996,8 +2455,11 @@ function tooltipLines(tx,ty){
     else if (it.type==='gear'){
       lines.push([it.gear.name, RARITY_COLOR[it.gear.rarity]]);
       lines.push([gearStatText(it.gear), '#8b9bb0']);
+      if (it.gear.slot==='weapon' && it.gear.wtype !== CLASSES[S.cls].prof)
+        lines.push(['off-class weapon — reduced effect', '#f0b46a']);
     }
     else if (it.type==='chest'){ lines.push(['Chest', '#d8a848']); lines.push(['Walk onto it to open', '#8b9bb0']); }
+    else if (it.type==='altar'){ lines.push(['Blood Altar', '#c9a0ff']); lines.push(['Step on it... if you dare', '#8b9bb0']); }
     else if (it.type==='amulet'){ lines.push(['The Amulet of Yendor', '#c9a0ff']); lines.push(['Claim it to win', '#8b9bb0']); }
     else if (KIND_INFO[it.type]){ lines.push([KIND_INFO[it.type].name, KIND_INFO[it.type].color]); lines.push([kindDesc(it.type), '#8b9bb0']); }
     if (lines.length) return lines;
@@ -2036,7 +2498,7 @@ function drawTooltip(lines){
 }
 function drawHover(){
   if (screen !== 'game') return;
-  if (ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'levelup') return;
+  if (ui.mode === 'inventory' || ui.mode === 'shop' || ui.mode === 'levelup' || ui.mode === 'event') return;
 
   if (ui.mode === 'target'){
     var acid = ui.targetKind === 'acid';
@@ -2252,6 +2714,12 @@ function drawHUD(){
   ctx.font = 'bold 11px Menlo, Consolas, monospace';
   ctx.fillStyle = '#9fb9ff';
   ctx.fillText('Lv '+S.level, barX+barW+8, hpY+9);
+  if (S.skillPts > 0){
+    ctx.globalAlpha = 0.7 + 0.3*Math.sin(performance.now()/250);
+    ctx.fillStyle = '#ffd75f';
+    ctx.fillText('+'+S.skillPts+' skill pt'+(S.skillPts>1?'s':'')+' — click', barX+barW+44, hpY+9);
+    ctx.globalAlpha = 1;
+  }
 
   var sx = barX + barW + 48;
   ctx.font = 'bold 11px Menlo, Consolas, monospace';
@@ -2269,7 +2737,7 @@ function drawHUD(){
 
   ctx.font = '12px Menlo, Consolas, monospace';
   ctx.fillStyle = '#9fb0c3';
-  ctx.fillText(CLASSES[S.cls].name+'   Depth '+S.depth+'/'+MAX_DEPTH+'   Gold '+S.gold+'   Kills '+S.kills, xL, top+44);
+  ctx.fillText(CLASSES[S.cls].name+'   Depth '+S.depth+'/'+MAX_DEPTH+' — '+(S.theme?S.theme.name:'')+(S.modifier?' · '+S.modifier.name:'')+'   Gold '+S.gold+'   Kills '+S.kills, xL, top+44);
   var wname = S.equip.weapon ? S.equip.weapon.name : 'Fists';
   var aname = S.equip.armor ? S.equip.armor.name : 'Rags';
   ctx.fillStyle = '#7d8ea3';
@@ -2333,7 +2801,9 @@ function drawRow(rr, hov, borderColor){
 }
 function drawInventory(){
   var L = invLayout(), p = L.panel;
-  drawPanelFrame(p, S.transmuting ? 'Transmute — pick an item' : 'Inventory');
+  var hoverPack = null;
+  drawPanelFrame(p, S.transmuting ? 'Transmute — pick an item' :
+                    (canSellHere() ? 'Inventory — trading' : 'Inventory'));
   drawClose(L.close);
   ctx.font = '11px Menlo, Consolas, monospace';
   ctx.textAlign='left'; ctx.textBaseline='middle';
@@ -2378,14 +2848,26 @@ function drawInventory(){
       var pg = S.pack[row.i];
       if (!pg) continue;
       drawRow(rr, hov, gearColor(pg));
-      ctx.font = 'bold 11px Menlo, Consolas, monospace';
+      var SLOT_BADGE = { weapon:'WPN', armor:'ARM', helm:'HLM', boots:'BTS' };
+      ctx.font = 'bold 9px Menlo, Consolas, monospace';
       ctx.textAlign='left';
+      ctx.fillStyle = '#66788f';
+      ctx.fillText('['+SLOT_BADGE[pg.slot]+']', rr.x+6, rr.y+rr.h/2+1);
+      ctx.font = 'bold 11px Menlo, Consolas, monospace';
       ctx.fillStyle = gearColor(pg);
-      ctx.fillText(gearGlyph(pg.slot)+' '+pg.name, rr.x+8, rr.y+rr.h/2+1);
+      ctx.fillText(gearGlyph(pg.slot, pg.wtype)+' '+pg.name, rr.x+40, rr.y+rr.h/2+1);
       ctx.font = '10px Menlo, Consolas, monospace';
       ctx.textAlign='right';
-      ctx.fillStyle = '#7d8ea3';
-      ctx.fillText(gearStatText(pg)+'  '+(S.transmuting?'Reroll':'Equip'), rr.x+rr.w-8, rr.y+rr.h/2+1);
+      if (canSellHere() && !S.transmuting){
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('Sell '+sellPrice(gearValue(pg))+'g', rr.x+rr.w-8, rr.y+rr.h/2+1);
+        ctx.fillStyle = '#7d8ea3';
+        ctx.fillText(gearStatText(pg)+'  Equip', rr.x+rr.w-72, rr.y+rr.h/2+1);
+      } else {
+        ctx.fillStyle = '#7d8ea3';
+        ctx.fillText(gearStatText(pg)+'  '+(S.transmuting?'Reroll':'Equip'), rr.x+rr.w-8, rr.y+rr.h/2+1);
+      }
+      if (hov && !S.transmuting) hoverPack = pg;
     } else if (row.type === 'use'){
       var info = KIND_INFO[row.kind];
       drawRow(rr, hov, info.color);
@@ -2395,9 +2877,33 @@ function drawInventory(){
       ctx.fillText(info.glyph+' '+info.name+(invCount(row.kind)>1?' ×'+invCount(row.kind):''), rr.x+8, rr.y+rr.h/2+1);
       ctx.font = '10px Menlo, Consolas, monospace';
       ctx.textAlign='right';
-      ctx.fillStyle = '#7d8ea3';
-      ctx.fillText(kindDesc(row.kind)+'  '+(S.transmuting?'Reroll':info.verb), rr.x+rr.w-8, rr.y+rr.h/2+1);
+      if (canSellHere() && !S.transmuting){
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('Sell '+sellPrice(KIND_VALUE[row.kind]||10)+'g', rr.x+rr.w-8, rr.y+rr.h/2+1);
+        ctx.fillStyle = '#7d8ea3';
+        ctx.fillText(kindDesc(row.kind)+'  '+info.verb, rr.x+rr.w-72, rr.y+rr.h/2+1);
+      } else {
+        ctx.fillStyle = '#7d8ea3';
+        ctx.fillText(kindDesc(row.kind)+'  '+(S.transmuting?'Reroll':info.verb), rr.x+rr.w-8, rr.y+rr.h/2+1);
+      }
     }
+  }
+  // hover comparison vs the equipped piece in that slot
+  if (hoverPack){
+    var eq = S.equip[hoverPack.slot];
+    var a = gearEffStats(hoverPack), b = gearEffStats(eq);
+    var lines = [[hoverPack.name+'  vs  '+(eq?eq.name:'(empty)'), gearColor(hoverPack)]];
+    var KEYS = [['atk','Atk'],['def','Def'],['hp','HP'],['regen','Regen']];
+    for (var kk=0; kk<KEYS.length; kk++){
+      var k2 = KEYS[kk][0];
+      var d = a[k2]-b[k2];
+      if (!d && !a[k2] && !b[k2]) continue;
+      lines.push([KEYS[kk][1]+'  '+a[k2]+'  ('+(d>0?'▲ +':(d<0?'▼ ':'='))+(d!==0?d:'')+')',
+                  d>0 ? '#7ee787' : (d<0 ? '#ff8a8a' : '#8b9bb0')]);
+    }
+    if (hoverPack.slot==='weapon' && hoverPack.wtype !== CLASSES[S.cls].prof)
+      lines.push(['off-class weapon — reduced effect', '#f0b46a']);
+    drawTooltip(lines);
   }
 }
 function drawShop(){
@@ -2416,6 +2922,7 @@ function drawShop(){
     ctx.fillStyle = '#5a6578';
     ctx.fillText('"All sold out, friend."', p.x+14, p.y+100);
   }
+  var drewSellHeader = false;
   for (var i=0; i<L.rows.length; i++){
     var row = L.rows[i], rr = row.rect;
     var name, color, desc, price;
@@ -2424,10 +2931,33 @@ function drawShop(){
       if (!w) continue;
       price = w.price;
       if (w.kind==='gear'){ name = w.gear.name; color = RARITY_COLOR[w.gear.rarity]; desc = gearStatText(w.gear); }
+      else if (w.kind==='crate'){ name = 'Mystery Crate'; color = '#d8a848'; desc = 'Sealed. Could be anything.'; }
       else { name = KIND_INFO[w.kind].name; color = KIND_INFO[w.kind].color; desc = kindDesc(w.kind); }
-    } else {
+    } else if (row.type === 'service'){
       price = row.service.price;
-      name = row.service.name; color = '#ff5c5c'; desc = 'Lift the curse from this item';
+      name = row.service.name; color = row.service.service==='respec' ? '#c9a0ff' : '#ff5c5c';
+      desc = row.service.service==='respec' ? 'Forget all skills, refund the points' : 'Lift the curse from this item';
+    } else {
+      // sell row
+      var sg = S.pack[row.i];
+      if (!sg) continue;
+      if (!drewSellHeader){
+        drewSellHeader = true;
+        ctx.font = 'bold 11px Menlo, Consolas, monospace';
+        ctx.textAlign='left'; ctx.fillStyle = '#7d8ea3';
+        ctx.fillText('— Sell from your pack —', p.x+14, L.sellY);
+      }
+      var hovS = hit(rr, mouseX, mouseY);
+      drawRow(rr, hovS, '#ffd700');
+      ctx.font = 'bold 11px Menlo, Consolas, monospace';
+      ctx.textAlign='left';
+      ctx.fillStyle = gearColor(sg);
+      ctx.fillText(gearGlyph(sg.slot, sg.wtype)+' '+sg.name, rr.x+8, rr.y+rr.h/2+1);
+      ctx.font = 'bold 11px Menlo, Consolas, monospace';
+      ctx.textAlign='right';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('+'+sellPrice(gearValue(sg))+' g', rr.x+rr.w-8, rr.y+rr.h/2+1);
+      continue;
     }
     var afford = S.gold >= price;
     var hov = hit(rr, mouseX, mouseY);
@@ -2449,25 +2979,57 @@ function drawLevelUp(){
   var L = levelLayout(), p = L.panel;
   ctx.fillStyle = 'rgba(5,7,10,0.6)';
   ctx.fillRect(0,0,W,H);
-  drawPanelFrame(p, 'Level '+S.level+' — choose a boon');
+  drawPanelFrame(p, CLASSES[S.cls].name+' Skills — '+S.skillPts+' point'+(S.skillPts===1?'':'s'));
+  drawClose(L.close);
   ctx.font = '11px Menlo, Consolas, monospace';
   ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.fillStyle = '#7d8ea3';
-  ctx.fillText('Click one:', p.x+14, p.y+46);
-  var choices = S.boonChoices || [];
-  for (var i=0; i<L.rows.length; i++){
-    var rr = L.rows[i].rect;
-    var k = choices[i];
-    if (!k) continue;
+  ctx.fillText('Each level grants a point. Lower skills unlock the branch above them.', p.x+14, p.y+44);
+
+  // branch headers + connector lines
+  var names = BRANCH_NAMES[S.cls];
+  var byBr = [[],[],[]];
+  for (var i=0; i<L.rows.length; i++) byBr[L.rows[i].br][L.rows[i].tier] = L.rows[i];
+  ctx.font = 'bold 12px Menlo, Consolas, monospace';
+  ctx.textAlign='center';
+  for (var b=0; b<3; b++){
+    var col = byBr[b];
+    if (!col[0]) continue;
+    ctx.fillStyle = CLASSES[S.cls].color;
+    ctx.fillText(names[b], col[0].rect.x+col[0].rect.w/2, p.y+92);
+    ctx.strokeStyle = '#2a3550'; ctx.lineWidth = 2;
+    for (var tr=0; tr<2; tr++){
+      if (!col[tr] || !col[tr+1]) continue;
+      ctx.beginPath();
+      ctx.moveTo(col[tr].rect.x+col[tr].rect.w/2, col[tr].rect.y+col[tr].rect.h);
+      ctx.lineTo(col[tr+1].rect.x+col[tr+1].rect.w/2, col[tr+1].rect.y);
+      ctx.stroke();
+    }
+  }
+  var list = SKILLS[S.cls];
+  for (i=0; i<L.rows.length; i++){
+    var row = L.rows[i], rr = row.rect, n = list[row.i];
     var hov = hit(rr, mouseX, mouseY);
-    drawRow(rr, hov, '#ffd75f');
-    ctx.font = 'bold 14px Menlo, Consolas, monospace';
+    var border = row.taken ? '#7ee787' : (row.avail ? '#ffd75f' : '#333c4d');
+    ctx.fillStyle = row.taken ? '#132318' : (hov && row.avail ? '#22304a' : '#141b28');
+    ctx.fillRect(rr.x, rr.y, rr.w, rr.h);
+    ctx.strokeStyle = (hov && row.avail) ? '#ffd75f' : border;
+    ctx.lineWidth = row.taken || row.avail ? 2 : 1;
+    ctx.strokeRect(rr.x+0.5, rr.y+0.5, rr.w, rr.h);
+    ctx.font = 'bold 12px Menlo, Consolas, monospace';
     ctx.textAlign='left';
-    ctx.fillStyle = '#ffd75f';
-    ctx.fillText(BOONS[k].name + (boonC(k)?(' ('+(boonC(k)+1)+')'):''), rr.x+12, rr.y+16);
-    ctx.font = '11px Menlo, Consolas, monospace';
-    ctx.fillStyle = '#9fb0c3';
-    ctx.fillText(BOONS[k].desc, rr.x+12, rr.y+34);
+    ctx.fillStyle = row.taken ? '#7ee787' : (row.avail ? '#ffd75f' : '#5a6578');
+    ctx.fillText((row.taken?'✓ ':'')+n.name, rr.x+8, rr.y+15);
+    ctx.font = '10px Menlo, Consolas, monospace';
+    ctx.fillStyle = row.taken || row.avail ? '#9fb0c3' : '#4a5568';
+    ctx.fillText(n.desc, rr.x+8, rr.y+32);
+    if (!row.taken && !row.avail && n.tier>0){
+      ctx.fillStyle = '#4a5568';
+      ctx.fillText(S.skillPts>0 ? 'locked — needs branch' : 'no points', rr.x+8, rr.y+46);
+    } else if (row.avail){
+      ctx.fillStyle = '#ffd75f';
+      ctx.fillText('click to learn', rr.x+8, rr.y+46);
+    }
   }
 }
 
@@ -2529,6 +3091,12 @@ function drawTitle(now){
       ctx.fillText(cd.lines[l], r.x+r.w/2, ry+82+l*16);
     ctx.fillStyle = '#66788f';
     ctx.fillText('HP '+ (cd.hp + (hasPerk('vital')?5:0)) +'  Atk '+cd.atkBase, r.x+r.w/2, ry+r.h-14);
+    if (cd.diff){
+      var dc = cd.diff === 'EASY' ? '#7ec850' : cd.diff === 'MEDIUM' ? '#f5c453' : '#ff5c5c';
+      ctx.font = 'bold 10px Menlo, Consolas, monospace';
+      ctx.fillStyle = dc;
+      ctx.fillText('◆ ' + cd.diff, r.x+r.w/2, ry+70);
+    }
   }
 
   var sb = TL.shrine;
@@ -2634,25 +3202,39 @@ function drawEnd(){
   ctx.font = 'bold 15px Menlo, Consolas, monospace';
   ctx.fillText('New Run', b.x+b.w/2, b.y+b.h/2+1);
 
-  var a = L.arcade;
-  var hovA = hit(a, mouseX, mouseY);
-  ctx.fillStyle = hovA ? '#9fb0c3' : '#66788f';
-  ctx.font = (hovA ? 'bold ' : '')+'12px Menlo, Consolas, monospace';
-  ctx.fillText('⌂ Back to Arcade', a.x+a.w/2, a.y+a.h/2+1);
 }
 
-// ---------- Arcade nav / pause menu (DOM overlay) ----------
+// ---------- Nav / pause menu (DOM overlay) ----------
 var menuBtn = document.getElementById('menuBtn');
+var homeBtn = document.getElementById('homeBtn');
+var muteBtn = document.getElementById('muteBtn');
 var menuOverlay = document.getElementById('menuOverlay');
 var mResume = document.getElementById('mResume');
 var mNewRun = document.getElementById('mNewRun');
+var mTitle = document.getElementById('mTitle');
 var newRunArmed = false;
+function goTitle(){
+  closeMenu();
+  screen = 'title';
+  titleShrine = false;
+  startFade();
+}
+homeBtn.addEventListener('click', goTitle);
+mTitle.addEventListener('click', goTitle);
+function syncMute(){ muteBtn.textContent = muted ? '🔇' : '♪'; }
+muteBtn.addEventListener('click', function(){
+  muted = !muted;
+  lsSet('depths_mute', muted?1:0);
+  syncMute();
+  if (!muted) sfx('pickup');
+});
+syncMute();
 function openMenu(){
   if (screen !== 'game') return;
   menuOpen = true;
   stopWalk();
   newRunArmed = false;
-  mNewRun.textContent = 'New Run';
+  mNewRun.textContent = 'Restart run';
   mNewRun.classList.remove('confirm');
   menuOverlay.hidden = false;
 }
@@ -2671,10 +3253,9 @@ mNewRun.addEventListener('click', function(){
     mNewRun.classList.add('confirm');
     return;
   }
+  var cls = S ? S.cls : 'warrior';
   closeMenu();
-  screen = 'title';
-  titleShrine = false;
-  startFade();
+  newRun(cls);   // restart immediately with the same class
 });
 var lastMenuBtnShown = null;
 function syncNav(){
@@ -2703,13 +3284,18 @@ function clickableAt(mx,my){
     return false;
   }
   if (screen === 'dead' || screen === 'win'){
-    var EL = endLayout();
-    return hit(EL.newRun,mx,my) || hit(EL.arcade,mx,my);
+    return hit(endLayout().newRun,mx,my);
   }
   if (!S) return false;
   if (ui.mode === 'levelup'){
     var LL = levelLayout();
+    if (hit(LL.close,mx,my)) return true;
     for (i=0; i<LL.rows.length; i++) if (hit(LL.rows[i].rect,mx,my)) return true;
+    return false;
+  }
+  if (ui.mode === 'event'){
+    var EV = eventLayout();
+    for (i=0; i<EV.rows.length; i++) if (hit(EV.rows[i].rect,mx,my)) return true;
     return false;
   }
   if (ui.mode === 'inventory'){
@@ -2730,7 +3316,7 @@ function clickableAt(mx,my){
   }
   var hud = hudLayout();
   if (hit(hud.potion,mx,my) || hit(hud.ability,mx,my) || hit(hud.inv,mx,my) ||
-      hit(hud.map,mx,my) || (hud.flask && hit(hud.flask,mx,my))) return true;
+      hit(hud.map,mx,my) || hit(hud.level,mx,my) || (hud.flask && hit(hud.flask,mx,my))) return true;
   if (my > H-HUD_H) return false;
   var t = tileFromPixel(mx,my);
   if (!t) return false;
@@ -2768,6 +3354,9 @@ window.__D = {
   get souls(){ return loadSouls(); },
   get perks(){ return loadPerks(); },
   get menuOpen(){ return menuOpen; },
+  get eventL(){ return eventLayout(); },
+  get muted(){ return muted; },
+  get canSell(){ return S ? canSellHere() : false; },
   step: function(){ if (screen === 'game') walkTick(performance.now()); }
 };
 
@@ -2801,6 +3390,7 @@ function frame(now){
     if (ui.mode === 'inventory') drawInventory();
     if (ui.mode === 'shop') drawShop();
     if (ui.mode === 'levelup') drawLevelUp();
+    if (ui.mode === 'event') drawEvent();
     drawHUD();
     if (screen === 'dead' || screen === 'win') drawEnd();
   }

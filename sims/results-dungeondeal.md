@@ -77,3 +77,18 @@ Difficulty tuning to spread deaths off floor 10 (applied during this pass; value
 - Greedy bot win rate (50%) sits above the 25–40% bot-target; documented lever above, not yet applied/confirmed.
 - Bot softlocks slightly deflate the tactical win rate (4 runs neither cleanly won nor lost); a bot fix would resolve
   ~2 into wins (pushing tactical toward ~79%) and ~2 into losses. Game unaffected either way.
+
+## Addendum — MVP rework batch (2026-07-12)
+
+Post-rework confirmation (boons removed → instant level-ups of +1 max HP & heal 2, XP curve `9 + lvl*6`; imp redesigned
+to pay-8 vs steal-40%+curse; new cards Blood Gold/Anvil, Bomb spell, Midas/Feather relics; tier-2 merchant from floor 6).
+`node sims/dungeondeal-sim.js 24 4000`:
+
+| policy | win rate | deaths by floor | softlocks | console errors |
+|---|---|---|---|---|
+| greedy | 12/24 (50%) | F4:1 F5:2 F8:2 F9:1 F10:6 | 1 | 0 |
+| tactical | 20/24 (83%) | F5:1 F8:1 F9:1 F10:1 | 3 (bot artifact, see above) | 0 |
+
+Separation preserved (tactical ≫ greedy), greedy anchor unchanged at 50%, deaths spread across floors 4-10.
+An earlier candidate curve (`8 + lvl*5`) pushed tactical to 87% and was rejected; current curve keeps hero power
+close to the pre-rework line. Bomb/Blood Gold/Anvil scored into both bot policies (`sims/dungeondeal-sim.js`).

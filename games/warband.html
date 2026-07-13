@@ -28,16 +28,15 @@ button{font-family:inherit}
 }
 .btn:hover:not(:disabled){background:#37455c}
 .btn:active:not(:disabled){transform:translateY(1px)}
-.btn:disabled{opacity:.35;cursor:default}
+.btn:disabled{opacity:.35;cursor:not-allowed}
 .btn.primary{background:var(--gold);border-color:#c9a40c;color:#1c1608}
 .btn.primary:hover:not(:disabled){background:#ffd42e}
 .btn.danger{background:#5d2a26;border-color:#8a4038}
 .btn.danger:hover:not(:disabled){background:#78352e}
-.btn.armed{border-color:var(--gold);box-shadow:0 0 10px #f1c40f55}
 
 /* ============ HUD ============ */
 #hud{
-  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  display:flex;align-items:center;gap:8px;padding:6px 12px;padding-right:88px;
   background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:nowrap;
 }
 #hud .pill{
@@ -47,6 +46,8 @@ button{font-family:inherit}
 #hud .sp{flex:1}
 #hud .phase{color:var(--dim);font-weight:700;letter-spacing:.12em;font-size:11px}
 #hud .pill .fc{color:var(--dim);font-weight:600;font-size:.85em}
+#hud .goldPill{border-color:#c9a40c66;background:linear-gradient(180deg,#2a2716 0%,var(--panel2) 80%)}
+#hud .goldPill .fc{color:#cdb45e}
 
 /* ============ cards ============ */
 .row{display:flex;gap:clamp(4px,.7vw,9px);justify-content:center;align-items:stretch}
@@ -82,6 +83,7 @@ button{font-family:inherit}
 }
 .card.sel{border-color:var(--gold);transform:translateY(-7px);box-shadow:0 6px 18px #f1c40f44, 0 0 0 1px var(--gold)}
 .card.mergeable{border-color:var(--good);box-shadow:0 0 10px #4cd97b55}
+.card.swapOk{border-color:#5f7ca6;box-shadow:0 0 8px #5f7ca655}
 .card.slotEmpty{
   background:transparent;border-style:dashed;cursor:pointer;
   display:flex;align-items:center;justify-content:center;color:#3d4d66;font-size:24px;font-weight:300;
@@ -89,6 +91,7 @@ button{font-family:inherit}
 .card.slotEmpty:hover{border-color:#5a6f92;color:#5a6f92}
 .card.slotEmpty.dropOk{border-color:var(--gold);color:var(--gold)}
 .card.frozen{border-color:var(--ice);background:linear-gradient(180deg,#1d3346 0%,#16283a 100%);box-shadow:0 0 10px #6ec6ff33}
+.card.dragSrc{opacity:.35}
 .frz{
   position:absolute;top:2px;right:2px;z-index:4;background:#0006;border:1px solid transparent;
   border-radius:6px;color:#7ea6c4;font-size:12px;line-height:1;padding:3px 4px;cursor:pointer;
@@ -106,6 +109,10 @@ button{font-family:inherit}
 .poisB{
   position:absolute;top:15px;left:3px;background:#4a7a3a;color:#dfffcf;border-radius:7px;
   font-size:10px;font-weight:900;padding:1px 4px;pointer-events:none;z-index:3;
+}
+#dragGhost{
+  position:fixed;z-index:120;pointer-events:none;opacity:.85;transform:translate(-50%,-60%) scale(1.05) rotate(3deg);
+  filter:drop-shadow(0 10px 20px #000c);
 }
 /* battle anims */
 .brow{display:flex;gap:clamp(4px,.6vw,8px)}
@@ -134,7 +141,7 @@ button{font-family:inherit}
 .chip.on2{border-color:#5f7ca6;color:var(--tx)}
 .chip.on4{border-color:var(--gold);color:var(--gold);box-shadow:0 0 8px #f1c40f33}
 .chip .dots{font-size:8px;letter-spacing:1px}
-/* ============ stash / items ============ */
+/* ============ stash / items / bench ============ */
 .itemSlot{
   width:34px;height:34px;border:2px dashed var(--line);border-radius:8px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--panel2);
@@ -144,39 +151,48 @@ button{font-family:inherit}
 .itemSlot:hover{border-color:#5a6f92}
 .itemSlot.sel{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 0 10px #f1c40f55}
 #stashWrap{display:flex;align-items:center;gap:6px}
-#stashWrap .zl{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.1em}
-/* drop / patron overlays */
-#patronOv{
+.zl{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.1em}
+#benchWrap{display:flex;align-items:center;gap:6px}
+#benchRow{--cw:clamp(48px,7.4vh,66px);display:flex;gap:5px}
+/* ============ overlays (drop / patron / event / rules) ============ */
+.ovl{
   position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:14px;background:#0d1117d9;backdrop-filter:blur(3px);
 }
-#patronOv h3{color:var(--gold);font-size:clamp(16px,2.2vw,24px);letter-spacing:.06em}
-#patronOv .sub2{color:var(--dim);font-size:13px;text-align:center;line-height:1.5}
-#patronOv .dropItem .id{font-size:10px}
-#dropOv{
-  position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:14px;background:#0d1117d9;backdrop-filter:blur(3px);
-}
-#dropOv h3{color:var(--gold);font-size:clamp(16px,2.2vw,24px);letter-spacing:.06em}
-#dropOv .sub2{color:var(--dim);font-size:13px}
-.dropRow{display:flex;gap:16px}
+.ovl h3{color:var(--gold);font-size:clamp(16px,2.2vw,24px);letter-spacing:.06em;text-align:center}
+.ovl .sub2{color:var(--dim);font-size:13px;text-align:center;line-height:1.5}
+.dropRow{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
 .dropItem{
   background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:12px 16px;width:190px;
-  text-align:center;cursor:pointer;transition:border-color .15s, transform .12s;
+  text-align:center;cursor:pointer;transition:border-color .15s, transform .12s, box-shadow .15s;
 }
-.dropItem:hover:not(.off){border-color:var(--gold);transform:translateY(-4px)}
-.dropItem.off{opacity:.4;cursor:default}
+.dropItem:hover:not(.off){border-color:var(--gold);transform:translateY(-4px);box-shadow:0 8px 22px #f1c40f22}
+.dropItem.off{opacity:.4;cursor:not-allowed}
 .dropItem .ie{font-size:34px}
 .dropItem .in{font-weight:900;margin:4px 0 2px}
 .dropItem .id{font-size:11px;color:var(--dim);line-height:1.4}
+#rulesOv{position:fixed;inset:0;z-index:88;display:flex;align-items:center;justify-content:center;background:#0d1117e6;backdrop-filter:blur(3px)}
+#rulesPanel{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 24px;max-width:760px;max-height:86vh;
+  overflow-y:auto;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 40px #000a;
+}
+#rulesPanel h3{color:var(--gold);letter-spacing:.05em}
+#rulesPanel .r{font-size:12.5px;color:var(--dim);line-height:1.5;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+#rulesPanel .r b{color:var(--tx)}
 /* ============ shop phase layout ============ */
 #shopPhase{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;min-height:0;padding:3px 10px;position:relative}
 .zone{display:flex;flex-direction:column;align-items:center;gap:4px}
 .zlabel{color:var(--dim);font-size:clamp(9px,1vw,12px);font-weight:800;letter-spacing:.13em}
 .zlabel b{color:#b9c6d8}
 #scout{
-  display:flex;align-items:center;justify-content:center;gap:14px;background:var(--panel);
-  border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:0 auto;max-width:98%;
+  position:relative;display:flex;align-items:center;justify-content:center;gap:14px;
+  border:1px solid #6a3a44;border-radius:12px;padding:8px 12px 6px;margin:4px auto 0;max-width:98%;
+  background:linear-gradient(180deg,#241a20 0%,#1a161d 100%);box-shadow:inset 0 0 24px #d9483811;
+}
+#scout::before{
+  content:'⚔️ ENEMY — NEXT BATTLE';
+  position:absolute;top:-8px;left:14px;background:#472a32;color:#e8b4ab;
+  font-size:9px;font-weight:900;letter-spacing:.14em;border-radius:8px;padding:2px 8px;
 }
 #scoutCards{--cw:clamp(46px,7vh,66px)}
 #scoutLeft{display:flex;flex-direction:column;gap:5px;max-width:330px}
@@ -186,6 +202,30 @@ button{font-family:inherit}
 .ctlRow{display:flex;gap:8px;align-items:center;justify-content:center;min-height:34px;flex-wrap:wrap}
 #hint{color:var(--gold);font-size:clamp(10px,1.15vw,13px);font-weight:600;min-width:0;text-align:center;transition:opacity .3s}
 #ecoNote{color:#5f7089;font-size:clamp(9px,1vw,11.5px);text-align:center}
+#lineup{flex-direction:row-reverse}   /* FRONT is visually on the RIGHT, matching battle */
+/* ============ campaign map ============ */
+#mapPhase{flex:1;display:flex;flex-direction:column;min-height:0;padding:6px 14px;gap:4px;position:relative}
+#mapHead{text-align:center;color:var(--dim);font-size:clamp(11px,1.3vw,14px)}
+#mapHead b{color:var(--gold);letter-spacing:.08em}
+#mapWrap{flex:1;position:relative;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+#mapSvg{position:absolute;inset:0;width:100%;height:100%}
+#mapSvg line{stroke:#2b3646;stroke-width:.45}
+#mapSvg line.pth{stroke:var(--gold);stroke-width:.7}
+#mapSvg line.opn{stroke:#5f7ca6;stroke-width:.6;stroke-dasharray:1.6 1.2}
+#mapNodes{position:absolute;inset:0}
+.mapNode{
+  position:absolute;transform:translate(-50%,-50%);width:clamp(30px,4.4vh,40px);height:clamp(30px,4.4vh,40px);
+  border-radius:50%;background:var(--card);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:clamp(14px,2.2vh,19px);cursor:default;transition:transform .15s, border-color .15s, box-shadow .15s;z-index:2;
+}
+.mapNode.boss{width:clamp(40px,6vh,54px);height:clamp(40px,6vh,54px);font-size:clamp(19px,3vh,26px)}
+.mapNode.visited{border-color:#6a5a25;background:#26221a;opacity:.85}
+.mapNode.cur{border-color:var(--gold);box-shadow:0 0 14px #f1c40f66;background:#2a2716}
+.mapNode.open{border-color:#5f7ca6;cursor:pointer;animation:nodePulse 1.6s ease-in-out infinite}
+.mapNode.open:hover{border-color:var(--gold);transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 16px #f1c40f66}
+.mapNode.lock{opacity:.38}
+@keyframes nodePulse{0%,100%{box-shadow:0 0 4px #5f7ca644}50%{box-shadow:0 0 14px #5f7ca688}}
+#mapLegend{text-align:center;color:#5f7089;font-size:clamp(9.5px,1.05vw,12px)}
 /* ============ battle layout ============ */
 #battlePhase{flex:1;display:flex;flex-direction:column;min-height:0;position:relative;padding:5px 10px}
 #bChips{display:flex;justify-content:center;gap:26px;padding:2px 0}
@@ -200,13 +240,15 @@ button{font-family:inherit}
 #blog div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
 #blog div:last-child{color:var(--tx);font-weight:600}
 #banner{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
   font-size:clamp(32px,5.6vw,68px);font-weight:900;letter-spacing:.08em;z-index:20;
-  background:#0d111799;backdrop-filter:blur(2px);text-shadow:0 4px 20px #000;
+  background:#0d111799;backdrop-filter:blur(2px);text-shadow:0 4px 20px #000;text-align:center;
   animation:bannerIn .35s ease-out;
 }
 @keyframes bannerIn{from{opacity:0;transform:scale(1.25)}to{opacity:1;transform:scale(1)}}
 #banner.win{color:var(--good)} #banner.lose{color:var(--bad)} #banner.draw{color:var(--dim)}
+#banner.intro{color:var(--tx);font-size:clamp(20px,3.2vw,38px)}
+#banner .bsub{font-size:clamp(12px,1.5vw,17px);color:var(--dim);font-weight:700;letter-spacing:.12em}
 /* ============ title / cmd / end screens ============ */
 .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(6px,1.3vh,15px);padding:10px;overflow-y:auto;min-height:0}
 .center>*{flex:0 0 auto}
@@ -214,28 +256,26 @@ h1.logo{font-size:clamp(24px,min(5vw,7vh),56px);font-weight:900;letter-spacing:.
 h1.logo span{color:var(--gold)}
 h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 .sub{color:var(--dim);font-size:clamp(11px,1.3vw,15px);margin-top:-4px;text-align:center}
-.rules{display:flex;gap:clamp(6px,1.2vw,14px);flex-wrap:wrap;justify-content:center;max-width:960px}
-.rules div{
-  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;
-  font-size:clamp(9px,min(1.05vw,1.7vh),12px);color:var(--dim);max-width:185px;line-height:1.35;
-}
-.rules b{color:var(--tx)}
+#pitch{max-width:580px;text-align:center;color:var(--dim);font-size:clamp(12px,1.4vw,15px);line-height:1.6}
+#pitch b{color:var(--tx)}
 #metaShop{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:940px}
 .mItem{
   background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:6px 10px;
-  width:150px;cursor:pointer;text-align:center;transition:border-color .15s, transform .12s;
+  width:150px;text-align:center;transition:border-color .15s, transform .12s, box-shadow .15s;
 }
-.mItem:hover:not(.owned):not(.locked){border-color:var(--gold);transform:translateY(-2px)}
 .mItem .mi{font-size:clamp(15px,3vh,22px)}
 .mItem .mn{font-weight:800;font-size:11.5px;margin:1px 0}
 .mItem .md{font-size:9.5px;color:var(--dim);line-height:1.3}
 .mItem .mc{font-weight:900;color:var(--gold);font-size:11px;margin-top:3px}
+.mItem.buyable{cursor:pointer;border-color:#c9a40c88;box-shadow:0 0 10px #f1c40f22}
+.mItem.buyable:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 4px 14px #f1c40f33}
 .mItem.owned{border-color:var(--good);cursor:default}
 .mItem.owned .mc{color:var(--good)}
-.mItem.locked{opacity:.45;cursor:default}
+.mItem.poor{opacity:.55;cursor:not-allowed}
+.mItem.poor .mc{color:var(--bad)}
+.mItem.locked{opacity:.4;cursor:not-allowed}
 .statline{color:var(--dim);font-size:clamp(11px,1.3vw,14px)}
 .statline b{color:var(--gold)}
-/* commander cards */
 #cmdRow{display:flex;gap:clamp(10px,2vw,22px);flex-wrap:wrap;justify-content:center}
 .cmdCard{
   background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:16px 18px;width:220px;
@@ -252,7 +292,11 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 #endTitle.win{color:var(--gold)} #endTitle.lose{color:var(--bad)}
 .trophyBig{font-size:clamp(44px,8vw,96px);filter:drop-shadow(0 6px 24px #f1c40f55);animation:bounceIn .6s ease-out}
 @keyframes bounceIn{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
-/* ============ arcade nav + menu ============ */
+#endPath{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:640px;font-size:16px}
+#endPath span{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px 7px}
+#endPath span.W{border-color:#3f7a52} #endPath span.L{border-color:#8a4038}
+#endBand{--cw:clamp(48px,7vh,66px);display:flex;gap:5px;justify-content:center}
+/* ============ nav + menu ============ */
 #navBtns{position:fixed;top:8px;right:10px;z-index:80;display:flex;gap:6px}
 .navB{
   width:32px;height:32px;display:flex;align-items:center;justify-content:center;
@@ -273,26 +317,6 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 #menuPanel h3{text-align:center;font-size:20px;letter-spacing:.06em;margin-bottom:4px}
 .mBtn{text-align:center;text-decoration:none}
 .mNote{color:#5f7089;font-size:10.5px;text-align:center;margin-top:2px}
-/* affordance details */
-.btn:disabled{cursor:not-allowed}
-.mItem.locked{cursor:not-allowed}
-.dropItem.off{cursor:not-allowed}
-.card.swapOk{border-color:#5f7ca6;box-shadow:0 0 8px #5f7ca655}
-#hud{padding-right:88px}
-#hud .goldPill{border-color:#c9a40c66;background:linear-gradient(180deg,#2a2716 0%,var(--panel2) 80%)}
-#hud .goldPill .fc{color:#cdb45e}
-/* enemy scout panel: visually hostile territory */
-#scout{
-  border-color:#6a3a44;
-  background:linear-gradient(180deg,#241a20 0%,#1a161d 100%);
-  box-shadow:inset 0 0 24px #d9483811;
-}
-#scout::before{
-  content:'⚔️ ENEMY — NEXT BATTLE';
-  position:absolute;top:-8px;left:14px;background:#472a32;color:#e8b4ab;
-  font-size:9px;font-weight:900;letter-spacing:.14em;border-radius:8px;padding:2px 8px;
-}
-#scout{position:relative}
 /* tooltip */
 #tip{
   position:fixed;z-index:100;pointer-events:none;background:#0b0f16f2;border:1px solid var(--line);
@@ -310,18 +334,19 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
   <section id="scr-title" class="scr">
     <div class="center">
       <h1 class="logo">⚔️ WAR<span>BAND</span></h1>
-      <div class="sub">Auto-battler roguelite — draft factions, arm your units, out-think 10 scouted foes</div>
-      <div class="rules">
-        <div><b>🛒 Shop:</b> units & training cost <b>3🪙</b>, reroll 1🪙, ❄ freezes. Bank 3🪙 for <b>+1 interest</b> next round (max +3, pool caps at 12).</div>
-        <div><b>🖱️ Click-click:</b> click a shop unit → click a slot to place or a same unit to <b>merge</b>. Click 🎓 Train → a unit to level (max ★★★). Click a lineup unit → swap or Sell.</div>
-        <div><b>⚜️🐾💀🔮 Factions:</b> field <b>3 / 5</b> of a faction for doctrine bonuses — half-measures pay nothing. From round 3, pick a <b>patron</b> to flood the shop with its faction.</div>
-        <div><b>🎒 Items:</b> won battles drop gear — click an item, then a unit to equip (1 each). Sold units return gear to a 2-slot stash.</div>
-        <div><b>🔭 Scouting:</b> the next enemy band is fully revealed — position and draft against it.</div>
-        <div><b>❤️ 5 lives.</b> A loss costs 1 (2 after round 5). Survive round 10 for the 🏆. Medals buy permanent unlocks.</div>
+      <div id="pitch">
+        Draft a warband from <b>four factions</b>, arm it with spoils, and march node-by-node across a
+        <b>campaign map</b> to unseat <b>👑 The Warlord</b>.<br>
+        Battles fight themselves — <b>your genius is the draft, the bench, and the formation.</b>
+      </div>
+      <div class="ctlRow">
+        <button class="btn primary" data-act="start-run" style="font-size:clamp(14px,1.7vw,19px);padding:11px 40px">▶ NEW RUN</button>
+        <button class="btn primary hidden" id="continueBtn" data-act="continue-run">↩ CONTINUE RUN</button>
+        <button class="btn" data-act="rules-open">📜 How to play</button>
       </div>
       <div class="statline">🎖️ Medals: <b id="mMedals">0</b> &nbsp;·&nbsp; 🏆 Trophies: <b id="mTrophies">0</b> &nbsp;·&nbsp; ⚔️ Battles won: <b id="mWins">0</b></div>
+      <div class="zlabel">MEDAL FORGE — PERMANENT UNLOCKS</div>
       <div id="metaShop"></div>
-      <button class="btn primary" data-act="start-run" style="font-size:clamp(14px,1.7vw,19px);padding:11px 40px">▶ NEW RUN</button>
     </div>
   </section>
 
@@ -331,24 +356,36 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
       <h2 class="pickT">CHOOSE YOUR COMMANDER</h2>
       <div class="sub">Your commander shapes the whole run — pick a doctrine.</div>
       <div id="cmdRow"></div>
-      <button class="btn" data-act="to-title">← Back</button>
+      <button class="btn" data-act="go-title">← Back</button>
     </div>
   </section>
 
   <!-- ============ GAME ============ -->
   <section id="scr-game" class="scr hidden">
     <header id="hud">
-      <span class="pill">Round <span id="hRound">1</span>/10</span>
+      <span class="pill">🗺️ Node <span id="hNode">0</span>/<span id="hNodeMax">10</span></span>
       <span class="pill" id="hLives">❤️❤️❤️❤️❤️</span>
       <span class="pill goldPill">🪙 <span id="hGold">10</span> <span class="fc" id="hInt"></span></span>
       <span class="pill">⚔️ Wins <span id="hWins">0</span></span>
       <span class="pill" id="hCmd">🎯</span>
       <span class="pill hidden" id="hPatron"></span>
       <span class="sp"></span>
-      <span class="phase" id="hPhase">SHOP PHASE</span>
+      <span class="phase" id="hPhase">CAMPAIGN</span>
     </header>
 
-    <div id="shopPhase">
+    <!-- campaign map -->
+    <div id="mapPhase" class="hidden">
+      <div id="mapHead"><b>THE CAMPAIGN</b> — click your next node</div>
+      <div id="mapWrap">
+        <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        <div id="mapNodes"></div>
+      </div>
+      <div id="mapLegend">⚔️ Fight &nbsp;·&nbsp; ⭐ Elite — tougher, better spoils &nbsp;·&nbsp; ❓ Event — a choice &nbsp;·&nbsp; 👑 The Warlord awaits at the end</div>
+      <div id="eventOv" class="ovl hidden"></div>
+    </div>
+
+    <!-- shop / prep -->
+    <div id="shopPhase" class="hidden">
       <div id="scout">
         <div id="scoutLeft">
           <div id="scoutInfo"></div>
@@ -358,28 +395,29 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
       </div>
       <div class="zone">
         <div class="chips" id="pChips"></div>
-        <div class="zlabel">YOUR WARBAND — <b>◀ FRONT</b> &nbsp;···&nbsp; BACK</div>
+        <div class="zlabel">YOUR WARBAND — BACK &nbsp;···&nbsp; <b>FRONT ▶</b>&nbsp; (faces the enemy)</div>
         <div id="lineup" class="row"></div>
         <div class="ctlRow">
+          <div id="benchWrap"><span class="zl">BENCH</span><span id="benchRow"></span></div>
           <div id="stashWrap"><span class="zl">STASH</span><span id="stashRow" style="display:flex;gap:5px"></span></div>
           <button class="btn danger" data-act="sell" id="sellBtn" disabled>Sell</button>
           <span id="hint"></span>
         </div>
       </div>
       <div class="zone">
-        <div class="zlabel">SHOP — UNITS 3🪙 · TRAIN 3🪙</div>
+        <div class="zlabel">SHOP — UNITS 3🪙 · MERGE COPIES TO ★★★</div>
         <div id="shopRow" class="row"></div>
         <div class="ctlRow">
           <button class="btn" data-act="reroll" id="rerollBtn">🎲 Reroll — 1🪙</button>
-          <button class="btn" data-act="train" id="trainBtn">🎓 Train +1★ — 3🪙</button>
           <button class="btn primary" data-act="fight" id="fightBtn">⚔️ START BATTLE</button>
         </div>
-        <div id="ecoNote">💰 Bank 3🪙 → +1🪙 interest next round (max +3 · gold pool caps at 12)</div>
+        <div id="ecoNote">💰 Bank 3🪙 → +1🪙 interest next shop (max +3 · pool caps at 12) · drag or click-click to move units</div>
       </div>
-      <div id="dropOv" class="hidden"></div>
-      <div id="patronOv" class="hidden"></div>
+      <div id="dropOv" class="ovl hidden"></div>
+      <div id="patronOv" class="ovl hidden"></div>
     </div>
 
+    <!-- battle -->
     <div id="battlePhase" class="hidden">
       <div id="bChips"><span class="chips" id="bpChips"></span><span class="chips" id="beChips"></span></div>
       <div id="arena">
@@ -400,25 +438,42 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
       <div id="endTitle">VICTORY</div>
       <div id="endBlurb" class="sub"></div>
       <div class="endStats" id="endStats"></div>
+      <div class="zlabel">YOUR CAMPAIGN</div>
+      <div id="endPath"></div>
+      <div class="zlabel">FINAL WARBAND</div>
+      <div id="endBand"></div>
       <div class="ctlRow">
         <button class="btn primary" data-act="start-run">▶ NEW RUN</button>
-        <button class="btn" data-act="to-title">🏰 Title</button>
-        <a class="btn" href="../index.html">⌂ Back to Arcade</a>
+        <button class="btn" data-act="go-title">🏰 Title screen</button>
       </div>
     </div>
   </section>
 </div>
 <div id="navBtns">
   <button id="menuBtn" class="navB" data-act="menu-open" title="Menu (Esc)">☰</button>
-  <a id="homeBtn" class="navB" href="../index.html" title="Back to Arcade">⌂</a>
+  <button id="homeBtn" class="navB" data-act="go-title" title="Title screen">⌂</button>
 </div>
 <div id="menuOv" class="hidden">
   <div id="menuPanel">
     <h3>⚔️ WAR<span style="color:var(--gold)">BAND</span></h3>
     <button class="btn primary mBtn" data-act="menu-close">▶ Resume</button>
     <button class="btn danger mBtn" data-act="menu-abandon" id="abandonBtn">🏳️ Abandon Run</button>
-    <a class="btn mBtn" href="../index.html">⌂ Back to Arcade</a>
+    <button class="btn mBtn" data-act="go-title">🏰 Title screen</button>
     <div class="mNote">Esc toggles this menu</div>
+  </div>
+</div>
+<div id="rulesOv" class="hidden">
+  <div id="rulesPanel">
+    <h3>📜 HOW TO PLAY</h3>
+    <div class="r"><b>🗺️ Campaign:</b> pick your path node by node — ⚔️ fights, ⭐ elite fights (better spoils), ❓ events with a choice. Beat <b>👑 The Warlord</b> at the end to claim the trophy. You have <b>5 ❤️ lives</b>; a lost battle costs 1 (2 deep in the campaign).</div>
+    <div class="r"><b>🛒 Shop:</b> before each fight you get gold (10🪙 base). Units cost <b>3🪙</b>, reroll 1🪙, ❄ freezes a card for your next shop. Bank 3🪙 to earn <b>+1 interest</b> next shop (max +3, pool caps at 12).</div>
+    <div class="r"><b>🖱️ Moving units:</b> click a unit then click a destination — or simply <b>drag & drop</b>. The lineup (5 slots) fights; the <b>bench</b> (3 slots) holds reserves and merge fodder. <b>FRONT is on the right</b>, facing the enemy.</div>
+    <div class="r"><b>★ Merging:</b> drop a unit onto a <b>same-type</b> unit to merge (+1★, max ★★★). Stats jump and ability values scale with ★. Holding a copy on the bench for a future merge is real strategy.</div>
+    <div class="r"><b>⚜️🐾💀🔮 Factions:</b> field <b>3 / 5</b> of one faction in your lineup for doctrine bonuses — half-measures pay nothing. From node 3, pick a <b>patron</b> to flood your shop with its faction.</div>
+    <div class="r"><b>🎒 Items:</b> won battles drop gear — click an item in the stash, then a unit, to equip (1 per unit). Selling a unit returns its item to the stash.</div>
+    <div class="r"><b>🔭 Scouting:</b> the enemy band is fully revealed before every fight — draft and position against it. Their faction synergies are real; read the counter hints.</div>
+    <div class="r"><b>🎖️ Medals:</b> every run earns medals by depth reached — spend them on the title screen for permanent unlocks.</div>
+    <button class="btn primary" data-act="rules-close" style="align-self:center">Got it</button>
   </div>
 </div>
 <div id="tip" class="hidden"></div>
@@ -426,9 +481,11 @@ h2.pickT{font-size:clamp(18px,2.6vw,30px);font-weight:900;letter-spacing:.05em}
 <script>
 'use strict';
 /* =====================================================================
-   WARBAND — auto-battler roguelite PoC. Mouse-only (click-click).
-   Systems: commanders, factions+synergies, equipment, full scouting,
-   interest economy, XP training, procedural faction-focused opponents.
+   WARBAND — auto-battler roguelite. Mouse-only (click-click + drag).
+   Campaign map · commanders · factions (3/5 doctrines) · patron shops ·
+   bench & copy-merging · equipment · full scouting · interest economy.
+   NOTE: the wbtest sim harness (bot.js) is NOT compatible with this
+   build — pay-to-train was removed and a map/event phase machine added.
    ===================================================================== */
 
 // ---------------------------- factions -------------------------------
@@ -446,37 +503,38 @@ const FACTIONS = {
            t5:'CHAIN MAGIC: Arcane snipes and bombs ripple to the enemy behind each target for half damage.',
            counter:'Counter: Arcane splash punishes wide lineups — field fewer, tougher units against it.'},
 };
+const BAND_NAMES = {
+  Order : ['The Iron Phalanx','Oath Shields','Bastion Guard','The Gilded Rank'],
+  Beast : ['Fang Pack','The Wildmaw','Tusk Riders','Howling Kin'],
+  Undead: ['Bonepile Band','Grave Chorus','The Rotting Rank','Pale Cohort'],
+  Arcane: ['Ember Circle','The Hexweavers','Spark Coven','Cinder Choir'],
+};
 
 // ---------------------------- unit pool (20, 4 factions) -------------
 const UNITS = {
-  // Order ⚜️ — armor & buffs
   squire  : {n:'Squire',       e:'🛡️', f:'Order',  t:1, a:2, h:3, ab:'faintBuff', v:2, d:'On faint: give +{v}/+{v} to the unit behind'},
   healer  : {n:'Healer',       e:'✨', f:'Order',  t:1, a:1, h:3, ab:'heal',      v:1, d:'After each exchange: restore {v} HP to adjacent allies'},
   knight  : {n:'Knight',       e:'🤺', f:'Order',  t:2, a:4, h:4, ab:'armor',     v:1, d:'Armor: takes {v} less damage (min 1)'},
   banner  : {n:'Banner Bearer',e:'🚩', f:'Order',  t:2, a:2, h:4, ab:'rally',     v:1, d:'Battle start: give +{v}/+{v} to all allies'},
   golem   : {n:'Golem',        e:'🗿', f:'Order',  t:3, a:3, h:9, ab:'armor',     v:2, d:'Armor: takes {v} less damage (min 1)'},
-  // Beast 🐾 — stat snowball
   rat     : {n:'Rat',          e:'🐀', f:'Beast',  t:1, a:1, h:2, ab:'faintDmg',  v:1, d:'On faint: deal {v} damage to the front enemy'},
   turtle  : {n:'Turtle',       e:'🐢', f:'Beast',  t:1, a:1, h:4, ab:'shield',    v:4, d:'Battle start: gain {v} shield'},
   bear    : {n:'Bear',         e:'🐻', f:'Beast',  t:2, a:3, h:5, ab:'enrage',    v:3, d:'When hurt: gain +{v} ATK'},
   wolf    : {n:'Wolf',         e:'🐺', f:'Beast',  t:2, a:4, h:3, ab:'kill',      v:2, d:'On kill: gain +{v}/+{v}'},
   mammoth : {n:'Mammoth',      e:'🦣', f:'Beast',  t:3, a:5, h:8, ab:'pack',      v:1, d:'Battle start: gain +{v}/+{v} for each other Beast ally'},
-  // Undead 💀 — faint engine
   zombie  : {n:'Zombie',       e:'🧟', f:'Undead', t:1, a:1, h:4, ab:'faintDmg',  v:2, d:'On faint: deal {v} damage to the front enemy'},
   skeleton: {n:'Skeleton',     e:'☠️', f:'Undead', t:1, a:2, h:2, ab:'faintAtk',  v:2, d:'On faint: give +{v} ATK to the unit behind'},
   ghoul   : {n:'Ghoul',        e:'🧛', f:'Undead', t:2, a:3, h:4, ab:'feast',     v:3, d:'On kill: restore {v} HP'},
   wraith  : {n:'Wraith',       e:'👻', f:'Undead', t:2, a:4, h:2, ab:'curse',     v:2, d:'Battle start: the front enemy loses {v} ATK'},
   lich    : {n:'Lich',         e:'🧙', f:'Undead', t:3, a:5, h:7, ab:'deathBolt', v:3, d:'When an ally faints: deal {v} damage to the front enemy'},
-  // Arcane 🔮 — splash & tricks
   mage    : {n:'Mage',         e:'🪄', f:'Arcane', t:1, a:2, h:2, ab:'snipeBack', v:2, d:'Battle start: deal {v} damage to the last enemy'},
   imp     : {n:'Imp',          e:'😈', f:'Arcane', t:1, a:2, h:1, ab:'faintSplash',v:1,d:'On faint: deal {v} damage to ALL enemies'},
   bomber  : {n:'Bomber',       e:'💣', f:'Arcane', t:2, a:2, h:3, ab:'bomb',      v:3, d:'On faint: deal {v} damage to the two front enemies'},
   phoenix : {n:'Phoenix',      e:'🔥', f:'Arcane', t:3, a:4, h:4, ab:'revive',    v:1, d:'On faint: revive once with {v} HP'},
   dragon  : {n:'Dragon',       e:'🐉', f:'Arcane', t:3, a:6, h:6, ab:'breath',    v:2, d:'Battle start: deal {v} damage to all enemies'},
 };
-const ARCANE_DMG_ABS = ['snipeBack','faintSplash','bomb','breath']; // boosted by Arcane synergy
+const ARCANE_DMG_ABS = ['snipeBack','faintSplash','bomb','breath'];
 
-// ---------------------------- items ----------------------------------
 const ITEMS = {
   spear  : {n:'Spear',        e:'🔱', d:'Attacks also deal half damage to the enemy behind the target'},
   tshield: {n:'Tower Shield', e:'🧱', d:'Blocks the first 2 enemy attacks completely'},
@@ -488,10 +546,9 @@ const ITEMS = {
   orb    : {n:'Focus Orb',    e:'🧿', d:'Ability values +1'},
 };
 
-// ---------------------------- commanders -----------------------------
 const COMMANDERS = {
   necro  : {n:'Necromancer', e:'🕯️', d:'The first allied faint each battle is undone — the unit revives at 1 HP. Pairs with faint-hungry Undead drafts.'},
-  tact   : {n:'Tactician',   e:'🎯', d:'Your shop has +1 slot and the first reroll each round is free. See more, spend less, out-draft the foe.'},
+  tact   : {n:'Tactician',   e:'🎯', d:'Your shop has +1 slot and the first reroll each shop is free. See more, spend less, out-draft the foe.'},
   warlord: {n:'Warlord',     e:'⚔️', d:'At battle start your front unit gains +2/+2. Reward a true vanguard — position it deliberately.'},
 };
 
@@ -499,17 +556,36 @@ const META_ITEMS = [
   {id:'turtle', icon:'🐢', name:'Old Turtle',   desc:'Start every run with a Turtle already in your warband', cost:6},
   {id:'banner', icon:'🚩', name:'War Standard', desc:'Start every run with a Banner Bearer in your warband',  cost:14},
   {id:'wolf',   icon:'🐺', name:'Wolf Pup',     desc:'Start every run with a Wolf in your warband',           cost:24},
-  {id:'gold1',  icon:'🪙', name:'War Chest I',  desc:'+1 gold every shop phase, forever',                     cost:10},
-  {id:'gold2',  icon:'💰', name:'War Chest II', desc:'+1 more gold every shop phase (needs War Chest I)',     cost:30, req:'gold1'},
+  {id:'gold1',  icon:'🪙', name:'War Chest I',  desc:'+1 gold every shop, forever',                           cost:10},
+  {id:'gold2',  icon:'💰', name:'War Chest II', desc:'+1 more gold every shop (needs War Chest I)',           cost:30, req:'gold1'},
 ];
 const STARTER_UNITS = ['turtle','banner','wolf'];
-const COST_UNIT = 3, COST_TRAIN = 3, COST_REROLL = 1, MAX_ROUND = 10, START_LIVES = 5, MAX_LVL = 3, GOLD_CAP = 12, STASH_MAX = 2;
+const COST_UNIT = 3, COST_REROLL = 1, START_LIVES = 5, MAX_LVL = 3, GOLD_CAP = 12, STASH_MAX = 2;
+const MAP_LAYERS = 10;   // layers 0..9, last = The Warlord
 
 // ---------------------------- helpers --------------------------------
 const $  = s => document.querySelector(s);
 const rnd = n => Math.floor(Math.random()*n);
 const pick = a => a[rnd(a.length)];
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+// ---------------------------- tiny sfx --------------------------------
+let AC = null;
+function sfx(kind){
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    const P = {hit:[170,'square',.06,.045], faint:[90,'sawtooth',.14,.05], buy:[540,'triangle',.07,.04],
+               click:[320,'triangle',.045,.03], win:[440,'triangle',.45,.05], lose:[130,'sawtooth',.5,.05]}[kind] || [300,'sine',.05,.03];
+    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+    o.connect(g); g.connect(AC.destination);
+    o.type = P[1]; o.frequency.setValueAtTime(P[0], t);
+    if(kind === 'win')  o.frequency.exponentialRampToValueAtTime(880, t + .35);
+    if(kind === 'lose') o.frequency.exponentialRampToValueAtTime(55,  t + .42);
+    g.gain.setValueAtTime(P[3], t); g.gain.exponentialRampToValueAtTime(.0001, t + P[2]);
+    o.start(t); o.stop(t + P[2] + .03);
+  }catch(e){}
+}
 
 // ---------------------------- meta (localStorage) --------------------
 const META_KEY = 'wb_meta_v1';
@@ -525,7 +601,7 @@ let meta = loadMeta();
 
 // ---------------------------- run state ------------------------------
 let S = null;
-let sel = null;   // {type:'shop'|'line'|'stash'|'xp', i}
+let sel = null;   // {type:'shop'|'line'|'bench'|'stash', i}
 let bt = {speed:1, running:false, paused:false, abort:false, P:[], E:[], syn:null, necroUsed:false};
 let hintTimer = null;
 
@@ -536,8 +612,6 @@ function stars(lvl){ return lvl > 1 ? '★'.repeat(lvl) : ''; }
 function uname(u){ return UNITS[u.key].n + (u.lvl > 1 ? ' ' + stars(u.lvl) : ''); }
 function abVal(u){ return UNITS[u.key].v * u.lvl + (u.item === 'orb' ? 1 : 0); }
 function abText(u){ return UNITS[u.key].d.replaceAll('{v}', abVal(u)); }
-
-// faction synergy tiers for a list of units/fighters (nulls ok)
 function synOf(list){
   const cnt = {Order:0, Beast:0, Undead:0, Arcane:0};
   for(const u of list) if(u) cnt[UNITS[u.key].f]++;
@@ -545,26 +619,180 @@ function synOf(list){
   for(const f in cnt) tier[f] = cnt[f] >= 5 ? 5 : cnt[f] >= 3 ? 3 : 0;
   return {cnt, tier};
 }
+function curNode(){ return S && S.pos ? S.map[S.pos.l][S.pos.i] : null; }
+function curDepth(){ return S && S.pos ? S.pos.l + 1 : 1; }
 
-function startRun(cmd){
-  S = {
-    round:1, lives:START_LIVES, gold:0, wins:0, phase:'shop', commander:cmd,
-    lineup:[null,null,null,null,null], shop:[], enemy:[], stash:[], saved:0,
-    freeReroll:false, dropChoices:null, patron:null, patronChosen:false,
-  };
-  let slot = 0;
-  for(const id of STARTER_UNITS) if(meta.owned[id] && slot < 5) S.lineup[slot++] = newUnit(id);
-  sel = null;
-  startRound();
-  showScreen('game');
+// ---------------------------- campaign map ----------------------------
+function genMap(){
+  const map = [];
+  for(let l = 0; l < MAP_LAYERS; l++){
+    const n = l === MAP_LAYERS - 1 ? 1 : (l === 0 ? 2 : 2 + (Math.random() < .45 ? 1 : 0));
+    const layer = [];
+    for(let i = 0; i < n; i++){
+      let type = 'fight';
+      if(l === MAP_LAYERS - 1) type = 'boss';
+      else if(l > 0){
+        const r = Math.random();
+        if(l >= 3 && r < .20) type = 'elite';
+        else if(r < .44) type = 'event';
+      }
+      layer.push({type, edges:[], visited:false, enemy:null, name:null, l, i});
+    }
+    // never offer an all-event layer: force at least one fight
+    if(l > 0 && l < MAP_LAYERS - 1 && layer.every(nd => nd.type === 'event')) layer[rnd(layer.length)].type = 'fight';
+    map.push(layer);
+  }
+  // edges: window mapping + occasional fork, then patch orphan targets
+  for(let l = 0; l < MAP_LAYERS - 1; l++){
+    const cur = map[l], nxt = map[l+1];
+    for(let i = 0; i < cur.length; i++){
+      const base = cur.length === 1 ? rnd(nxt.length)
+        : Math.round(i * (nxt.length - 1) / Math.max(1, cur.length - 1));
+      cur[i].edges.push(base);
+      if(Math.random() < .45){
+        const alt = base + (Math.random() < .5 ? -1 : 1);
+        if(alt >= 0 && alt < nxt.length && !cur[i].edges.includes(alt)) cur[i].edges.push(alt);
+      }
+    }
+    for(let j = 0; j < nxt.length; j++){
+      if(!cur.some(nd => nd.edges.includes(j))){
+        const from = clamp(Math.round(j * (cur.length - 1) / Math.max(1, nxt.length - 1)), 0, cur.length - 1);
+        cur[from].edges.push(j);
+      }
+    }
+  }
+  return map;
+}
+const NODE_ICON = {fight:'⚔️', elite:'⭐', event:'❓', boss:'👑'};
+const NODE_LABEL = {fight:'Fight', elite:'Elite fight — tougher, better spoils', event:'Event — a choice awaits', boss:'👑 The Warlord — the final battle'};
+function nodeXY(l, i, count){
+  const x = 6 + l * (88 / (MAP_LAYERS - 1));
+  const y = 50 + (i - (count - 1) / 2) * (count === 3 ? 30 : 34);
+  return {x, y};
+}
+function isOpen(l, i){
+  if(!S.pos) return l === 0;
+  const c = curNode();
+  return l === S.pos.l + 1 && c.edges.includes(i);
+}
+function renderMap(){
+  $('#mapPhase').classList.remove('hidden');
+  $('#shopPhase').classList.add('hidden');
+  $('#battlePhase').classList.add('hidden');
+  $('#eventOv').classList.add('hidden');
+  renderHUD();
+  const svg = $('#mapSvg'); const nd = $('#mapNodes');
+  let lines = '';
+  for(let l = 0; l < MAP_LAYERS - 1; l++){
+    for(let i = 0; i < S.map[l].length; i++){
+      const a = nodeXY(l, i, S.map[l].length);
+      for(const j of S.map[l][i].edges){
+        const b = nodeXY(l+1, j, S.map[l+1].length);
+        let cls = '';
+        if(S.map[l][i].visited && S.map[l+1][j].visited) cls = 'pth';
+        else if(S.pos && S.pos.l === l && S.pos.i === i && isOpen(l+1, j)) cls = 'opn';
+        lines += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${cls}"/>`;
+      }
+    }
+  }
+  svg.innerHTML = lines;
+  nd.innerHTML = '';
+  for(let l = 0; l < MAP_LAYERS; l++){
+    for(let i = 0; i < S.map[l].length; i++){
+      const node = S.map[l][i];
+      const p = nodeXY(l, i, S.map[l].length);
+      const d = document.createElement('div');
+      const open = isOpen(l, i);
+      const cur = S.pos && S.pos.l === l && S.pos.i === i;
+      d.className = 'mapNode' + (node.type === 'boss' ? ' boss' : '') +
+        (cur ? ' cur' : node.visited ? ' visited' : open ? ' open' : ' lock');
+      d.style.left = p.x + '%'; d.style.top = p.y + '%';
+      d.textContent = NODE_ICON[node.type];
+      d.dataset.tip = `<span class="tn">${NODE_ICON[node.type]} Node ${l+1}</span><div class="ta">${NODE_LABEL[node.type]}${open ? '<br><b>Click to march here.</b>' : cur ? '<br>You are here.' : ''}</div>`;
+      if(open){ d.dataset.act = 'map-node'; d.dataset.l = l; d.dataset.i = i; }
+      nd.appendChild(d);
+    }
+  }
+}
+function chooseNode(l, i){
+  if(!S || S.phase !== 'map' || !isOpen(l, i)) return;
+  sfx('click');
+  const node = S.map[l][i];
+  node.visited = true;
+  S.pos = {l, i};
+  if(node.type === 'event'){ showEventOv(node); return; }
+  prepFight(node);
+}
+function prepFight(node){
+  if(!node.enemy){
+    const depth = node.l + 1;
+    if(node.type === 'boss'){
+      node.enemy = genEnemy(12, {count:5, minLvl:2, itemChance:.6});
+      node.name = 'The Warlord';
+    } else {
+      node.enemy = genEnemy(node.type === 'elite' ? depth + 2 : depth,
+        node.type === 'elite' ? {itemChance:.35} : {});
+      node.name = pick(BAND_NAMES[node.enemy.focus]) + (node.type === 'elite' ? ' (Elite)' : '');
+    }
+  }
+  S.enemy = node.enemy;
+  startShop();
 }
 
-function shopSize(r){ return (r < 3 ? 3 : r < 6 ? 4 : 5) + (S.commander === 'tact' ? 1 : 0); }
-function rollShopUnit(r){
+// ---------------------------- events ----------------------------------
+function showEventOv(node){
+  S.phase = 'event';
+  renderMap();               // map stays behind the overlay
+  $('#eventOv').classList.remove('hidden');
+  renderHUD();
+  const ov = $('#eventOv');
+  const canHeal = S.lives < START_LIVES;
+  const haveRoom = S.bench.some(b => !b) || S.lineup.some(u => !u);
+  if(!S.eventUnit){
+    const maxTier = curDepth() >= 6 ? 3 : curDepth() >= 3 ? 2 : 1;
+    S.eventUnit = pick(Object.keys(UNITS).filter(k => UNITS[k].t <= maxTier));
+  }
+  const key = S.eventUnit;
+  ov.innerHTML = `<h3>❓ A CROSSROADS</h3>` +
+    `<div class="sub2">A stranger's caravan halts beside your warband. Choose one boon.</div>` +
+    `<div class="dropRow">` +
+    `<div class="dropItem${haveRoom ? '' : ' off'}" ${haveRoom ? 'data-act="event-pick" data-e="unit"' : ''}>` +
+      `<div class="ie">${UNITS[key].e}</div><div class="in">Free recruit</div><div class="id">A wandering ${UNITS[key].n} joins you${haveRoom ? '' : ' — but you have no room!'}</div></div>` +
+    `<div class="dropItem" data-act="event-pick" data-e="gold"><div class="ie">🪙</div><div class="in">War funds</div><div class="id">+4 gold in your next shop</div></div>` +
+    `<div class="dropItem${canHeal ? '' : ' off'}" ${canHeal ? 'data-act="event-pick" data-e="life"' : ''}>` +
+      `<div class="ie">❤️</div><div class="in">Mend wounds</div><div class="id">${canHeal ? 'Restore 1 life' : 'Your warband is unhurt — no need'}</div></div>` +
+    `</div>`;
+}
+function pickEvent(e){
+  if(!S || S.phase !== 'event') return;
+  if(e === 'unit' && S.eventUnit){
+    const u = newUnit(S.eventUnit);
+    const bi = S.bench.findIndex(b => !b);
+    if(bi >= 0) S.bench[bi] = u;
+    else { const li = S.lineup.findIndex(x => !x); if(li >= 0) S.lineup[li] = u; else return; }
+    S.path.push({icon:UNITS[u.key].e, label:'Recruited a ' + UNITS[u.key].n, r:'E'});
+  } else if(e === 'gold'){
+    S.bonusGold += 4;
+    S.path.push({icon:'🪙', label:'Took war funds', r:'E'});
+  } else if(e === 'life'){
+    if(S.lives >= START_LIVES) return;
+    S.lives++;
+    S.path.push({icon:'❤️', label:'Mended wounds', r:'E'});
+  } else return;
+  sfx('buy');
+  S.eventUnit = null;
+  S.phase = 'map';
+  renderMap();
+}
+
+// ---------------------------- shop ------------------------------------
+function shopSize(){ const d = curDepth(); return (d < 3 ? 3 : d < 6 ? 4 : 5) + (S.commander === 'tact' ? 1 : 0); }
+function rollShopUnit(){
+  const d = curDepth();
   let t = 1;
   const x = Math.random();
-  if(r >= 6)      t = x < .32 ? 3 : x < .68 ? 2 : 1;
-  else if(r >= 3) t = x < .45 ? 2 : 1;
+  if(d >= 6)      t = x < .32 ? 3 : x < .68 ? 2 : 1;
+  else if(d >= 3) t = x < .45 ? 2 : 1;
   let keys = Object.keys(UNITS).filter(k => UNITS[k].t === t);
   if(S && S.patron && Math.random() < .6){
     const pk = keys.filter(k => UNITS[k].f === S.patron);
@@ -573,22 +801,21 @@ function rollShopUnit(r){
   return {key:pick(keys), frozen:false};
 }
 function fillShop(){
-  const size = shopSize(S.round);
+  const size = shopSize();
   while(S.shop.length < size) S.shop.push(null);
   S.shop.length = size;
   for(let i = 0; i < size; i++)
-    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit(S.round);
+    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit();
 }
-function startRound(){
+function startShop(){
   S.phase = 'shop';
   const interest = Math.min(3, Math.floor((S.saved || 0) / 3));
-  S.gold = Math.min(GOLD_CAP + goldBonus(), 10 + goldBonus() + interest);
-  S.lastInterest = interest;
+  S.gold = Math.min(GOLD_CAP + goldBonus(), 10 + goldBonus() + interest) + S.bonusGold;
+  S.bonusGold = 0;
   S.freeReroll = S.commander === 'tact';
   fillShop();
-  S.enemy = genEnemy(S.round);
   sel = null;
-  if(S.round >= 3 && !S.patronChosen){
+  if(curDepth() >= 3 && !S.patronChosen){
     S.phase = 'patron';
     renderShopPhase();
     showPatronOv();
@@ -598,12 +825,10 @@ function startRound(){
   if(interest > 0) hint(`💰 Banked gold pays off: +${interest} interest`);
 }
 
-// ---------------------------- patron (round 3 fork) -------------------
+// ---------------------------- patron -----------------------------------
 function showPatronOv(){
   const ov = $('#patronOv');
   ov.classList.remove('hidden');
-  $('#shopPhase').classList.remove('hidden');
-  $('#battlePhase').classList.add('hidden');
   ov.innerHTML = `<h3>🏛️ CHOOSE A PATRON</h3>` +
     `<div class="sub2">A patron floods your shop with its faction (~60% of offers) — the road to 3- and 5-piece doctrines.<br>Or stay a Sellsword: flexible, unaligned, no bias.</div>` +
     `<div class="dropRow">` +
@@ -616,32 +841,34 @@ function showPatronOv(){
 }
 function pickPatron(f){
   if(!S || S.phase !== 'patron') return;
+  sfx('click');
   S.patron = (f && FACTIONS[f]) ? f : null;
   S.patronChosen = true;
   S.phase = 'shop';
-  fillShop();               // re-deal unfrozen offers under the new patron
+  fillShop();
   renderShopPhase();
   hint(S.patron ? `${FACTIONS[S.patron].i} The ${S.patron} patron now stocks your shop.` : '🪙 Sellsword — your shop stays unaligned.');
 }
 
-// ---------------------------- enemy generation -----------------------
-function genEnemy(round){
+// ---------------------------- enemy generation -------------------------
+function genEnemy(depth, opts = {}){
   const focus = pick(Object.keys(FACTIONS));
-  const maxTier = round >= 6 ? 3 : round >= 3 ? 2 : 1;
+  const maxTier = depth >= 6 ? 3 : depth >= 3 ? 2 : 1;
   const pool = Object.keys(UNITS).filter(k => UNITS[k].t <= maxTier);
   const focusPool = pool.filter(k => UNITS[k].f === focus);
-  const count = clamp(2 + Math.floor(round/2), 2, 5);
-  const bAtk = Math.floor(round/3), bHp = Math.floor(round*3/5);
+  const count = opts.count || clamp(2 + Math.floor(depth/2), 2, 5);
+  const bAtk = Math.floor(depth/3), bHp = Math.floor(depth*3/5);
   const band = [];
   for(let i = 0; i < count; i++){
     const key = (Math.random() < .7 && focusPool.length) ? pick(focusPool) : pick(pool);
     const u = newUnit(key);
-    let lvl = 1;
-    if(Math.random() < (round - 2) * 0.17) lvl++;
-    if(Math.random() < (round - 5) * 0.18) lvl++;
+    let lvl = opts.minLvl || 1;
+    if(Math.random() < (depth - 2) * 0.17) lvl++;
+    if(Math.random() < (depth - 5) * 0.18) lvl++;
     while(u.lvl < Math.min(lvl, MAX_LVL)) levelUp(u);
     u.atk += bAtk; u.hp += bHp;
-    if(round >= 4 && Math.random() < 0.22 + round * 0.03) u.item = pick(Object.keys(ITEMS));
+    const itemChance = opts.itemChance !== undefined ? opts.itemChance : (depth >= 4 ? 0.22 + depth * 0.03 : 0);
+    if(Math.random() < itemChance) u.item = pick(Object.keys(ITEMS));
     band.push(u);
   }
   const score = u => {
@@ -652,6 +879,60 @@ function genEnemy(round){
   band.sort((a,b) => score(b) - score(a));
   band.focus = focus;
   return band;
+}
+
+// ---------------------------- run lifecycle ----------------------------
+function startRun(cmd){
+  S = {
+    lives:START_LIVES, gold:0, wins:0, phase:'map', commander:cmd,
+    lineup:[null,null,null,null,null], bench:[null,null,null], shop:[], enemy:[],
+    stash:[], saved:0, bonusGold:0, freeReroll:false, dropChoices:null,
+    patron:null, patronChosen:false,
+    map:genMap(), pos:null, path:[], eventUnit:null,
+  };
+  let slot = 0;
+  for(const id of STARTER_UNITS) if(meta.owned[id] && slot < 5) S.lineup[slot++] = newUnit(id);
+  sel = null;
+  showScreen('game');
+  renderMap();
+}
+function returnToMap(){
+  S.phase = 'map';
+  renderMap();
+}
+function endRun(victory){
+  const depth = S.pos ? S.pos.l + 1 : 0;
+  const earned = depth + (victory ? 5 : 0);
+  meta.medals += earned;
+  meta.runs++;
+  if(victory) meta.trophies++;
+  saveMeta();
+  $('#endEmoji').textContent = victory ? '🏆' : '☠️';
+  $('#endTitle').textContent = victory ? 'THE WARLORD FALLS!' : 'RUN OVER';
+  $('#endTitle').className = victory ? 'win' : 'lose';
+  $('#endBlurb').textContent = victory
+    ? `The ${COMMANDERS[S.commander].n}'s warband crossed the campaign and took the Warlord's crown.`
+    : `The ${COMMANDERS[S.commander].n}'s warband fell at node ${depth}. The medals remember.`;
+  $('#endStats').innerHTML =
+    `<span class="pill">Nodes: <b>${depth}/${MAP_LAYERS}</b></span>` +
+    `<span class="pill">Battles won: <b>${S.wins}</b></span>` +
+    `<span class="pill">Medals earned: <b>+${earned}🎖️</b></span>` +
+    `<span class="pill">Total medals: <b>${meta.medals}🎖️</b></span>`;
+  const ep = $('#endPath'); ep.innerHTML = '';
+  for(const st of S.path){
+    const sp = document.createElement('span');
+    sp.className = st.r === 'win' ? 'W' : st.r === 'lose' ? 'L' : '';
+    sp.textContent = st.icon;
+    sp.dataset.tip = `<span class="tn">${st.icon}</span><div class="ta">${st.label}${st.r === 'win' ? ' — won' : st.r === 'lose' ? ' — lost' : st.r === 'draw' ? ' — draw' : ''}</div>`;
+    ep.appendChild(sp);
+  }
+  if(!S.path.length) ep.textContent = '—';
+  const eb = $('#endBand'); eb.innerHTML = '';
+  for(const u of S.lineup) if(u) eb.appendChild(mkCard(u));
+  if(!S.lineup.some(Boolean)) eb.textContent = '—';
+  S.phase = 'over';
+  sfx(victory ? 'win' : 'lose');
+  showScreen('end');
 }
 
 // ---------------------------- DOM: cards & chips ----------------------
@@ -688,16 +969,16 @@ function mkCard(u, opts = {}){
   if(opts.freeze){
     const fz = document.createElement('button');
     fz.className = 'frz'; fz.dataset.act = 'freeze'; fz.dataset.i = opts.i;
-    fz.textContent = '❄'; fz.title = 'Freeze — keep for next round';
+    fz.textContent = '❄'; fz.title = 'Freeze — keep for your next shop';
     d.appendChild(fz);
   }
   return d;
 }
-function mkEmptySlot(i){
-  // highlight empty slots as valid targets when placing (shop sel) or moving (line sel)
+function mkEmptySlot(zone, i){
   const d = document.createElement('div');
-  d.className = 'card slotEmpty' + (sel && (sel.type === 'shop' || sel.type === 'line') ? ' dropOk' : '');
-  d.dataset.act = 'line'; d.dataset.i = i;
+  const targetable = sel && (sel.type === 'shop' || sel.type === 'line' || sel.type === 'bench');
+  d.className = 'card slotEmpty' + (targetable ? ' dropOk' : '');
+  d.dataset.act = zone; d.dataset.i = i;
   d.textContent = '+';
   return d;
 }
@@ -716,15 +997,16 @@ function renderChips(el, list){
   return syn;
 }
 
-// ---------------------------- render: shop phase ---------------------
+// ---------------------------- render: HUD & shop ----------------------
 function renderHUD(){
-  $('#hRound').textContent = S.round;
+  $('#hNode').textContent = S.pos ? S.pos.l + 1 : 0;
+  $('#hNodeMax').textContent = MAP_LAYERS;
   $('#hGold').textContent = S.gold;
   $('#hInt').textContent = S.phase === 'shop' && Math.floor(S.gold/3) > 0
     ? `(+${Math.min(3, Math.floor(S.gold/3))} if banked)` : '';
   $('#hWins').textContent = S.wins;
   $('#hLives').textContent = '❤️'.repeat(Math.max(0, S.lives)) + '🖤'.repeat(Math.max(0, START_LIVES - S.lives));
-  $('#hPhase').textContent = S.phase === 'shop' ? 'SHOP PHASE' : 'BATTLE';
+  $('#hPhase').textContent = {shop:'PREPARE', battle:'BATTLE', map:'CAMPAIGN', event:'EVENT', patron:'PATRON', drop:'SPOILS'}[S.phase] || '';
   const C = COMMANDERS[S.commander];
   const cp = $('#hCmd');
   cp.textContent = `${C.e} ${C.n}`;
@@ -738,33 +1020,57 @@ function renderHUD(){
       : `<span class="tn">🏛️ Sellsword</span><div class="ta">No patron — the shop stays unaligned.</div>`;
   } else pp.classList.add('hidden');
 }
+function slotCls(zone, i, u){
+  if(!sel) return '';
+  if(sel.type === 'shop'){
+    const s = S.shop[sel.i];
+    if(s && u && u.key === s.key && u.lvl < MAX_LVL) return 'mergeable';
+    return '';
+  }
+  if(sel.type === 'stash') return u ? 'mergeable' : '';
+  if(sel.type === 'line' || sel.type === 'bench'){
+    if(sel.type === zone && sel.i === i) return '';
+    const a = sel.type === 'line' ? S.lineup[sel.i] : S.bench[sel.i];
+    if(a && u && u.key === a.key && u.lvl < MAX_LVL) return 'mergeable';
+    if(u) return 'swapOk';
+  }
+  return '';
+}
 function renderShopPhase(){
   $('#shopPhase').classList.remove('hidden');
+  $('#mapPhase').classList.add('hidden');
   $('#battlePhase').classList.add('hidden');
   $('#dropOv').classList.add('hidden');
   if(S.phase !== 'patron') $('#patronOv').classList.add('hidden');
   renderHUD();
-  // full enemy scout
+  // scout
+  const node = curNode();
   const sc = $('#scoutCards'); sc.innerHTML = '';
   for(const u of S.enemy) sc.appendChild(mkCard(u));
   renderChips($('#eChips'), S.enemy);
+  const tag = node ? (node.type === 'boss' ? '👑 THE WARLORD' : node.type === 'elite' ? '⭐ Elite' : '⚔️ Fight') : '';
   $('#scoutInfo').innerHTML =
-    `🔭 <b>Scouting</b> — round-${S.round} foe: <span class="cnt">${S.enemy.length} units</span>, ` +
-    `${FACTIONS[S.enemy.focus].i} <b>${S.enemy.focus}</b>-focused. ${FACTIONS[S.enemy.focus].counter}`;
-  // player synergies + lineup
+    `🔭 <b>${node && node.name ? node.name : 'Unknown foe'}</b> · ${tag} · node ${curDepth()} — ` +
+    `<span class="cnt">${S.enemy.length} units</span>, ${FACTIONS[S.enemy.focus].i} <b>${S.enemy.focus}</b>-focused.<br>` +
+    `${FACTIONS[S.enemy.focus].counter}`;
+  // lineup (front visually right via row-reverse)
   renderChips($('#pChips'), S.lineup);
   const lr = $('#lineup'); lr.innerHTML = '';
   for(let i = 0; i < 5; i++){
     const u = S.lineup[i];
-    if(!u){ lr.appendChild(mkEmptySlot(i)); continue; }
-    const opts = {act:'line', i};
-    if(sel && sel.type === 'shop' && S.shop[sel.i] && S.shop[sel.i].key === u.key && u.lvl < MAX_LVL) opts.cls = 'mergeable';
-    if(sel && sel.type === 'xp' && u.lvl < MAX_LVL) opts.cls = 'mergeable';
-    if(sel && sel.type === 'stash' && S.stash[sel.i]) opts.cls = 'mergeable';        // valid equip target
-    if(sel && sel.type === 'line' && sel.i !== i) opts.cls = 'swapOk';               // valid swap target
-    const c = mkCard(u, opts);
+    if(!u){ lr.appendChild(mkEmptySlot('line', i)); continue; }
+    const c = mkCard(u, {act:'line', i, cls:slotCls('line', i, u)});
     if(sel && sel.type === 'line' && sel.i === i) c.classList.add('sel');
     lr.appendChild(c);
+  }
+  // bench
+  const br = $('#benchRow'); br.innerHTML = '';
+  for(let i = 0; i < S.bench.length; i++){
+    const u = S.bench[i];
+    if(!u){ br.appendChild(mkEmptySlot('bench', i)); continue; }
+    const c = mkCard(u, {act:'bench', i, cls:slotCls('bench', i, u)});
+    if(sel && sel.type === 'bench' && sel.i === i) c.classList.add('sel');
+    br.appendChild(c);
   }
   // stash
   const stR = $('#stashRow'); stR.innerHTML = '';
@@ -782,7 +1088,7 @@ function renderShopPhase(){
   }
   // shop
   const sr = $('#shopRow'); sr.innerHTML = '';
-  const size = shopSize(S.round);
+  const size = shopSize();
   for(let i = 0; i < size; i++){
     const s = S.shop[i];
     if(!s){
@@ -795,13 +1101,12 @@ function renderShopPhase(){
     if(sel && sel.type === 'shop' && sel.i === i) c.classList.add('sel');
     sr.appendChild(c);
   }
-  $('#sellBtn').disabled = !(sel && sel.type === 'line');
-  $('#sellBtn').textContent = sel && sel.type === 'line'
-    ? `Sell ${UNITS[S.lineup[sel.i].key].n} (+${S.lineup[sel.i].lvl}🪙)` : 'Sell';
+  const selUnit = sel && (sel.type === 'line' || sel.type === 'bench')
+    ? (sel.type === 'line' ? S.lineup[sel.i] : S.bench[sel.i]) : null;
+  $('#sellBtn').disabled = !selUnit;
+  $('#sellBtn').textContent = selUnit ? `Sell ${UNITS[selUnit.key].n} (+${selUnit.lvl}🪙)` : 'Sell';
   $('#rerollBtn').disabled = !S.freeReroll && S.gold < COST_REROLL;
   $('#rerollBtn').textContent = S.freeReroll ? '🎲 Reroll — FREE' : '🎲 Reroll — 1🪙';
-  $('#trainBtn').disabled = S.gold < COST_TRAIN || !S.lineup.some(u => u && u.lvl < MAX_LVL);
-  $('#trainBtn').classList.toggle('armed', !!(sel && sel.type === 'xp'));
   $('#fightBtn').disabled = !S.lineup.some(Boolean);
 }
 function hint(msg){
@@ -811,62 +1116,83 @@ function hint(msg){
   hintTimer = setTimeout(() => { h.style.opacity = 0; }, 3000);
 }
 
-// ---------------------------- shop actions ---------------------------
+// ---------------------------- unit movement (click + drag) ------------
+function unitAt(ref){ return ref.zone === 'line' ? S.lineup[ref.i] : ref.zone === 'bench' ? S.bench[ref.i] : null; }
+function setUnit(ref, u){ if(ref.zone === 'line') S.lineup[ref.i] = u; else if(ref.zone === 'bench') S.bench[ref.i] = u; }
+// core interaction: buy from shop, or move/swap/merge between line & bench
+function performMove(src, dst){
+  if(!S || S.phase !== 'shop') return false;
+  if(src.zone === 'shop'){
+    const s = S.shop[src.i];
+    if(!s || (dst.zone !== 'line' && dst.zone !== 'bench')) return false;
+    if(S.gold < COST_UNIT){ hint('Not enough gold — units cost 3🪙'); return false; }
+    const t = unitAt(dst);
+    if(!t){
+      setUnit(dst, newUnit(s.key));
+      S.gold -= COST_UNIT; S.shop[src.i] = null; sfx('buy');
+      hint(`${UNITS[s.key].n} ${dst.zone === 'bench' ? 'waits on the bench' : 'joins the warband'}!`);
+    } else if(t.key === s.key && t.lvl < MAX_LVL){
+      levelUp(t);
+      S.gold -= COST_UNIT; S.shop[src.i] = null; sfx('buy');
+      hint(`✨ ${uname(t)} — merged! Ability values scale with ★.`);
+    } else if(t.key === s.key){ hint('Already ★★★ — max level'); return false; }
+    else { hint('Occupied — pick an empty slot or a matching unit to merge'); return false; }
+    return true;
+  }
+  const a = unitAt(src);
+  if(!a || dst.zone === 'shop') return false;
+  if(src.zone === dst.zone && src.i === dst.i) return false;
+  const b = unitAt(dst);
+  if(b && b.key === a.key && b.lvl < MAX_LVL){
+    // merge copies: the moved unit is consumed
+    levelUp(b);
+    if(a.item){
+      if(!b.item) b.item = a.item;
+      else if(S.stash.length < STASH_MAX){ S.stash.push(a.item); hint(`${ITEMS[a.item].n} returned to stash`); }
+      else hint(`⚠️ Stash full — ${ITEMS[a.item].n} was lost!`);
+    }
+    setUnit(src, null);
+    sfx('buy');
+    hint(`✨ ${uname(b)} — copies merged!`);
+  } else if(b && b.key === a.key){
+    hint('Already ★★★ — max level'); return false;
+  } else {
+    setUnit(src, b || null);
+    setUnit(dst, a);
+    sfx('click');
+  }
+  return true;
+}
 function clickShop(i){
   if(S.phase !== 'shop' || !S.shop[i]) return;
   if(sel && sel.type === 'shop' && sel.i === i) sel = null;
   else {
     sel = {type:'shop', i};
     hint(S.gold < COST_UNIT ? 'Not enough gold — units cost 3🪙' :
-      'Click an empty slot to place — or a matching unit to merge (+1★)');
+      'Click a lineup or bench slot — or a matching unit to merge (+1★)');
   }
   renderShopPhase();
 }
-function clickLine(i){
+function clickSlot(zone, i){
   if(S.phase !== 'shop') return;
   if(sel && sel.type === 'shop'){
-    const s = S.shop[sel.i];
-    if(!s){ sel = null; renderShopPhase(); return; }
-    if(S.gold < COST_UNIT){ hint('Not enough gold — units cost 3🪙'); return; }
-    const target = S.lineup[i];
-    if(!target){
-      S.lineup[i] = newUnit(s.key);
-      S.gold -= COST_UNIT; S.shop[sel.i] = null; sel = null;
-      hint(`${UNITS[S.lineup[i].key].n} joins the warband!`);
-    } else if(target.key === s.key && target.lvl < MAX_LVL){
-      levelUp(target);
-      S.gold -= COST_UNIT; S.shop[sel.i] = null; sel = null;
-      hint(`✨ ${uname(target)} — merged! Ability values scale with ★.`);
-    } else if(target.key === s.key){
-      hint('Already ★★★ — max level'); return;
-    } else {
-      hint('Occupied — pick an empty slot or a matching unit to merge'); return;
-    }
+    if(performMove({zone:'shop', i:sel.i}, {zone, i})) sel = null;
   } else if(sel && sel.type === 'stash'){
     const it = S.stash[sel.i];
-    const u = S.lineup[i];
+    const u = unitAt({zone, i});
     if(!it){ sel = null; renderShopPhase(); return; }
     if(!u){ hint('Equip onto a unit — that slot is empty'); return; }
     const old = u.item;
     u.item = it;
     if(old) S.stash[sel.i] = old; else S.stash.splice(sel.i, 1);
-    sel = null;
+    sel = null; sfx('buy');
     hint(`${ITEMS[u.item].e} ${ITEMS[u.item].n} equipped on ${uname(u)}` + (old ? ` (${ITEMS[old].n} back to stash)` : ''));
-  } else if(sel && sel.type === 'xp'){
-    const u = S.lineup[i];
-    if(!u){ hint('Train a unit — that slot is empty'); return; }
-    if(u.lvl >= MAX_LVL){ hint('Already ★★★ — max level'); return; }
-    if(S.gold < COST_TRAIN){ hint('Not enough gold — training costs 3🪙'); sel = null; renderShopPhase(); return; }
-    S.gold -= COST_TRAIN;
-    levelUp(u);
-    sel = null;
-    hint(`🎓 ${uname(u)} trained to ${stars(u.lvl)}!`);
-  } else if(sel && sel.type === 'line'){
-    if(sel.i === i) sel = null;
-    else { const t = S.lineup[i]; S.lineup[i] = S.lineup[sel.i]; S.lineup[sel.i] = t; sel = null; }
-  } else if(S.lineup[i]){
-    sel = {type:'line', i};
-    hint('Click another slot to swap, or Sell');
+  } else if(sel && (sel.type === 'line' || sel.type === 'bench')){
+    if(sel.type === zone && sel.i === i) sel = null;
+    else if(performMove({zone:sel.type, i:sel.i}, {zone, i})) sel = null;
+  } else if(unitAt({zone, i})){
+    sel = {type:zone, i};
+    hint('Click another slot to move/swap, a same unit to merge — or Sell');
   }
   renderShopPhase();
 }
@@ -876,29 +1202,26 @@ function clickStash(i){
   if(sel) hint('Now click a unit to equip (its old item returns to stash)');
   renderShopPhase();
 }
-function armTrain(){
-  if(S.phase !== 'shop') return;
-  if(S.gold < COST_TRAIN){ hint('Not enough gold — training costs 3🪙'); return; }
-  sel = (sel && sel.type === 'xp') ? null : {type:'xp'};
-  if(sel) hint('🎓 Click a unit to give it +1★ (3🪙)');
-  renderShopPhase();
-}
 function sellSelected(){
-  if(S.phase !== 'shop' || !sel || sel.type !== 'line') return;
-  const u = S.lineup[sel.i];
+  if(S.phase !== 'shop' || !sel || (sel.type !== 'line' && sel.type !== 'bench')) return;
+  const ref = {zone:sel.type, i:sel.i};
+  const u = unitAt(ref);
+  if(!u) return;
   S.gold += u.lvl;
   let msg = `Sold ${uname(u)} for ${u.lvl}🪙`;
   if(u.item){
     if(S.stash.length < STASH_MAX){ S.stash.push(u.item); msg += ` — ${ITEMS[u.item].n} to stash`; }
     else msg += ` — stash full, ${ITEMS[u.item].n} lost!`;
   }
+  sfx('click');
   hint(msg);
-  S.lineup[sel.i] = null; sel = null;
+  setUnit(ref, null); sel = null;
   renderShopPhase();
 }
 function toggleFreeze(i){
   if(S.phase !== 'shop' || !S.shop[i]) return;
   S.shop[i].frozen = !S.shop[i].frozen;
+  sfx('click');
   renderShopPhase();
 }
 function reroll(){
@@ -906,26 +1229,81 @@ function reroll(){
   if(S.freeReroll) S.freeReroll = false;
   else if(S.gold >= COST_REROLL) S.gold -= COST_REROLL;
   else return;
+  sfx('click');
   for(let i = 0; i < S.shop.length; i++)
-    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit(S.round);
-  if(sel && (sel.type === 'shop')) sel = null;
+    if(!S.shop[i] || !S.shop[i].frozen) S.shop[i] = rollShopUnit();
+  if(sel && sel.type === 'shop') sel = null;
   renderShopPhase();
 }
 
-// ---------------------------- item drops ------------------------------
-function showDrop(){
+// ---- drag & drop (plain left-button press-drag-release; click still works)
+let drag = null, dragJustHappened = false, ghost = null;
+function startGhost(ev){
+  drag.active = true;
+  drag.el.classList.add('dragSrc');
+  ghost = document.createElement('div');
+  ghost.id = 'dragGhost';
+  const clone = drag.el.cloneNode(true);
+  clone.classList.remove('sel', 'dragSrc', 'mergeable', 'swapOk');
+  ghost.appendChild(clone);
+  document.body.appendChild(ghost);
+  moveGhost(ev);
+}
+function moveGhost(ev){ if(ghost){ ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; } }
+function endGhost(){ if(ghost){ ghost.remove(); ghost = null; } if(drag && drag.el) drag.el.classList.remove('dragSrc'); }
+document.addEventListener('mousedown', ev => {
+  if(ev.button !== 0 || !S || S.phase !== 'shop') return;
+  const el = ev.target.closest('#lineup [data-act="line"], #benchRow [data-act="bench"], #shopRow [data-act="shop"]');
+  if(!el || ev.target.closest('.frz')) return;
+  const zone = el.dataset.act, i = +el.dataset.i;
+  const has = zone === 'shop' ? !!S.shop[i] : !!unitAt({zone, i});
+  if(!has) return;
+  drag = {zone, i, x:ev.clientX, y:ev.clientY, active:false, el};
+});
+document.addEventListener('mousemove', ev => {
+  if(!drag) return;
+  if(!drag.active){
+    if(Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 7) return;
+    startGhost(ev);
+  } else moveGhost(ev);
+});
+document.addEventListener('mouseup', ev => {
+  if(!drag) return;
+  const d = drag; drag = null;
+  if(!d.active) return;                 // plain click — the click handler takes it
+  endGhost();
+  d.el.classList.remove('dragSrc');
+  dragJustHappened = true;
+  setTimeout(() => { dragJustHappened = false; }, 0);
+  const t = document.elementFromPoint(ev.clientX, ev.clientY);
+  const dropEl = t && t.closest && t.closest('#lineup [data-act="line"], #benchRow [data-act="bench"]');
+  if(dropEl){
+    sel = null;
+    performMove({zone:d.zone, i:d.i}, {zone:dropEl.dataset.act, i:+dropEl.dataset.i});
+  }
+  if(S && S.phase === 'shop') renderShopPhase();
+});
+
+// ---------------------------- item drops -------------------------------
+function showDrop(count){
   S.phase = 'drop';
-  const keys = Object.keys(ITEMS);
-  const a = pick(keys); let b = pick(keys);
-  while(b === a) b = pick(keys);
-  S.dropChoices = [a, b];
+  const keys = Object.keys(ITEMS).slice();
+  const choices = [];
+  while(choices.length < count && keys.length) choices.push(keys.splice(rnd(keys.length), 1)[0]);
+  S.dropChoices = choices;
+  renderDropOv();
+}
+function renderDropOv(){
   const ov = $('#dropOv');
   ov.classList.remove('hidden');
   $('#shopPhase').classList.remove('hidden');
+  $('#mapPhase').classList.add('hidden');
   $('#battlePhase').classList.add('hidden');
+  renderHUD();
   const full = S.stash.length >= STASH_MAX;
-  ov.innerHTML = `<h3>🎁 SPOILS OF VICTORY — pick one</h3>` +
-    `<div class="sub2">${full ? '⚠️ Stash full — skip, or lose the spoils' : 'Your pick goes to the stash; equip it in the shop'}</div>` +
+  const elite = S.dropChoices.length > 2;
+  ov.innerHTML = `<h3>🎁 ${elite ? 'ELITE SPOILS' : 'SPOILS OF VICTORY'} — pick one</h3>` +
+    `<div class="sub2">${full ? '⚠️ Stash full — skip, or lose the spoils' : 'Your pick goes to the stash; equip it before the next fight'}</div>` +
     `<div class="dropRow">` +
     S.dropChoices.map((k, i) =>
       `<div class="dropItem${full ? ' off' : ''}" ${full ? '' : `data-act="pick-drop" data-i="${i}"`}>` +
@@ -936,18 +1314,15 @@ function showDrop(){
 function pickDrop(i){
   if(S.phase !== 'drop' || !S.dropChoices) return;
   if(S.stash.length >= STASH_MAX) return;
+  sfx('buy');
   S.stash.push(S.dropChoices[i]);
   S.dropChoices = null;
-  nextRound();
+  returnToMap();
 }
 function skipDrop(){
   if(S.phase !== 'drop') return;
   S.dropChoices = null;
-  nextRound();
-}
-function nextRound(){
-  S.round++;
-  startRound();
+  returnToMap();
 }
 
 // ---------------------------- battle ----------------------------------
@@ -986,7 +1361,6 @@ function synBonusDmg(f){
   return syn.tier.Arcane >= 3 ? 1 + Math.max(0, syn.cnt.Arcane - 3) : 0;
 }
 function abilityDmg(f){ return abVal(f) + synBonusDmg(f); }
-// Arcane 5: single-target arcane hits (snipe/bomb) ripple to the enemy behind for half
 function arcaneHit(f, target, n, foes){
   dealDamage(target, n);
   if(bt.syn && bt.syn[f.side].tier.Arcane >= 5 && UNITS[f.key].f === 'Arcane'){
@@ -1026,8 +1400,6 @@ function nextAliveAfter(arr, f){
   for(let j = i + 1; j < arr.length; j++) if(arr[j].alive) return arr[j];
   return null;
 }
-
-// damage. opts: {attack:true, attacker} — tower shield only blocks attacks.
 function dealDamage(f, amount, opts = {}){
   if(!f || !f.alive || amount <= 0) return 0;
   if(opts.attack && f.blockLeft > 0){
@@ -1081,7 +1453,6 @@ function killCredit(killer, victim){
   }
   if(killer.item === 'lifegem') healF(killer, 3);
 }
-
 function faintEffect(f, arr, foes){
   const U = UNITS[f.key];
   switch(U.ab){
@@ -1110,7 +1481,6 @@ function faintEffect(f, arr, foes){
       break; }
   }
 }
-
 async function processDeaths(P, E){
   let changed = true;
   while(changed){
@@ -1120,7 +1490,6 @@ async function processDeaths(P, E){
       for(const f of arr){
         if(!f.alive || f.hp > 0) continue;
         const U = UNITS[f.key];
-        // Necromancer: first allied faint each battle is undone
         if(f.side === 'P' && S.commander === 'necro' && !bt.necroUsed){
           bt.necroUsed = true;
           f.hp = 1; f.poison = 0;
@@ -1128,7 +1497,6 @@ async function processDeaths(P, E){
           log(`🕯️ The Necromancer denies death — ${fLabel(f)} stands at 1 HP!`);
           updateF(f); changed = true; await wait(420); continue;
         }
-        // Beast 5: the Pack Alpha revives once at half HP
         if(f.alphaRevive && !f.alphaUsed){
           f.alphaUsed = true; f.hp = Math.max(1, Math.ceil(f.maxhp / 2)); f.poison = 0;
           pop(f, '🐾ALPHA', 'buff');
@@ -1142,6 +1510,7 @@ async function processDeaths(P, E){
           updateF(f); changed = true; await wait(420); continue;
         }
         f.alive = false; changed = true;
+        sfx('faint');
         log(`${fLabel(f)} faints.`);
         updateF(f);
         const times = (U.f === 'Undead' && bt.syn[f.side].tier.Undead >= 3) ? 2 : 1;
@@ -1149,7 +1518,6 @@ async function processDeaths(P, E){
           faintEffect(f, arr, foes);
           if(t === 1) log(`💀 Undead synergy: ${fLabel(f)}'s faint effect echoes!`);
         }
-        // Undead 5 LEGION: every allied faint strikes the front enemy and feeds the dead
         if(bt.syn[f.side].tier.Undead >= 5){
           const t3 = front(foes);
           if(t3){ log(`💀💀 The Legion answers: 3 damage to ${fLabel(t3)}.`); dealDamage(t3, 3); }
@@ -1157,7 +1525,6 @@ async function processDeaths(P, E){
           for(const u of arr) if(u.alive && UNITS[u.key].f === 'Undead'){ buff(u, 2, 2, true); n++; }
           if(n) log(`💀💀 The dead grow stronger: ${n} Undead gain +2/+2.`);
         }
-        // Lich: on ally faint, death bolt
         for(const u of arr){
           if(u.alive && u !== f && UNITS[u.key].ab === 'deathBolt'){
             const t2 = front(foes);
@@ -1169,7 +1536,6 @@ async function processDeaths(P, E){
     }
   }
 }
-
 async function startAbility(f, allies, foes){
   const U = UNITS[f.key];
   const v = abVal(f);
@@ -1205,12 +1571,11 @@ async function startAbility(f, allies, foes){
       await wait(400); break; }
   }
 }
-
 function applySynergyStart(arr, side){
   const syn = bt.syn[side];
   const who = side === 'P' ? 'Your' : 'Enemy';
   if(syn.tier.Beast >= 3){
-    const b = 1 + Math.max(0, syn.cnt.Beast - 3);   // +1/+1, +1/+1 per Beast past the third
+    const b = 1 + Math.max(0, syn.cnt.Beast - 3);
     let n = 0;
     for(const f of arr) if(f.alive && UNITS[f.key].f === 'Beast'){ buff(f, b, b, true); n++; }
     if(n) log(`🐾 ${who} pack stirs: ${n} Beasts +${b}/+${b}.`);
@@ -1231,9 +1596,9 @@ function applySynergyStart(arr, side){
   if(syn.tier.Arcane >= 3) log(`🔮 ${who} Arcane resonance: ability damage +${1 + Math.max(0, syn.cnt.Arcane - 3)}${syn.tier.Arcane >= 5 ? ', chaining to units behind' : ''}.`);
   if(syn.tier.Undead >= 3) log(`💀 ${who} grave pact: faint effects echo twice${syn.tier.Undead >= 5 ? ' — and the LEGION rises with every death' : ''}.`);
 }
-
 function renderBattle(){
   $('#shopPhase').classList.add('hidden');
+  $('#mapPhase').classList.add('hidden');
   $('#battlePhase').classList.remove('hidden');
   $('#banner').classList.add('hidden');
   $('#blog').innerHTML = '';
@@ -1246,14 +1611,11 @@ function renderBattle(){
   for(const f of bt.E){ f.el = mkCard(f); er.appendChild(f.el); }
   for(const f of [...bt.P, ...bt.E]) updateF(f);
 }
-
-// one unit attacking another (handles spear + poison), returns kills [[killer,victim],...]
 function strike(att, def, foes){
   const kills = [];
   const dealt = dealDamage(def, att.atk, {attack:true, attacker:att});
   if(att.item === 'vial' && dealt > 0){ def.poison++; pop(def, '☠', 'pois'); updateF(def); }
   if(def.hp <= 0 && def.alive) kills.push([att, def]);
-  // Order 5 PHALANX: attackers bleed for striking the formation
   if(bt.syn && bt.syn[def.side].tier.Order >= 5 && att.alive && att.hp > 0){
     dealDamage(att, 3);
   }
@@ -1268,9 +1630,9 @@ function strike(att, def, foes){
   }
   return kills;
 }
-
 async function runBattle(){
-  S.saved = S.gold;                 // banked gold earns interest next round
+  const node = curNode();
+  S.saved = S.gold;
   S.phase = 'battle';
   bt.running = true;
   bt.necroUsed = false;
@@ -1279,15 +1641,21 @@ async function runBattle(){
   bt.E = S.enemy.map(u => mkFighter(u, 'E'));
   bt.syn = {P:synOf(bt.P), E:synOf(bt.E)};
   renderBattle();
-  log(`⚔️ Round ${S.round}: your warband meets a ${S.enemy.focus}-sworn band of ${bt.E.length}!`);
-  await wait(600);
+  // intro banner: "NODE 7 — ELITE / Bonepile Band"
+  const ban = $('#banner');
+  const typ = node ? (node.type === 'boss' ? 'FINAL BATTLE' : node.type === 'elite' ? 'ELITE' : 'FIGHT') : 'FIGHT';
+  ban.className = 'intro';
+  ban.innerHTML = `<div class="bsub">NODE ${curDepth()} — ${typ}</div>${node && node.name ? node.name : 'Skirmish'}`;
+  ban.classList.remove('hidden');
+  await wait(1000);
+  ban.classList.add('hidden');
+  log(`⚔️ ${node && node.name ? node.name : 'The enemy'} — a ${S.enemy.focus}-sworn band of ${bt.E.length}!`);
+  await wait(400);
 
-  // commander (player only)
   if(S.commander === 'warlord'){
     const fr = front(bt.P);
     if(fr){ buff(fr, 2, 2); log(`⚔️ The Warlord anoints ${fLabel(fr)}: +2/+2.`); await wait(320); }
   }
-  // items: warhorn
   for(const arr of [bt.P, bt.E]){
     for(let i = 0; i < arr.length; i++){
       if(arr[i].item !== 'horn') continue;
@@ -1296,11 +1664,9 @@ async function runBattle(){
       if(blown) log(`📯 ${fLabel(arr[i])}'s warhorn: adjacent allies +1/+1.`);
     }
   }
-  // faction synergies
   applySynergyStart(bt.P, 'P');
   applySynergyStart(bt.E, 'E');
   await wait(400);
-  // battle-start abilities, interleaved by position
   for(let i = 0; i < 5; i++){
     if(bt.P[i] && bt.P[i].alive) await startAbility(bt.P[i], bt.P, bt.E);
     if(bt.E[i] && bt.E[i].alive) await startAbility(bt.E[i], bt.E, bt.P);
@@ -1308,19 +1674,18 @@ async function runBattle(){
   await processDeaths(bt.P, bt.E);
   if(bt.abort){ bt.running = false; return; }
 
-  // exchanges
   let turns = 0;
   while(!bt.abort && alive(bt.P) && alive(bt.E) && ++turns <= 60){
     const a = front(bt.P), b = front(bt.E);
     a.el.classList.add('lungeR'); b.el.classList.add('lungeL');
     await wait(230);
     a.el.classList.remove('lungeR'); b.el.classList.remove('lungeL');
+    sfx('hit');
     log(`${fLabel(a)} and ${fLabel(b)} clash! (${a.atk} ⚔ ${b.atk})`);
     const kills = [...strike(a, b, bt.E), ...strike(b, a, bt.P)];
     for(const [k, v] of kills) killCredit(k, v);
     await wait(280);
     await processDeaths(bt.P, bt.E);
-    // exchange end: poison ticks (ignores armor & shield)
     let poisoned = false;
     for(const f of [...bt.P, ...bt.E]){
       if(f.alive && f.poison > 0){
@@ -1330,7 +1695,6 @@ async function runBattle(){
       }
     }
     if(poisoned){ await wait(240); await processDeaths(bt.P, bt.E); }
-    // healers
     for(const arr of [bt.P, bt.E]){
       const alv = arr.filter(f => f.alive);
       for(let i = 0; i < alv.length; i++){
@@ -1341,7 +1705,6 @@ async function runBattle(){
     await wait(240);
   }
 
-  // result
   if(bt.abort){ bt.running = false; return; }
   const pAlive = alive(bt.P), eAlive = alive(bt.E);
   let result = 'draw';
@@ -1349,16 +1712,18 @@ async function runBattle(){
   else if(!pAlive && eAlive) result = 'lose';
   bt.running = false;
   await wait(380);
-  const ban = $('#banner');
-  ban.classList.remove('hidden', 'win', 'lose', 'draw');
+  ban.classList.remove('hidden');
+  ban.className = '';
   if(result === 'win'){
     S.wins++; meta.battleWins++; saveMeta();
     ban.textContent = '🏅 VICTORY'; ban.classList.add('win');
+    sfx('win');
     log('🏅 Your warband stands victorious!');
   } else if(result === 'lose'){
-    const cost = S.round > 5 ? 2 : 1;
+    const cost = curDepth() > 5 ? 2 : 1;
     S.lives -= cost;
     ban.textContent = '💔 DEFEAT'; ban.classList.add('lose');
+    sfx('lose');
     log(`💔 Defeat — you lose ${cost} ${cost > 1 ? 'lives' : 'life'}.`);
   } else {
     ban.textContent = '🤝 DRAW'; ban.classList.add('draw');
@@ -1368,50 +1733,37 @@ async function runBattle(){
   await wait(1300);
   afterBattle(result);
 }
-
 function afterBattle(result){
+  const node = curNode();
+  S.path.push({icon:NODE_ICON[node ? node.type : 'fight'], label:(node && node.name) || 'Fight', r:result});
   if(S.lives <= 0){ endRun(false); return; }
-  if(S.round >= MAX_ROUND){ endRun(true); return; }
-  if(result === 'win') showDrop();
-  else nextRound();
+  if(node && node.type === 'boss'){
+    if(result === 'win'){ endRun(true); return; }
+    hint('👑 The Warlord stands. Regroup — and strike again!');
+    startShop();                       // retry the finale while lives remain
+    return;
+  }
+  if(result === 'win') showDrop(node && node.type === 'elite' ? 3 : 2);
+  else returnToMap();
 }
 
-// ---------------------------- run end / meta --------------------------
-function endRun(victory){
-  const earned = S.round + (victory ? 5 : 0);
-  meta.medals += earned;
-  meta.runs++;
-  if(victory) meta.trophies++;
-  saveMeta();
-  $('#endEmoji').textContent = victory ? '🏆' : '☠️';
-  $('#endTitle').textContent = victory ? 'TROPHY CLAIMED!' : 'RUN OVER';
-  $('#endTitle').className = victory ? 'win' : 'lose';
-  $('#endBlurb').textContent = victory
-    ? `The ${COMMANDERS[S.commander].n}'s warband conquered all ten rounds. Legends will be sung.`
-    : `The ${COMMANDERS[S.commander].n}'s warband fell in round ${S.round}. The medals remember.`;
-  $('#endStats').innerHTML =
-    `<span class="pill">Rounds: <b>${S.round}/10</b></span>` +
-    `<span class="pill">Battles won: <b>${S.wins}</b></span>` +
-    `<span class="pill">Medals earned: <b>+${earned}🎖️</b></span>` +
-    `<span class="pill">Total medals: <b>${meta.medals}🎖️</b></span>`;
-  S.phase = 'over';
-  showScreen('end');
-}
-
+// ---------------------------- title / meta -----------------------------
 function renderTitle(){
   $('#mMedals').textContent = meta.medals;
   $('#mTrophies').textContent = meta.trophies;
   $('#mWins').textContent = meta.battleWins;
+  $('#continueBtn').classList.toggle('hidden', !(S && S.phase !== 'over'));
   const ms = $('#metaShop'); ms.innerHTML = '';
   for(const it of META_ITEMS){
     const owned = !!meta.owned[it.id];
     const locked = it.req && !meta.owned[it.req];
+    const poor = !owned && !locked && meta.medals < it.cost;
     const d = document.createElement('div');
-    d.className = 'mItem' + (owned ? ' owned' : locked ? ' locked' : '');
-    if(!owned && !locked){ d.dataset.act = 'meta-buy'; d.dataset.item = it.id; }
+    d.className = 'mItem ' + (owned ? 'owned' : locked ? 'locked' : poor ? 'poor' : 'buyable');
+    if(!owned && !locked && !poor){ d.dataset.act = 'meta-buy'; d.dataset.item = it.id; }
     d.innerHTML = `<div class="mi">${it.icon}</div><div class="mn">${it.name}</div>` +
       `<div class="md">${it.desc}</div>` +
-      `<div class="mc">${owned ? '✔ OWNED' : locked ? '🔒 LOCKED' : it.cost + ' 🎖️'}</div>`;
+      `<div class="mc">${owned ? '✔ OWNED' : locked ? '🔒 LOCKED' : (poor ? '🔒 ' : '') + it.cost + ' 🎖️'}</div>`;
     ms.appendChild(d);
   }
 }
@@ -1430,22 +1782,44 @@ function metaBuy(id){
   const it = META_ITEMS.find(x => x.id === id);
   if(!it || meta.owned[id]) return;
   if(it.req && !meta.owned[it.req]) return;
-  if(meta.medals < it.cost){ flashTitleMedals(); return; }
+  if(meta.medals < it.cost) return;
+  sfx('buy');
   meta.medals -= it.cost;
   meta.owned[id] = true;
   saveMeta();
   renderTitle();
-}
-function flashTitleMedals(){
-  const el = $('#mMedals');
-  el.style.color = 'var(--bad)';
-  setTimeout(() => { el.style.color = ''; }, 700);
 }
 function showScreen(name){
   for(const n of ['title','cmd','game','end'])
     $('#scr-' + n).classList.toggle('hidden', n !== name);
   if(name === 'title') renderTitle();
   if(name === 'cmd') renderCmdPick();
+}
+// re-render whichever sub-view matches the current phase (used by CONTINUE)
+function renderPhase(){
+  if(!S) return;
+  if(S.phase === 'map') renderMap();
+  else if(S.phase === 'event'){ const n = curNode(); renderMap(); if(n) showEventOv(n); }
+  else if(S.phase === 'shop') renderShopPhase();
+  else if(S.phase === 'patron'){ renderShopPhase(); showPatronOv(); }
+  else if(S.phase === 'drop'){ renderShopPhase(); renderDropOv(); }
+  else if(S.phase === 'battle'){
+    $('#shopPhase').classList.add('hidden');
+    $('#mapPhase').classList.add('hidden');
+    $('#battlePhase').classList.remove('hidden');
+    renderHUD();
+  }
+}
+function goTitle(){
+  closeMenu();
+  if(S && S.phase === 'battle') bt.paused = true;   // freeze the fight while away
+  showScreen('title');
+}
+function continueRun(){
+  if(!S || S.phase === 'over') return;
+  showScreen('game');
+  renderPhase();
+  if(S.phase === 'battle') bt.paused = false;
 }
 
 // ---------------------------- pause menu -------------------------------
@@ -1466,44 +1840,50 @@ function openMenu(){
 function closeMenu(){
   if(!menuOpen) return;
   menuOpen = false; abandonArmed = false;
-  bt.paused = false;
+  if(S && S.phase === 'battle' && !$('#scr-game').classList.contains('hidden')) bt.paused = false;
   $('#menuOv').classList.add('hidden');
 }
 function toggleMenu(){ menuOpen ? closeMenu() : openMenu(); }
 function abandonRun(){
   if(!S || S.phase === 'over') return;
   if(!abandonArmed){ abandonArmed = true; refreshMenu(); return; }
-  if(S.phase === 'battle'){ bt.abort = true; }
+  if(S.phase === 'battle') bt.abort = true;
   closeMenu();
-  endRun(false);   // counts as a fallen run — medals for rounds reached, meta stays consistent
+  endRun(false);
 }
 
-// ---------------------------- input (mouse only) ----------------------
+// ---------------------------- input (mouse-first) ----------------------
 document.addEventListener('click', ev => {
+  if(dragJustHappened) return;         // swallow the trailing click after a drag
   const t = ev.target.closest('[data-act]');
   if(!t) return;
   const act = t.dataset.act, i = t.dataset.i !== undefined ? +t.dataset.i : -1;
   switch(act){
-    case 'start-run': showScreen('cmd'); break;
-    case 'pick-cmd':  startRun(t.dataset.cmd); break;
-    case 'to-title':  showScreen('title'); break;
-    case 'meta-buy':  metaBuy(t.dataset.item); break;
-    case 'shop':      clickShop(i); break;
-    case 'line':      clickLine(i); break;
-    case 'stash':     clickStash(i); break;
-    case 'train':     armTrain(); break;
-    case 'freeze':    toggleFreeze(i); break;
-    case 'reroll':    reroll(); break;
-    case 'sell':      sellSelected(); break;
-    case 'pick-drop': pickDrop(i); break;
-    case 'skip-drop': skipDrop(); break;
-    case 'pick-patron': pickPatron(t.dataset.f === 'none' ? null : t.dataset.f); break;
-    case 'menu-open':  openMenu(); break;
-    case 'menu-close': closeMenu(); break;
+    case 'start-run':    showScreen('cmd'); break;
+    case 'continue-run': continueRun(); break;
+    case 'pick-cmd':     startRun(t.dataset.cmd); break;
+    case 'go-title':     goTitle(); break;
+    case 'rules-open':   $('#rulesOv').classList.remove('hidden'); break;
+    case 'rules-close':  $('#rulesOv').classList.add('hidden'); break;
+    case 'meta-buy':     metaBuy(t.dataset.item); break;
+    case 'map-node':     chooseNode(+t.dataset.l, +t.dataset.i); break;
+    case 'event-pick':   pickEvent(t.dataset.e); break;
+    case 'shop':         clickShop(i); break;
+    case 'line':         clickSlot('line', i); break;
+    case 'bench':        clickSlot('bench', i); break;
+    case 'stash':        clickStash(i); break;
+    case 'freeze':       toggleFreeze(i); break;
+    case 'reroll':       reroll(); break;
+    case 'sell':         sellSelected(); break;
+    case 'pick-drop':    pickDrop(i); break;
+    case 'skip-drop':    skipDrop(); break;
+    case 'pick-patron':  pickPatron(t.dataset.f === 'none' ? null : t.dataset.f); break;
+    case 'menu-open':    openMenu(); break;
+    case 'menu-close':   closeMenu(); break;
     case 'menu-abandon': abandonRun(); break;
     case 'fight':
       if(S && S.phase === 'shop' && S.lineup.some(Boolean)) runBattle();
-      else hint('Recruit at least one unit first!');
+      else hint('Move at least one unit into the lineup!');
       break;
     case 'speed':
       bt.speed = bt.speed >= 2 ? 1 : 2;
@@ -1511,12 +1891,11 @@ document.addEventListener('click', ev => {
       break;
   }
 });
-
-// tooltip follows mouse over any [data-tip]
+// tooltip follows the mouse over any [data-tip]
 const tip = $('#tip');
 let tipTarget = null;
 document.addEventListener('mousemove', ev => {
-  const c = ev.target.closest ? ev.target.closest('[data-tip]') : null;
+  const c = (!ghost && ev.target.closest) ? ev.target.closest('[data-tip]') : null;
   if(c){
     if(tipTarget !== c || tip.classList.contains('hidden')){
       tipTarget = c;
@@ -1537,7 +1916,6 @@ document.addEventListener('mousemove', ev => {
   }
 });
 window.addEventListener('resize', () => { /* fluid layout: flex + clamp() */ });
-// Esc toggles the pause menu (bonus convenience; the game itself stays mouse-only)
 document.addEventListener('keydown', ev => {
   if(ev.key === 'Escape'){ ev.preventDefault(); toggleMenu(); }
 });
@@ -1548,10 +1926,11 @@ window.__wb = {
   get meta(){ return meta; },
   get battle(){ return bt; },
   get sel(){ return sel; },
-  UNITS, ITEMS, FACTIONS, COMMANDERS, META_ITEMS, synOf,
-  startRun, startRound, genEnemy, runBattle, endRun, reroll, sellSelected,
-  clickShop, clickLine, clickStash, armTrain, toggleFreeze, metaBuy, showScreen, saveMeta,
-  pickDrop, skipDrop, pickPatron, levelUp,
+  UNITS, ITEMS, FACTIONS, COMMANDERS, META_ITEMS, BAND_NAMES, synOf, genMap,
+  startRun, startShop, genEnemy, runBattle, endRun, reroll, sellSelected,
+  clickShop, clickSlot, clickStash, toggleFreeze, metaBuy, showScreen, saveMeta,
+  pickDrop, skipDrop, pickPatron, pickEvent, chooseNode, performMove, levelUp,
+  goTitle, continueRun, returnToMap,
   fast(mult = 60){ bt.speed = mult; },
   setShop(keys){ S.shop = keys.map(k => k ? {key:k, frozen:false} : null); renderShopPhase(); },
   give(gold){ S.gold += gold; renderShopPhase(); },

@@ -196,6 +196,12 @@ function cardScore(win, S, c, cell, policy) {
     }
     case 'curse': return (S.weapon ? -15 : -8) + center;
     case 'event': return 18 + center;    // shrine/fountain/imp — net positive on average
+    case 'bloodgold': {
+      const d = win.predictedDamage(c);
+      if (d >= S.hp && S.windLeft <= 0) return -Infinity;
+      return 20 + c.v * 0.5 - d * 3 + center;
+    }
+    case 'anvil': return (S.weapon ? (S.weapon.v >= 8 ? 18 : 2) : 0.5) + center;
     case 'merchant': return 16 + center; // browse offers (both policies at least heal)
   }
   return 0;
@@ -257,6 +263,30 @@ function trySpells(ctx, policy) {
           return true;
         }
         // couldn't target — cancel out
+        const cancel = doc.querySelector('#cancel-target');
+        if (cancel) { click(win, cancel); flush(300); }
+      }
+    }
+  }
+
+  // ---- Bomb (a weaker fireball: no XP/loot) ----
+  if (S.spells.includes('bomb') && monsters.length) {
+    const target = monsters.reduce((b, m) => {
+      const val = (x) => x.c.type === 'boss' ? 100 : win.predictedDamage(x.c);
+      return val(m) > val(b) ? m : b;
+    });
+    const worth = target.c.type === 'boss' || win.predictedDamage(target.c) >= (policy === 'tactical' ? 5 : 4);
+    if (worth) {
+      const chip = chipFor('bomb');
+      if (chip) {
+        click(win, chip);
+        flush(100);
+        const tEl = cardEl(doc, target.cell);
+        if (tEl && tEl.classList.contains('target')) {
+          click(win, tEl);
+          flush(1200);
+          return true;
+        }
         const cancel = doc.querySelector('#cancel-target');
         if (cancel) { click(win, cancel); flush(300); }
       }
@@ -479,10 +509,11 @@ function handleMerchant(ctx, policy) {
   if (policy === 'tactical') {
     for (let guard = 0; guard < 8; guard++) {
       const bought =
-        tryBuy((o) => o.id === 'weapon' &&
+        tryBuy((o) => (o.id === 'weapon' || o.id === 'gsword') &&
           (o.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0)) > (S.weapon ? S.weapon.v : 0) + 1) ||
+        tryBuy((o) => o.id === 'bigheal' && S.hp <= S.maxHp - 12) ||
         tryBuy((o) => o.id === 'heal' && S.hp <= S.maxHp - 6) ||
-        tryBuy((o) => o.id === 'shield' && !S.shield) ||
+        tryBuy((o) => (o.id === 'shield' || o.id === 'aegis') && !S.shield) ||
         tryBuy((o) => o.id === 'key' && S.keys === 0 &&
           boardCards(S).some(({ c }) => c.type === 'locked')) ||
         tryBuy((o) => o.id === 'amulet' && S.gold >= o.price + 6) ||

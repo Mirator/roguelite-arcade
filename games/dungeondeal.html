@@ -30,7 +30,7 @@
   /* ------- top bar ------- */
   #topbar{
     flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
-    padding: 7px 90px 7px 14px; gap:8px; flex-wrap:wrap; /* right padding clears the fixed ⌂/☰ buttons */
+    padding: 7px 128px 7px 14px; gap:8px; flex-wrap:wrap; /* right padding clears the fixed 🔊/☰/⌂ buttons */
   }
   .logo{ font-weight:800; letter-spacing:.06em; font-size:14px; color:var(--ink); }
   .logo .spade{ color:var(--purple); }
@@ -159,6 +159,8 @@
   .card.locked{ --acc: #caa46a; }
   .card.spell{ --acc: #9ad0ff; }
   .card.event{ --acc: #f2ee6c; }
+  .card.bloodgold{ --acc: #ff9d5c; }
+  .card.anvil{ --acc: #c8ccd8; }
   .card.merchant{ --acc: #b48cff; }
   .card.stairs{ --acc: #7dff9e; }
   .card.stairs .c-inner{ animation: stairsGlow 1.6s ease-in-out infinite; }
@@ -343,7 +345,7 @@
     <span class="chip" id="floor-chip">Floor <b>1</b>/10</span>
     <span class="chip" id="deck-chip" data-tip="Cards left in the floor deck"><span class="deckback"></span><b id="deck-count">0</b></span>
     <span class="chip gold-chip" data-tip="Gold — spend it at merchants. Also your score.">🪙 <b id="gold-count">0</b></span>
-    <span class="chip xp-chip" id="xp-chip" data-tip="XP from monsters & gems. Each level: +1 max HP and a boon.">Lv <b id="lvl-count">1</b> · <span id="xp-count">0/16</span></span>
+    <span class="chip xp-chip" id="xp-chip" data-tip="XP from monsters & gems. Each level: instantly +1 max HP and heal 2.">Lv <b id="lvl-count">1</b> · <span id="xp-count">0/15</span></span>
     <span id="relic-bar"></span>
   </div>
   <div class="tb-right"><span class="chip" id="best-chip">Best: —</span></div>
@@ -358,8 +360,9 @@
 <div id="flash"></div>
 <div id="overlay"></div>
 <div id="navbtns">
+  <button class="nav-btn" id="btn-mute" title="Sound on/off">🔊</button>
   <button class="nav-btn" id="btn-menu" title="Menu">☰</button>
-  <a class="nav-btn" id="btn-home" href="../index.html" title="Back to Arcade">⌂</a>
+  <button class="nav-btn" id="btn-home" title="Title screen">⌂</button>
 </div>
 <div id="menu"></div>
 
@@ -402,22 +405,25 @@ const RELICS = {
   bone:    { icon:"🦴", name:"Bone Charm",       desc:"Traps deal −2 damage." },
   scale:   { icon:"🐲", name:"Dragon Scale",     desc:"Elite & boss hits deal −2 damage." },
   crystal: { icon:"🔮", name:"XP Crystal",       desc:"+1 XP from every monster." },
+  midas:   { icon:"👑", name:"Midas Ring",       desc:"+1 gold every time you slay a monster." },
+  feather: { icon:"🪶", name:"Phoenix Feather",  desc:"Once per run: a lethal hit leaves you at 1 HP." },
 };
 
 const SPELLS = {
-  fire:   { icon:"🔥", name:"Fireball", desc:"Kill any one monster or elite on the board — or burn away a boss stage." },
+  fire:   { icon:"🔥", name:"Fireball", desc:"Kill any one monster or elite (full XP) — or burn away a whole boss stage." },
   freeze: { icon:"❄️", name:"Freeze",   desc:"Your next fight deals you 0 damage and spares your weapon." },
   swap:   { icon:"🌀", name:"Swap",     desc:"Exchange the positions of any two cards (you included)." },
+  bomb:   { icon:"💣", name:"Bomb",     desc:"Destroy any one card — no XP, no loot; a boss loses 1 hit. Clears anything (except stairs)." },
 };
 
-const BOONS = {
-  mend:    { icon:"🩹", name:"Mend",    desc:"Heal 6 HP." },
-  hone:    { icon:"⚒️", name:"Hone",    desc:"Current weapon +2 (or gain a 3 weapon)." },
-  gild:    { icon:"💰", name:"Gild",    desc:"+6 gold." },
-  tools:   { icon:"🧰", name:"Tools",   desc:"Gain a disarm kit and a key." },
-  guard:   { icon:"🛡️", name:"Guard",   desc:"Shield +2 hits (or gain a 2×2 shield)." },
-  scroll:  { icon:"📜", name:"Scroll",  desc:"Gain a random spell (or +5 gold if hands full)." },
+// Themed monster names per floor band (1-3 ruins / 4-6 crypt / 7-9 forge / 10 abyss)
+const MONSTER_NAMES = {
+  ruins: ["Rat", "Bat", "Bandit", "Skeleton", "Slime"],
+  crypt: ["Zombie", "Ghoul", "Shade", "Wraith", "Bone Fiend"],
+  forge: ["Ember Imp", "Hellhound", "Salamander", "Golem", "Forge Fiend"],
+  abyss: ["Voidspawn", "Nightmare", "Depth Horror", "Abyss Maw", "Old One"],
 };
+function monsterBand(f){ return f <= 3 ? "ruins" : f <= 6 ? "crypt" : f <= 9 ? "forge" : "abyss"; }
 
 // ---------- state ----------
 let S = null;
@@ -428,18 +434,20 @@ let dangerEl = null; // card currently pulsing red on hover
 
 function newState(){
   return {
-    screen: "title",  // title | play | perk | merchant | event | level | dead | victory
+    screen: "title",  // title | play | perk | merchant | event | dead | victory
     lockUntil: 0,
     floor: 1, hp: 13, maxHp: 13, gold: 0,
-    lvl: 1, xp: 0, xpNext: 16, pendingLevels: 0,
+    lvl: 1, xp: 0, xpNext: 15,
     weapon: { v: 3 }, shield: null, kits: 0, keys: 0, curse: null, freeze: false,
     spells: [],                 // held spell ids, max 2
     relics: {},                 // relic id -> true
+    featherUsed: false,         // Phoenix Feather (once per run)
     perks: {}, windLeft: 0,
     deck: [], board: new Array(CELLS).fill(null), heroCell: 5,
     stairsPlaced: false, merchOffers: null, eventKind: null,
-    targeting: null,            // { spell:'fire'|'swap', first:cell|null }
+    targeting: null,            // { spell:'fire'|'swap'|'bomb', first:cell|null }
     stats: { consumed: 0, slain: 0, goldEarned: 0 },
+    floorLog: [],               // per-floor recap for the end screen
   };
 }
 // Timestamp-based lock: immune to background-tab timer throttling.
@@ -450,10 +458,11 @@ function monsterIcon(v){ return v <= 3 ? "🦇" : v <= 5 ? "🧟" : v <= 7 ? "�
 
 function buildDeck(f){
   const d = [];
+  const names = MONSTER_NAMES[monsterBand(f)];
   const eliteCount = f >= 3 ? 1 + (f >= 7 ? 1 : 0) : 0;
   const mCount = 9 + Math.ceil(f / 2) - eliteCount;
-  for(let i = 0; i < mCount; i++) d.push({ type:"monster", v: ri(1 + f, 4 + f) });
-  for(let i = 0; i < eliteCount; i++) d.push({ type:"elite", v: ri(7, 9) + Math.max(0, f - 5) });
+  for(let i = 0; i < mCount; i++) d.push({ type:"monster", v: ri(1 + f, 4 + f), name: pick(names) });
+  for(let i = 0; i < eliteCount; i++) d.push({ type:"elite", v: ri(7, 9) + Math.max(0, f - 5), name: pick(names) });
   for(let i = 0; i < 5; i++) d.push({ type:"weapon", v: ri(3, 5) + Math.floor((f - 1) * 0.9) });
   const pCount = 4 + (f >= 6 ? 1 : 0);
   for(let i = 0; i < pCount; i++) d.push({ type:"potion", v: ri(3, 5) + Math.floor(f / 3) });
@@ -473,6 +482,8 @@ function buildDeck(f){
   d.push({ type:"chest" }, { type:"chest" });
   d.push({ type:"event" });
   if(f >= 4) d.push({ type:"event" });
+  if(f >= 2) d.push({ type:"bloodgold", v: 6 + f, dmg: 2 });         // big gold, small blood price
+  if(f >= 3) d.push({ type:"anvil" });                               // sacrifice weapon for max HP
   d.push({ type:"merchant" });
   return shuffle(d);
 }
@@ -556,8 +567,8 @@ function setCellPos(el, cell){
 
 function cardFace(c){
   switch(c.type){
-    case "monster": return { icon: monsterIcon(c.v), val: c.v, name:"Monster", sub:`${c.v + (S.relics.crystal?1:0)} xp` };
-    case "elite":   return { icon:"🧌", val: c.v, name:"ELITE", sub:"drops a relic" };
+    case "monster": return { icon: monsterIcon(c.v), val: c.v, name: c.name || "Monster", sub:`${c.v + (S.relics.crystal?1:0)} xp` };
+    case "elite":   return { icon:"🧌", val: c.v, name:`Elite ${c.name || ""}`.trim(), sub:"drops a relic" };
     case "boss":    return { icon: c.icon, val: c.stages[c.si].power, name: c.name,
                              sub: `stage ${c.si + 1}/${c.stages.length} · ${c.hitsLeft} hit${c.hitsLeft>1?"s":""}` };
     case "weapon":  return { icon:"🗡️", val: c.v, name:"Weapon" };
@@ -572,6 +583,9 @@ function cardFace(c){
     case "locked":  return { icon:"🧰", val: S.keys > 0 ? "🗝️" : "🔒", name:"Locked", sub: S.keys > 0 ? "you have a key" : "needs a key" };
     case "spell":   return { icon: SPELLS[c.spell].icon, val:"", name: SPELLS[c.spell].name, sub:"spell scroll" };
     case "event":   return { icon:"❓", val:"?", name:"Event" };
+    case "bloodgold": return { icon:"🩸", val:"+" + c.v, name:"Blood Gold", sub:`gold, costs ${c.dmg} HP` };
+    case "anvil":   return { icon:"⚒️", val: S.weapon ? "+" + Math.ceil(S.weapon.v / 2) : "—", name:"Anvil",
+                             sub: S.weapon ? `melt 🗡${S.weapon.v} → max HP` : "needs a weapon" };
     case "merchant":return { icon:"🧙", val:"$", name:"Merchant" };
     case "stairs":  return { icon:"🪜", val:"▼", name:"Stairs", sub:"descend" };
   }
@@ -637,6 +651,7 @@ function renderHUD(){
   if(S.targeting){
     const t = S.targeting;
     const msg = t.spell === "fire" ? "🔥 Click a monster, elite or boss to incinerate"
+      : t.spell === "bomb" ? "💣 Click any card to destroy it (no XP, no loot)"
       : (t.first === null ? "🌀 Click the first card to swap (you count too)" : "🌀 Click the second card to swap");
     h += `<span class="chip st warn"><b>${msg}</b></span>`;
     h += `<span class="chip st cancel-chip" id="cancel-target">✖ cancel</span>`;
@@ -658,6 +673,13 @@ function renderHUD(){
   }
   sb.innerHTML = h;
   renderHero();
+  // anvil faces show the current weapon's melt value — keep them fresh
+  S.board.forEach(c => {
+    if(c && c.type === "anvil"){
+      const el = cardEls.get(c.id);
+      if(el) renderCardContent(el, c);
+    }
+  });
   updateReachable();
 }
 
@@ -667,6 +689,7 @@ function validSpellTarget(cell){
   const c = S.board[cell];
   if(t.spell === "fire") return !!c && (c.type === "monster" || c.type === "elite" || c.type === "boss");
   if(t.spell === "swap") return (cell === S.heroCell || !!c) && cell !== t.first;
+  if(t.spell === "bomb") return !!c && c.type !== "stairs"; // anything but the way down
   return false;
 }
 
@@ -741,6 +764,7 @@ function predictedDamage(c){
   if(c.type === "elite") return calcFight(c.v, true).dmg;
   if(c.type === "boss") return calcFight(c.stages[c.si].power, true).dmg;
   if(c.type === "trap") return S.kits > 0 ? 0 : trapDamage(c.v);
+  if(c.type === "bloodgold") return c.dmg;
   return 0;
 }
 
@@ -753,7 +777,8 @@ function previewLines(c){
     if(r.shieldUsed) L.push(`<span class="tt-cyan">shield blocks ${r.blocked} (${S.shield.hits} → ${S.shield.hits - 1} hits)</span>`);
     if(r.dmg > 0){
       const lethal = r.dmg >= S.hp;
-      L.push(`<span class="tt-red">−${r.dmg} HP${lethal ? (S.windLeft > 0 ? " — Second Wind saves you at 1 HP" : " — LETHAL!") : ""}</span>`);
+      const save = S.windLeft > 0 ? " — Second Wind saves you at 1 HP" : (S.relics.feather && !S.featherUsed ? " — 🪶 Feather saves you at 1 HP" : " — LETHAL!");
+      L.push(`<span class="tt-red">−${r.dmg} HP${lethal ? save : ""}</span>`);
     } else L.push(`<span class="tt-green">no damage</span>`);
   };
   switch(c.type){
@@ -808,7 +833,7 @@ function previewLines(c){
       else {
         const d = trapDamage(c.v);
         const lethal = d >= S.hp;
-        L.push(d > 0 ? `<span class="tt-red">−${d} HP${lethal ? (S.windLeft > 0 ? " — Second Wind saves you" : " — LETHAL!") : ""}</span>` : `<span class="tt-green">no damage</span>`);
+        L.push(d > 0 ? `<span class="tt-red">−${d} HP${lethal ? (hasLifeline() ? " — a lifeline saves you at 1 HP" : " — LETHAL!") : ""}</span>` : `<span class="tt-green">no damage</span>`);
         L.push(`<span class="tt-dim">ignores weapon & shield — kits disarm</span>`);
       }
       break;
@@ -833,6 +858,18 @@ function previewLines(c){
       break;
     }
     case "event": L.push(`<b>Event</b>`, `<span class="tt-dim">something stirs… (shrine, fountain, imp)</span>`); break;
+    case "bloodgold": {
+      const lethal = c.dmg >= S.hp;
+      L.push(`<b>Blood Gold</b>`);
+      L.push(`<span class="tt-gold">+${c.v} gold</span> · <span class="tt-red">−${c.dmg} HP${lethal ? (hasLifeline() ? " — a lifeline saves you" : " — LETHAL!") : ""}</span>`);
+      break;
+    }
+    case "anvil": {
+      L.push(`<b>Anvil of Sacrifice</b>`);
+      if(S.weapon) L.push(`<span class="tt-red">melt your 🗡️ ${S.weapon.v}</span> → <span class="tt-green">+${Math.ceil(S.weapon.v / 2)} max HP (healed too)</span>`);
+      else L.push(`<span class="tt-dim">no weapon to offer — just a step</span>`);
+      break;
+    }
     case "merchant": L.push(`<b>Merchant</b>`, `<span class="tt-gold">browse 3 offers (you have ${S.gold} gold)</span>`); break;
     case "stairs": L.push(`<b>Descend</b>`, `<span class="tt-green">to floor ${S.floor + 1} — choose a perk</span>`); break;
     case "hero": L.push(`<b>You</b> — ${S.hp}/${S.maxHp} HP · Lv ${S.lvl}`, `<span class="tt-dim">click an adjacent card to act</span>`); break;
@@ -857,7 +894,9 @@ function showTooltipFor(el){
       if(validSpellTarget(cell)){
         html = S.targeting.spell === "fire"
           ? (c.type === "boss" ? `<b>🔥 Burn a boss stage</b>` : `<b>🔥 Incinerate</b> — dies instantly, full XP`)
-          : `<b>🌀 Swap</b> — ${S.targeting.first === null ? "select this card" : "swap with selection"}`;
+          : S.targeting.spell === "bomb"
+            ? (c.type === "boss" ? `<b>💣 Blast the boss</b> — it loses 1 hit` : `<b>💣 Destroy</b> — gone, no XP, no loot`)
+            : `<b>🌀 Swap</b> — ${S.targeting.first === null ? "select this card" : "swap with selection"}`;
       } else html = `<span class="tt-dim">not a valid target — click ✖ to cancel</span>`;
     } else if(el !== heroEl && !el.classList.contains("reachable") && S.screen === "play"){
       html = previewLines(c).join("<br>") + `<br><span class="tt-dim">— not adjacent —</span>`;
@@ -867,7 +906,7 @@ function showTooltipFor(el){
     // danger pulse: this click would kill you
     if(!S.targeting && el !== heroEl && el.classList.contains("reachable")){
       const dmg = predictedDamage(c);
-      if(dmg >= S.hp && S.windLeft <= 0){ el.classList.add("danger"); dangerEl = el; }
+      if(dmg >= S.hp && !hasLifeline()){ el.classList.add("danger"); dangerEl = el; }
     }
   } else if(el.classList.contains("slot")){
     if(!el.classList.contains("reachable")) return;
@@ -900,10 +939,16 @@ function damageHero(amount, delay){
   S.hp -= amount;
   floatText(S.heroCell, "−" + amount, "f-red", delay || 0);
   heroHurtFx();
+  SND.play("hurt");
   if(S.hp <= 0){
     if(S.windLeft > 0){
       S.windLeft--; S.hp = 1;
       floatText(S.heroCell, "🕊️ SECOND WIND", "f-purple", (delay || 0) + 350);
+      return false;
+    }
+    if(S.relics.feather && !S.featherUsed){
+      S.featherUsed = true; S.hp = 1;
+      floatText(S.heroCell, "🪶 PHOENIX FEATHER", "f-gold", (delay || 0) + 350);
       return false;
     }
     S.hp = 0;
@@ -912,16 +957,23 @@ function damageHero(amount, delay){
   return false;
 }
 
+// a saving grace (Second Wind this floor, or an unused Phoenix Feather) is available
+function hasLifeline(){ return S.windLeft > 0 || (S.relics.feather && !S.featherUsed); }
+
 function gainXp(n, cell){
   if(n <= 0) return;
   S.xp += n;
   floatText(cell != null ? cell : S.heroCell, `+${n} xp`, "f-cyan", 180);
   while(S.xp >= S.xpNext){
+    // instant level-up: +1 max HP, heal 2 — no overlay, just a flash
     S.xp -= S.xpNext;
     S.lvl++;
-    S.maxHp++; S.hp++;
-    S.xpNext = 10 + S.lvl * 6;
-    S.pendingLevels++;
+    S.maxHp++;
+    S.hp = Math.min(S.maxHp, S.hp + 2);
+    S.xpNext = 9 + S.lvl * 6;
+    floatText(S.heroCell, `⬆️ LEVEL ${S.lvl}!`, "f-gold", 420);
+    heroBlipFx();
+    SND.play("level");
   }
 }
 
@@ -953,6 +1005,11 @@ function endRun(won){
   saveBest({ floor: S.floor, gold: S.gold, won });
   const m = meta(); m.runs++; if(won) m.wins++; saveJSON("dd_meta", m);
   renderBest();
+  SND.play(won ? "win" : "death");
+  // per-floor timeline: cleared floors, plus where the run ended
+  const steps = S.floorLog.map(e => `F${e.f} <span style="color:var(--green)">✓</span>${e.hp}hp`);
+  steps.push(won ? `F${S.floor} 👑` : `F${S.floor} <span style="color:var(--red)">✝</span>`);
+  const timeline = steps.join(" <span style='color:var(--faint)'>→</span> ");
   setTimeout(() => {
     overlay.innerHTML = `<div class="panel">
       <div class="bigicon">${won ? "👑" : "💀"}</div>
@@ -965,10 +1022,11 @@ function endRun(won){
         <span class="sg-l">Gold banked</span><span class="sg-v">🪙 ${S.gold} <span style="color:var(--faint);font-weight:600">(earned ${S.stats.goldEarned})</span></span>
         <span class="sg-l">Cards consumed</span><span class="sg-v">${S.stats.consumed}</span>
       </div>
+      <div class="stat-line" style="font-size:12px">${timeline}</div>
       <div class="stat-line">${bestLine()}</div>
       <div class="end-btns">
         <button class="btn" id="btn-restart">New Run</button>
-        <button class="btn ghost" id="btn-arcade">Back to Arcade</button>
+        <button class="btn ghost" id="btn-title">Title screen</button>
       </div>
     </div>`;
     overlay.classList.add("show");
@@ -1033,11 +1091,6 @@ function lockFor(ms){
   setTimeout(() => renderHUD(), ms + 20);
 }
 
-// after any action settles, pop a pending level-up overlay
-function checkLevelOverlay(){
-  if(S.screen === "play" && S.pendingLevels > 0) openLevelUp();
-}
-
 // ---------- boss handling ----------
 function bossStageDown(c, cell, viaFire){
   c.hitsLeft = viaFire ? 0 : c.hitsLeft - 1;
@@ -1099,18 +1152,36 @@ function castOnCell(cell){
     if(idx >= 0) S.spells.splice(idx, 1);
     S.targeting = null;
     floatText(cell, "🔥", "f-red");
+    SND.play("spell");
     if(c.type === "boss"){
       bossStageDown(c, cell, true);
     } else {
       S.stats.slain++;
       gainXp(c.v + (c.type === "elite" ? 3 : 0) + (S.relics.crystal ? 1 : 0), cell);
       if(c.type === "elite") grantRelic(cell);
+      if(S.relics.midas){ S.gold++; S.stats.goldEarned++; }
       if(S.relics.fang && S.hp < S.maxHp){ S.hp++; floatText(S.heroCell, "+1 🧛", "f-green", 350); }
       consumeCardEl(cell);
     }
     lockFor(CFG.lockMs);
     renderHUD();
-    checkLevelOverlay();
+    return;
+  }
+  if(t.spell === "bomb"){
+    const c = S.board[cell];
+    const idx = S.spells.indexOf("bomb");
+    if(idx >= 0) S.spells.splice(idx, 1);
+    S.targeting = null;
+    floatText(cell, "💥", "f-red");
+    SND.play("spell");
+    if(c.type === "boss"){
+      bossStageDown(c, cell, false); // costs the boss one hit, hero takes nothing
+    } else {
+      if(c.type === "monster" || c.type === "elite") S.stats.slain++;
+      consumeCardEl(cell); // no XP, no loot — the blast leaves nothing
+    }
+    lockFor(CFG.lockMs);
+    renderHUD();
     return;
   }
   if(t.spell === "swap"){
@@ -1153,12 +1224,14 @@ function resolveCard(cell){
       const r = calcFight(c.v, big);
       applyFight(r);
       floatText(cell, "⚔️", big ? "f-pink" : "f-gray");
+      SND.play("fight");
       const died = damageHero(r.dmg, 100);
       S.stats.slain++;
       consumeCardEl(cell);
       if(died){ renderHUD(); endRun(false); return; }
       gainXp(c.v + (big ? 3 : 0) + (S.relics.crystal ? 1 : 0), cell);
       if(big) grantRelic(cell);
+      if(S.relics.midas){ S.gold++; S.stats.goldEarned++; }
       if(S.relics.fang && S.hp < S.maxHp){ S.hp++; floatText(S.heroCell, "+1 🧛", "f-green", 500); }
       moveHeroTo(cell);
       break;
@@ -1168,6 +1241,7 @@ function resolveCard(cell){
       const r = calcFight(st.power, true);
       applyFight(r);
       floatText(cell, "⚔️", "f-red");
+      SND.play("fight");
       const died = damageHero(r.dmg, 100);
       if(died){ renderHUD(); endRun(false); return; }
       if(bossStageDown(c, cell, false)) return; // victory handled inside
@@ -1177,6 +1251,7 @@ function resolveCard(cell){
       S.weapon = { v: c.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) };
       floatText(cell, "🗡️ " + S.weapon.v, "f-blue");
       heroBlipFx();
+      SND.play("take");
       consumeCardEl(cell); moveHeroTo(cell);
       break;
     }
@@ -1184,6 +1259,7 @@ function resolveCard(cell){
       S.shield = { block: c.block, hits: c.hits + (S.perks.bulw || 0) };
       floatText(cell, `🛡️ ${S.shield.block}×${S.shield.hits}`, "f-cyan");
       heroBlipFx();
+      SND.play("take");
       consumeCardEl(cell); moveHeroTo(cell);
       break;
     }
@@ -1193,6 +1269,7 @@ function resolveCard(cell){
       S.hp += real;
       floatText(cell, "+" + real + " HP", "f-green");
       heroBlipFx();
+      SND.play("take");
       consumeCardEl(cell); moveHeroTo(cell);
       break;
     }
@@ -1200,11 +1277,37 @@ function resolveCard(cell){
       const g = (c.v + (S.relics.clover ? 2 : 0)) * Math.pow(2, S.perks.greed || 0);
       S.gold += g; S.stats.goldEarned += g;
       floatText(cell, "+" + g + " 🪙", "f-gold");
+      SND.play("coin");
       consumeCardEl(cell); moveHeroTo(cell);
       break;
     }
     case "gem": {
       gainXp(c.v, cell);
+      SND.play("take");
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "bloodgold": {
+      S.gold += c.v; S.stats.goldEarned += c.v;
+      floatText(cell, `+${c.v} 🪙`, "f-gold");
+      SND.play("coin");
+      const died = damageHero(c.dmg, 120);
+      if(died){ consumeCardEl(cell); renderHUD(); endRun(false); return; }
+      consumeCardEl(cell); moveHeroTo(cell);
+      break;
+    }
+    case "anvil": {
+      if(S.weapon){
+        const gain = Math.ceil(S.weapon.v / 2);
+        floatText(cell, `🗡️ ${S.weapon.v} melted`, "f-blue");
+        floatText(cell, `+${gain} max HP`, "f-green", 400);
+        S.weapon = null;
+        S.maxHp += gain; S.hp += gain;
+        heroBlipFx();
+        SND.play("level");
+      } else {
+        floatText(cell, "nothing to offer", "f-gray");
+      }
       consumeCardEl(cell); moveHeroTo(cell);
       break;
     }
@@ -1266,6 +1369,7 @@ function resolveCard(cell){
       break;
     }
     case "stairs": {
+      SND.play("stairs");
       consumeCardEl(cell); moveHeroTo(cell);
       setTimeout(openPerkChoice, 360);
       break;
@@ -1273,7 +1377,6 @@ function resolveCard(cell){
   }
   lockFor(CFG.lockMs);
   renderHUD();
-  checkLevelOverlay();
 }
 
 function openChest(cell){
@@ -1327,11 +1430,14 @@ function openEvent(){
       <button class="btn" data-ev="drink">Drink: +5 HP</button>
       <button class="btn ghost" data-ev="leave">Leave it</button>`;
   } else {
-    const can = S.gold >= 4;
+    // Toll Imp: one flat fee vs. a precisely-priced punishment — numbers shown up front
+    const toll = 8;
+    const steal = Math.floor(S.gold * 0.4);
+    const can = S.gold >= toll;
     body = `<div class="bigicon">👿</div><h2>Toll Imp</h2>
-      <div class="sub">"Pay the toll or I help myself!"</div>
-      <button class="btn ${can ? "" : "disabled"}" data-ev="pay">Pay 4 🪙</button>
-      <button class="btn ghost" data-ev="refuse">Refuse (it steals 9 🪙)</button>`;
+      <div class="sub">"Pay the toll — or I take my cut and hex that blade of yours."</div>
+      <button class="btn ${can ? "" : "disabled"}" data-ev="pay">Pay ${toll} 🪙 — safe passage</button>
+      <button class="btn ghost" data-ev="refuse">Refuse: it steals ${steal} 🪙 (40%) and curses your weapon −2 for 3 fights</button>`;
   }
   overlay.innerHTML = `<div class="panel">${body}</div>`;
   overlay.classList.add("show");
@@ -1347,17 +1453,20 @@ function resolveEvent(choice){
     S.hp = Math.min(S.maxHp, S.hp + 5);
   } else if(k === "imp"){
     if(choice === "pay"){
-      if(S.gold < 4) return;
-      S.gold -= 4;
+      if(S.gold < 8) return;
+      S.gold -= 8;
     } else {
-      S.gold = Math.max(0, S.gold - 9);
+      const steal = Math.floor(S.gold * 0.4);
+      S.gold -= steal;
+      if(S.curse){ S.curse.fights += 3; S.curse.amt = Math.max(S.curse.amt, 2); }
+      else S.curse = { amt: 2, fights: 3 };
+      floatText(S.heroCell, `👿 −${steal} 🪙, cursed`, "f-purple", 150);
     }
   }
   S.eventKind = null;
   S.screen = "play";
   overlay.classList.remove("show");
   renderHUD();
-  checkLevelOverlay();
 }
 
 // ---------- merchant ----------
@@ -1372,8 +1481,22 @@ function merchOfferPool(f){
     { id:"amulet", icon:"❤️", name:"Heart Amulet", desc:"+2 max HP (healed too).", price:12 },
   ];
 }
+// deeper floors stock a premium shelf — one tier-2 offer is guaranteed from floor 6
+function merchTier2(f){
+  return [
+    { id:"gsword",  icon:"⚔️", name:"Great Sword",  desc:`Weapon of value ${9 + Math.floor(f * 0.8)}.`, price:14, v: 9 + Math.floor(f * 0.8) },
+    { id:"aegis",   icon:"🛡️", name:"Aegis",        desc:`Blocks ${4 + Math.floor(f / 5)}/hit for 4 hits.`, price:13, block: 4 + Math.floor(f / 5) },
+    { id:"bigheal", icon:"🍶", name:"Grand Elixir", desc:"Heal 12 HP right now.", price:10 },
+  ];
+}
 function openMerchant(){
-  S.merchOffers = shuffle(merchOfferPool(S.floor)).slice(0, 3).map(o => ({ ...o, sold:false }));
+  let offers;
+  if(S.floor >= 6){
+    offers = [pick(merchTier2(S.floor)), ...shuffle(merchOfferPool(S.floor)).slice(0, 2)];
+  } else {
+    offers = shuffle(merchOfferPool(S.floor)).slice(0, 3);
+  }
+  S.merchOffers = offers.map(o => ({ ...o, sold:false }));
   S.screen = "merchant";
   renderMerchant();
   overlay.classList.add("show");
@@ -1404,51 +1527,19 @@ function buyOffer(i){
   S.gold -= o.price; o.sold = true;
   switch(o.id){
     case "heal":   S.hp = Math.min(S.maxHp, S.hp + 6); break;
-    case "weapon": S.weapon = { v: o.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) }; break;
+    case "bigheal":S.hp = Math.min(S.maxHp, S.hp + 12); break;
+    case "weapon": case "gsword": S.weapon = { v: o.v + (S.perks.whet || 0) + (S.relics.stone ? 1 : 0) }; break;
     case "shield": S.shield = { block: o.block, hits: 3 + (S.perks.bulw || 0) }; break;
+    case "aegis":  S.shield = { block: o.block, hits: 4 + (S.perks.bulw || 0) }; break;
     case "kit":    S.kits++; break;
     case "key":    S.keys++; break;
     case "spell":  S.spells.push(o.spell); break;
     case "amulet": S.maxHp += 2; S.hp += 2; break;
   }
+  SND.play("coin");
   renderMerchant(); renderHUD();
 }
 function closeMerchant(){
-  S.screen = "play";
-  overlay.classList.remove("show");
-  renderHUD();
-  checkLevelOverlay();
-}
-
-// ---------- level-ups ----------
-function openLevelUp(){
-  S.screen = "level";
-  const opts = shuffle(Object.keys(BOONS)).slice(0, 2);
-  overlay.innerHTML = `<div class="panel">
-    <div class="bigicon">⬆️</div>
-    <h2>Level ${S.lvl}!</h2>
-    <div class="sub">+1 max HP — and pick a boon</div>
-    <div class="choice-row">
-      ${opts.map(k => `<div class="mini-card boon-choice" data-boon="${k}">
-        <div class="mi">${BOONS[k].icon}</div><div class="mt">${BOONS[k].name}</div>
-        <div class="md">${BOONS[k].desc}</div>
-      </div>`).join("")}
-    </div>
-  </div>`;
-  overlay.classList.add("show");
-  updateReachable();
-}
-function chooseBoon(k){
-  switch(k){
-    case "mend":  S.hp = Math.min(S.maxHp, S.hp + 6); break;
-    case "hone":  if(S.weapon) S.weapon.v += 2; else S.weapon = { v: 3 }; break;
-    case "gild":  S.gold += 6; S.stats.goldEarned += 6; break;
-    case "tools": S.kits++; S.keys++; break;
-    case "guard": if(S.shield) S.shield.hits += 2; else S.shield = { block: 2, hits: 2 }; break;
-    case "scroll": grantSpell(pick(Object.keys(SPELLS)), S.heroCell); break;
-  }
-  S.pendingLevels--;
-  if(S.pendingLevels > 0){ openLevelUp(); return; }
   S.screen = "play";
   overlay.classList.remove("show");
   renderHUD();
@@ -1475,6 +1566,7 @@ function openPerkChoice(){
 function choosePerk(k){
   S.perks[k] = (S.perks[k] || 0) + 1;
   if(k === "vit"){ S.maxHp += 2; S.hp += 2; }
+  S.floorLog.push({ f: S.floor, hp: S.hp, maxHp: S.maxHp });
   overlay.classList.remove("show");
   S.floor++;
   startFloor();
@@ -1512,7 +1604,6 @@ function startFloor(){
   }
   lockFor(Math.min(CFG.lockMs * 2, 100 + d * stag + 320));
   renderHUD();
-  checkLevelOverlay();
 }
 
 function newRun(){
@@ -1531,10 +1622,10 @@ function showTitle(){
     <div class="sub">a 4×4 card dungeon — touchpad only</div>
     <div class="rules">
       <span class="r-ico">🖱️</span> <b>Click a card next to you</b> (4 directions) to take it — you move onto it. <b>Hover</b> previews the exact outcome; lethal picks pulse red.<br>
-      <span class="r-ico">👹</span> <b>Monsters</b> hit for their power; your <b>🗡️ weapon</b> absorbs it but wears down. Kills give <b>XP</b> — each level: +1 max HP and a boon. <b>🧌 Elites</b> drop relics.<br>
-      <span class="r-ico">📜</span> <b>Spells</b> (max 2) wait in your bar — click to cast: 🔥 kill a monster, ❄️ free next fight, 🌀 swap two cards.<br>
-      <span class="r-ico">🗝️</span> <b>Keys</b> open <b>locked chests</b> (relic inside). <b>❓ Events</b> offer deals. <b>🪤 Traps</b> ignore gear. <b>🧙 Merchants</b> take gold.<br>
-      <span class="r-ico">🪜</span> Use up the deck & slay every monster → <b>stairs</b> + a perk. <b>10 floors</b>, a 🦂 warden at 5, the 🐉 <b>Depth Lord</b> (2 stages) at 10.<br>
+      <span class="r-ico">👹</span> <b>Monsters</b> hit for their power; your <b>🗡️ weapon</b> absorbs it but wears down. Kills give <b>XP</b> — each level instantly grants <b>+1 max HP</b> and heals 2. <b>🧌 Elites</b> drop relics.<br>
+      <span class="r-ico">📜</span> <b>Spells</b> (max 2) wait in your bar — click to cast: 🔥 kill a monster, ❄️ free next fight, 🌀 swap two cards, 💣 destroy anything.<br>
+      <span class="r-ico">🗝️</span> <b>Keys</b> open <b>locked chests</b> (relic inside). <b>❓ Events</b> offer deals with exact prices. <b>🩸 Blood Gold</b> pays in HP; the <b>⚒️ Anvil</b> melts your blade into max HP.<br>
+      <span class="r-ico">🪜</span> Use up the deck & slay every monster → <b>stairs</b> + a perk. <b>10 themed floors</b>, a 🦂 warden at 5, the 🐉 <b>Depth Lord</b> (2 stages) at 10.<br>
     </div>
     <button class="btn" id="btn-start">Deal me in</button>
   </div>`;
@@ -1542,44 +1633,100 @@ function showTitle(){
   renderHUD(); renderBest();
 }
 
-// ---------- pause menu (arcade shell; game input is locked while open) ----------
+// ---------- pause menu (game input is locked while open) ----------
 const menuEl = $("#menu");
-let menuOpen = false, menuConfirm = false;
+let menuOpen = false, menuConfirm = null; // null | "new" | "title"
+
+const isMidRun = () => S && !["title", "dead", "victory"].includes(S.screen);
 
 function renderMenu(){
   menuEl.innerHTML = `<div class="menu-panel">
     <h2>☰ MENU</h2>
     ${menuConfirm ? `
       <div class="m-note">Abandon this run? Progress is lost.</div>
-      <button class="btn" id="menu-newrun-yes">Yes, new run</button>
-      <button class="btn ghost" id="menu-newrun-no">Keep playing</button>
+      <button class="btn" id="menu-confirm-yes">${menuConfirm === "new" ? "Yes, new run" : "Yes, to title"}</button>
+      <button class="btn ghost" id="menu-confirm-no">Keep playing</button>
     ` : `
       <button class="btn" id="menu-resume">Resume</button>
       <button class="btn ghost" id="menu-newrun">New Run</button>
-      <button class="btn ghost" id="menu-arcade">Back to Arcade</button>
+      <button class="btn ghost" id="menu-title">Title screen</button>
     `}
   </div>`;
 }
-function openMenu(){ menuOpen = true; menuConfirm = false; hideTooltip(); renderMenu(); menuEl.classList.add("show"); }
-function closeMenu(){ menuOpen = false; menuConfirm = false; menuEl.classList.remove("show"); }
+function openMenu(confirm){ menuOpen = true; menuConfirm = confirm || null; hideTooltip(); renderMenu(); menuEl.classList.add("show"); }
+function closeMenu(){ menuOpen = false; menuConfirm = null; menuEl.classList.remove("show"); }
 
 $("#btn-menu").addEventListener("click", () => { menuOpen ? closeMenu() : openMenu(); });
+$("#btn-home").addEventListener("click", () => {
+  // ⌂ = this game's title screen; confirm first if a run would be lost
+  if(isMidRun()) openMenu("title");
+  else { closeMenu(); showTitle(); }
+});
 menuEl.addEventListener("click", e => {
   if(e.target.closest("#menu-resume")){ closeMenu(); return; }
-  if(e.target.closest("#menu-arcade")){ location.href = "../index.html"; return; }
+  if(e.target.closest("#menu-title")){
+    if(isMidRun()){ menuConfirm = "title"; renderMenu(); }
+    else { closeMenu(); showTitle(); }
+    return;
+  }
   if(e.target.closest("#menu-newrun")){
-    const midRun = S && !["title", "dead", "victory"].includes(S.screen);
-    if(midRun){ menuConfirm = true; renderMenu(); }
+    if(isMidRun()){ menuConfirm = "new"; renderMenu(); }
     else { closeMenu(); newRun(); }
     return;
   }
-  if(e.target.closest("#menu-newrun-yes")){ closeMenu(); newRun(); return; }
-  if(e.target.closest("#menu-newrun-no")){ menuConfirm = false; renderMenu(); return; }
+  if(e.target.closest("#menu-confirm-yes")){
+    const kind = menuConfirm;
+    closeMenu();
+    if(kind === "title") showTitle(); else newRun();
+    return;
+  }
+  if(e.target.closest("#menu-confirm-no")){ menuConfirm = null; renderMenu(); return; }
   if(e.target === menuEl) closeMenu(); // click outside the panel resumes
 });
 document.addEventListener("keydown", e => {
   if(e.key === "Escape"){ menuOpen ? closeMenu() : openMenu(); }
 });
+
+// ---------- sound (tiny WebAudio synth; mute persists) ----------
+const SND = (() => {
+  let ctx = null;
+  let muted = loadJSON("dd_mute") === true;
+  function ac(){
+    if(!ctx){ try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ ctx = null; } }
+    return ctx;
+  }
+  function tone(freq, dur, type, vol, when, slide){
+    const c = ac(); if(!c) return;
+    const t0 = c.currentTime + (when || 0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || "triangle";
+    o.frequency.setValueAtTime(freq, t0);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t0 + dur);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.06, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+  }
+  const fx = {
+    take:   () => tone(660, 0.06, "triangle", 0.05),
+    coin:   () => { tone(880, 0.05, "square", 0.035); tone(1318, 0.07, "square", 0.03, 0.045); },
+    fight:  () => tone(170, 0.12, "sawtooth", 0.06, 0, 85),
+    hurt:   () => tone(110, 0.17, "sawtooth", 0.08, 0, 55),
+    death:  () => { tone(220, 0.45, "sawtooth", 0.08, 0, 50); tone(110, 0.65, "triangle", 0.06, 0.1, 40); },
+    stairs: () => [440, 554, 659, 880].forEach((f, i) => tone(f, 0.09, "triangle", 0.05, i * 0.07)),
+    level:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.08, "triangle", 0.05, i * 0.05)),
+    spell:  () => tone(980, 0.12, "sine", 0.05, 0, 1500),
+    win:    () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.12, "triangle", 0.05, i * 0.09)),
+  };
+  return {
+    play(n){ if(muted) return; try{ if(fx[n]) fx[n](); }catch(e){ /* audio unavailable */ } },
+    get muted(){ return muted; },
+    toggle(){ muted = !muted; saveJSON("dd_mute", muted); return muted; },
+  };
+})();
+function renderMuteBtn(){ $("#btn-mute").textContent = SND.muted ? "🔇" : "🔊"; }
+$("#btn-mute").addEventListener("click", () => { SND.toggle(); renderMuteBtn(); });
 
 // ---------- input (real DOM listeners) ----------
 board.addEventListener("click", e => {
@@ -1614,16 +1761,11 @@ $("#statusbar").addEventListener("click", e => {
 
 overlay.addEventListener("click", e => {
   if(menuOpen || !S) return;
-  if(e.target.closest("#btn-arcade")){ location.href = "../index.html"; return; }
+  if(e.target.closest("#btn-title")){ showTitle(); return; }
   if(e.target.closest("#btn-start") || e.target.closest("#btn-restart")){ newRun(); return; }
   if(S.screen === "perk"){
     const p = e.target.closest(".perk-choice");
     if(p) choosePerk(p.dataset.perk);
-    return;
-  }
-  if(S.screen === "level"){
-    const b = e.target.closest(".boon-choice");
-    if(b) chooseBoon(b.dataset.boon);
     return;
   }
   if(S.screen === "event"){
@@ -1641,6 +1783,7 @@ overlay.addEventListener("click", e => {
 // ---------- boot ----------
 layout();
 initSlots();
+renderMuteBtn();
 showTitle();
 
 // Debug/test handle (reads state; all input still flows through real listeners)

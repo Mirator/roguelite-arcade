@@ -38,17 +38,17 @@
   .shoptitle { font-size: 13px; letter-spacing: 3px; color: #ffd166; margin-bottom: 2px; font-weight: 700; }
   .coins { font-size: 14px; color: #ffd166; margin-bottom: 10px; }
   .coins b { font-size: 17px; }
-  #treeBox { position: relative; width: 500px; height: 392px; margin: 0 auto; }
-  #treeSvg { position: absolute; left: 0; top: 0; }
-  #treeNodes { position: absolute; inset: 0; }
+  #treeBoxFull { position: relative; width: 760px; max-width: 94vw; height: 596px; margin: 0 auto; }
+  #treeSvgFull { position: absolute; left: 0; top: 0; }
+  #treeNodesFull { position: absolute; inset: 0; }
   .tnode {
-    position: absolute; width: 44px; height: 44px; border-radius: 10px;
+    position: absolute; width: 58px; height: 58px; border-radius: 13px;
     background: #141b29; border: 1.5px solid #2b3649;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     transition: box-shadow .1s, border-color .1s;
   }
-  .tnode .ti { font-size: 18px; color: #93a1ba; }
-  .tnode .tc { position: absolute; bottom: -15px; font-size: 9.5px; color: #ffd166; width: 100%; text-align: center; left: 0; }
+  .tnode .ti { font-size: 23px; color: #93a1ba; }
+  .tnode .tc { position: absolute; bottom: -18px; font-size: 11px; color: #ffd166; width: 100%; text-align: center; left: 0; }
   .tnode .tc.own { color: #57e6b7; }
   .tnode.owned { border-color: #6ea8ff; background: #1a2740; box-shadow: 0 0 10px rgba(110,168,255,.3); }
   .tnode.owned .ti { color: #cfe3ff; }
@@ -57,13 +57,21 @@
   .tnode.avail:hover { box-shadow: 0 0 12px rgba(255,209,102,.4); }
   .tnode.locked { opacity: 0.38; }
   .tnode.sel { outline: 2px solid #8fc2ff; }
-  .tnode.root { width: 36px; height: 36px; border-radius: 50%; cursor: default; }
-  .brlabel { position: absolute; font-size: 9px; letter-spacing: 2px; color: #66748e; width: 90px; text-align: center; }
-  #nodeInfo {
-    min-height: 46px; font-size: 12px; line-height: 1.5; padding: 8px 10px;
-    background: #10151f; border: 1px solid #232d42; border-radius: 8px; margin: 10px auto 0; max-width: 480px;
+  .tnode.root { width: 48px; height: 48px; border-radius: 50%; cursor: default; }
+  .brlabel { position: absolute; font-size: 11.5px; letter-spacing: 3px; color: #66748e; width: 130px; text-align: center; }
+  #nodeInfoFull {
+    min-height: 46px; font-size: 13px; line-height: 1.55; padding: 10px 14px;
+    background: #10151f; border: 1px solid #232d42; border-radius: 8px; margin: 12px auto 0; max-width: 620px;
   }
-  #nodeInfo b { color: #dbe6f5; }
+  #nodeInfoFull b { color: #dbe6f5; }
+  #treeScreen { overflow-y: auto; padding: 18px 0; }
+  .treeBack { position: absolute; left: 18px; top: 18px; }
+  .treeTitleRow { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .coinbadge {
+    display: inline-flex; align-items: center; gap: 4px; background: rgba(255, 209, 102, 0.12);
+    border: 1px solid rgba(255, 209, 102, 0.4); color: #ffd166; border-radius: 20px;
+    padding: 3px 11px; font-size: 12px; font-weight: 700; margin-left: 8px; vertical-align: middle;
+  }
   .shopgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .shopitem {
     background: #141b29; border: 1px solid #263349; border-radius: 8px;
@@ -138,6 +146,16 @@
   button.small:hover { border-color: #6ea8ff; color: #e8eefb; }
   button.small:disabled { opacity: 0.4; cursor: default; }
   button.small:disabled:hover { border-color: #2e3c55; color: #b9c6dc; }
+  .dpsPanel {
+    position: absolute; right: 18px; bottom: 18px; z-index: 6;
+    background: rgba(16, 21, 32, 0.92); border: 1px solid #2b3649; border-radius: 10px;
+    padding: 8px 10px; font-size: 11.5px; min-width: 140px; text-align: left;
+  }
+  .dpsPanel .dpsTitle { font-size: 9.5px; letter-spacing: 2px; color: #66748e; text-transform: uppercase; margin-bottom: 4px; }
+  .dpsPanel .dpsrow { display: flex; align-items: center; gap: 7px; padding: 1.5px 0; }
+  .dpsPanel .dpsrow .wi { color: #8fc2ff; width: 14px; text-align: center; flex: none; }
+  .dpsPanel .dpsrow .wn { flex: 1; color: #b9c6dc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpsPanel .dpsrow .wv { color: #ffd166; font-weight: 700; flex: none; }
   .lvltitle { font-size: 25px; letter-spacing: 4px; color: #ffd166; margin: 0; text-shadow: 0 0 18px rgba(255, 209, 102, 0.4); }
   .chesttitle { font-size: 25px; letter-spacing: 4px; color: #57e6b7; margin: 0; text-shadow: 0 0 18px rgba(87, 230, 183, 0.4); }
   .topbtn {
@@ -175,7 +193,7 @@
 <button id="pauseBtn" class="topbtn hidden" title="Pause">❚❚</button>
 <button id="muteBtn" class="topbtn hidden" title="Sound on/off">♪</button>
 <button id="dmgBtn" class="topbtn hidden" title="Damage numbers on/off">DMG</button>
-<button id="homeBtn" class="topbtn" title="Back to Arcade">⌂</button>
+<button id="homeBtn" class="topbtn" title="Title screen">⌂</button>
 
 <div id="titleScreen" class="overlay">
   <h1>SWARM</h1>
@@ -193,24 +211,29 @@
       <div class="sectlabel">Loadout — starting weapon</div>
       <div class="startrow" id="startRow"></div>
       <button class="big" id="startBtn">START RUN</button>
+      <button class="small" id="openTreeBtn">⬢ UPGRADE TREE<span class="coinbadge" id="treeCoinBadge"></span></button>
       <div class="clickhint" id="bestHint"></div>
     </div>
-    <div class="shoppanel" style="width:540px">
-      <div class="shoptitle">UPGRADE TREE</div>
-      <div class="coins" id="coinsLabel"></div>
-      <div id="treeBox">
-        <svg id="treeSvg" width="500" height="392" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div id="treeNodes"></div>
-        <div class="brlabel" style="left:43px;top:52px">OFFENSE</div>
-        <div class="brlabel" style="left:205px;top:52px">VITALITY</div>
-        <div class="brlabel" style="left:367px;top:52px">FORTUNE</div>
-      </div>
-      <div id="nodeInfo"></div>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <button class="small" id="buyBtn" disabled>BUY</button>
-        <button class="small" id="respecBtn">RESPEC (50% back)</button>
-      </div>
-    </div>
+  </div>
+</div>
+
+<div id="treeScreen" class="overlay hidden">
+  <button class="small treeBack" id="treeBackBtn">← BACK</button>
+  <div class="treeTitleRow">
+    <div class="shoptitle" style="font-size:20px">UPGRADE TREE</div>
+  </div>
+  <div class="coins" id="coinsLabelFull"></div>
+  <div id="treeBoxFull">
+    <svg id="treeSvgFull" width="760" height="596" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="treeNodesFull"></div>
+    <div class="brlabel" style="left:69px;top:79px">OFFENSE</div>
+    <div class="brlabel" style="left:315px;top:79px">VITALITY</div>
+    <div class="brlabel" style="left:561px;top:79px">FORTUNE</div>
+  </div>
+  <div id="nodeInfoFull"></div>
+  <div style="display:flex;gap:10px;justify-content:center;margin-top:10px">
+    <button class="small" id="buyBtnFull" disabled>BUY</button>
+    <button class="small" id="respecBtnFull">RESPEC (50% back)</button>
   </div>
 </div>
 
@@ -219,12 +242,14 @@
   <div class="sub" id="lvlSub">Choose one</div>
   <div class="cards" id="cards"></div>
   <button class="small" id="rerollBtn">↻ Reroll</button>
+  <div class="dpsPanel" id="dpsPanelLevelUp"></div>
 </div>
 
 <div id="chestScreen" class="overlay hidden">
   <p class="chesttitle">TREASURE CHEST</p>
   <div class="sub">Pick a reward</div>
   <div class="cards" id="chestCards"></div>
+  <div class="dpsPanel" id="dpsPanelChest"></div>
 </div>
 
 <div id="pauseScreen" class="overlay hidden">
@@ -234,7 +259,7 @@
   <div class="pausemenu">
     <button class="small" id="pauseNewRunBtn">New Run</button>
     <button class="small" id="pauseMuteBtn">Sound: ON</button>
-    <button class="small" id="pauseHomeBtn">⌂ Back to Arcade</button>
+    <button class="small" id="pauseHomeBtn">⌂ Title Screen</button>
   </div>
 </div>
 
@@ -247,7 +272,6 @@
   <div class="sparkwrap"><canvas id="dpsCanvas" width="340" height="56"></canvas><div class="sparklabel">damage per second</div></div>
   <div class="btnrow">
     <button class="big" id="newRunBtn">NEW RUN</button>
-    <button class="small" id="deathHomeBtn">⌂ Back to Arcade</button>
   </div>
 </div>
 
@@ -258,7 +282,6 @@
   <div class="sparkwrap"><canvas id="winDpsCanvas" width="340" height="56"></canvas><div class="sparklabel">damage per second</div></div>
   <div class="btnrow">
     <button class="big" id="winRunBtn">NEW RUN</button>
-    <button class="small" id="winHomeBtn">⌂ Back to Arcade</button>
   </div>
 </div>
 
@@ -381,9 +404,13 @@ let elapsed = 0, kills = 0, runCoins = 0;
 const RUN_COIN_CAP = 1500;
 function addRunCoins(v) { if (state !== ST_PLAY) return; runCoins = Math.min(RUN_COIN_CAP, runCoins + Math.round(v * (player.coinMul || 1))); }
 let shake = 0, hitStop = 0;
-let combo = 0, comboTimer = 0, bestCombo = 0;
+const COMBO_WINDOW = 4; // seconds of no kills before the combo resets
+let combo = 0, comboTimer = 0, bestCombo = 0, comboBreakFlash = 0;
+function comboCoinMul() { return 1 + Math.min(0.5, combo * 0.01); } // +1% coin chance per combo, capped +50%
 let dmgThisSec = 0, dpsTimer = 0;
 const dpsLog = [];
+const dpsHistPerWeapon = {}; // per-weapon rolling history of per-second damage, for the level-up/chest DPS panel
+const prevDmgSnapshot = {};
 let biomeIdx = 0;
 const cam = { x: 0, y: 0 };
 const mouse = { x: W / 2, y: H / 2 };
@@ -533,6 +560,16 @@ function nudgeOutOfRocks(o, margin) {
     if (d < min) { o.x = r.x + dx / d * min; o.y = r.y + dy / d * min; }
   }
 }
+// Fast circle-vs-rock check for flying projectiles (bolt/scatter/glaive/nova shards/enemy spits).
+function hitsRock(x, y, rad) {
+  for (let i = 0; i < rocks.length; i++) {
+    const r = rocks[i];
+    const dx = x - r.x, dy = y - r.y;
+    const min = r.r + rad;
+    if (dx * dx + dy * dy < min * min) return true;
+  }
+  return false;
+}
 
 // ---------- Enemies ----------
 // kind: 0 chaser, 1 tank, 2 spitter, 3 elite, 4 boss, 5 splitter, 6 dasher
@@ -561,6 +598,7 @@ function makeEnemy(kind, x, y) {
     wob: Math.random() * Math.PI * 2,
     mode: "chase", mt: 0, dirx: 0, diry: 0, nextPat: 0, name: "",
     dashCd: 1 + Math.random() * 1.5, emitT: 0, spiralA: 0,
+    apprOff: (Math.random() * 2 - 1) * (25 * Math.PI / 180), // persistent per-enemy approach-angle offset, keeps chasers from collapsing onto one point
   };
 }
 function spawnEnemy(kind, forcedDist) {
@@ -727,7 +765,7 @@ function hitEnemy(e, dmg, kx, ky, kb, src) {
   if (e.hp <= 0 && !e.dead) {
     e.dead = true;
     kills++;
-    combo++; comboTimer = 2.5;
+    combo++; comboTimer = COMBO_WINDOW;
     if (combo > bestCombo) bestCombo = combo;
     if (combo > 0 && combo % 25 === 0) sfx("combo");
     sfx("kill");
@@ -756,14 +794,15 @@ function hitEnemy(e, dmg, kx, ky, kb, src) {
       }
       if (e.xp > 0) dropGem(e.x, e.y, e.xp);
       const taper = elapsed < 240 ? 1 : 240 / elapsed; // long runs shouldn't print money
+      const comboMul = comboCoinMul();
       const r = Math.random();
-      if (e.kind === 0 && r < 0.20 * taper) dropPickup(e.x, e.y, "coin", 1);
+      if (e.kind === 0 && r < 0.20 * taper * comboMul) dropPickup(e.x, e.y, "coin", 1);
       else if (e.kind === 1) {
-        if (r < 0.35 * taper) dropPickup(e.x, e.y, "coin", 3);
+        if (r < 0.35 * taper * comboMul) dropPickup(e.x, e.y, "coin", 3);
         else if (r < 0.42) dropPickup(e.x, e.y, "heal", 20);
       }
-      else if (e.kind === 2 && r < 0.18 * taper) dropPickup(e.x, e.y, "coin", 2);
-      else if ((e.kind === 5 || e.kind === 6) && r < 0.14 * taper) dropPickup(e.x, e.y, "coin", 2);
+      else if (e.kind === 2 && r < 0.18 * taper * comboMul) dropPickup(e.x, e.y, "coin", 2);
+      else if ((e.kind === 5 || e.kind === 6) && r < 0.14 * taper * comboMul) dropPickup(e.x, e.y, "coin", 2);
     }
   }
 }
@@ -915,7 +954,6 @@ function fireBolt() {
       dmg: s.dmg, life: 1.7, r: 5, pierce: s.pierce, src: "bolt", homing: s.homing, spd: s.spd,
     });
   }
-  addFlash(player.x + Math.cos(base) * 18, player.y + Math.sin(base) * 18, 12, 205);
   sfx("shoot");
   return true;
 }
@@ -970,7 +1008,6 @@ function fireGlaive() {
       dmg: s.dmg, r: s.r, phase: 0, t: 0, spin: 0,
     });
   }
-  addFlash(player.x + Math.cos(base) * 16, player.y + Math.sin(base) * 16, 12, 150);
   sfx("shoot");
   return true;
 }
@@ -1005,7 +1042,6 @@ function fireScatter() {
       dmg: s.dmg, life: s.life, r: 3, pierce: s.pierce, src: "scatter", homing: false, spd: sp,
     });
   }
-  addFlash(player.x + Math.cos(base) * 20, player.y + Math.sin(base) * 20, 16, 30);
   sfx("shoot");
   return true;
 }
@@ -1171,12 +1207,14 @@ function roman(n) { return ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"
 const el = (id) => document.getElementById(id);
 const titleScreen = el("titleScreen"), levelUpScreen = el("levelUpScreen"), deathScreen = el("deathScreen");
 const chestScreen = el("chestScreen"), pauseScreen = el("pauseScreen"), winScreen = el("winScreen");
+const treeScreen = el("treeScreen");
 const cardsEl = el("cards"), chestCardsEl = el("chestCards"), lvlSub = el("lvlSub");
 const rerollBtn = el("rerollBtn"), pauseBtn = el("pauseBtn"), muteBtn = el("muteBtn"), dmgBtn = el("dmgBtn");
 
 function setState(s) {
   state = s;
   titleScreen.classList.toggle("hidden", s !== ST_TITLE);
+  treeScreen.classList.add("hidden"); // the tree is a sub-view of the title screen, always closed on any state change
   levelUpScreen.classList.toggle("hidden", s !== ST_LEVELUP);
   chestScreen.classList.toggle("hidden", s !== ST_CHEST);
   pauseScreen.classList.toggle("hidden", s !== ST_PAUSE);
@@ -1207,10 +1245,10 @@ function openLevelUp() {
   player.level++;
   player.xpNext = xpFor(player.level);
   player.hp = Math.min(player.maxHp, player.hp + 5);
-  for (let i = 0; i < gems.length; i++) gems[i].pull = true; // XP vacuum
   lvlSub.textContent = "Level " + player.level + " — choose one";
   sfx("level");
   renderLevelCards(buildUpgradeChoices());
+  renderDpsPanel("dpsPanelLevelUp");
   setState(ST_LEVELUP);
 }
 function renderLevelCards(picks) {
@@ -1284,6 +1322,7 @@ function openChest() {
     chestCardsEl.appendChild(div);
   }
   sfx("chest");
+  renderDpsPanel("dpsPanelChest");
   setState(ST_CHEST);
 }
 
@@ -1335,21 +1374,22 @@ function treeBonus() {
   };
 }
 let selNode = null;
+const TREE_SCALE = 1.52; // dedicated full-screen tree view gets a roomier layout than the old title-screen widget
 function renderTree() {
-  el("coinsLabel").innerHTML = "\u25c9 <b>" + coins + "</b> coins";
+  el("coinsLabelFull").innerHTML = "\u25c9 <b>" + coins + "</b> coins";
   let svg = "";
   for (const n of TREE_NODES) {
     const pnode = n.req === "root" ? TREE_ROOT : nodeById(n.req);
     const col = own(n.id) ? "#6ea8ff" : nodeUnlocked(n) ? "#3a4a6a" : "#242e44";
-    svg += '<line x1="' + pnode.x + '" y1="' + pnode.y + '" x2="' + n.x + '" y2="' + n.y + '" stroke="' + col + '" stroke-width="2"/>';
+    svg += '<line x1="' + pnode.x * TREE_SCALE + '" y1="' + pnode.y * TREE_SCALE + '" x2="' + n.x * TREE_SCALE + '" y2="' + n.y * TREE_SCALE + '" stroke="' + col + '" stroke-width="2.5"/>';
   }
-  el("treeSvg").innerHTML = svg;
-  const wrap = el("treeNodes");
+  el("treeSvgFull").innerHTML = svg;
+  const wrap = el("treeNodesFull");
   wrap.innerHTML = "";
   const rootDiv = document.createElement("div");
   rootDiv.className = "tnode owned root";
-  rootDiv.style.left = (TREE_ROOT.x - 18) + "px";
-  rootDiv.style.top = (TREE_ROOT.y - 18) + "px";
+  rootDiv.style.left = (TREE_ROOT.x * TREE_SCALE - 24) + "px";
+  rootDiv.style.top = (TREE_ROOT.y * TREE_SCALE - 24) + "px";
   rootDiv.innerHTML = '<span class="ti">\u2726</span>';
   wrap.appendChild(rootDiv);
   for (const n of TREE_NODES) {
@@ -1358,8 +1398,8 @@ function renderTree() {
     const afford = coins >= n.cost;
     const div = document.createElement("div");
     div.className = "tnode" + (owned ? " owned" : unlocked ? (afford ? " avail" : "") : " locked") + (selNode === n.id ? " sel" : "");
-    div.style.left = (n.x - 22) + "px";
-    div.style.top = (n.y - 22) + "px";
+    div.style.left = (n.x * TREE_SCALE - 29) + "px";
+    div.style.top = (n.y * TREE_SCALE - 29) + "px";
     div.innerHTML = '<span class="ti">' + n.icon + '</span>' +
       (owned ? '<span class="tc own">\u2713</span>' : '<span class="tc">\u25c9' + n.cost + '</span>');
     div.addEventListener("click", (ev) => {
@@ -1371,10 +1411,12 @@ function renderTree() {
     wrap.appendChild(div);
   }
   renderNodeInfo();
+  const badge = el("treeCoinBadge");
+  if (badge) badge.textContent = "\u25c9 " + coins;
 }
 function renderNodeInfo() {
-  const info = el("nodeInfo");
-  const buy = el("buyBtn");
+  const info = el("nodeInfoFull");
+  const buy = el("buyBtnFull");
   if (!selNode) {
     info.innerHTML = '<span style="color:#7f8ca3">Click a node to inspect it. Dim nodes need their parent first.</span>';
     buy.disabled = true;
@@ -1444,6 +1486,8 @@ function renderStartRow() {
     row.appendChild(b);
   }
   el("bestHint").textContent = bestTime > 0 ? "Best: " + fmtTime(bestTime) : "First run — good luck";
+  const badge = el("treeCoinBadge");
+  if (badge) badge.textContent = "◉ " + coins;
 }
 
 // ---------- Death / win / restart ----------
@@ -1468,6 +1512,38 @@ function buildDmgTable(target) {
       '<span class="dv">' + (v >= 10000 ? (v / 1000).toFixed(1) + "k" : Math.round(v)) + '</span></div>';
   }
   el(target).innerHTML = html || '<div class="dmgrow"><span class="dn">no damage dealt</span></div>';
+}
+// Damage over the last ~10s per weapon; falls back to cumulative/elapsed early in a run.
+function weaponDps(k) {
+  const hist = dpsHistPerWeapon[k];
+  if (hist && hist.length >= 3) {
+    let sum = 0;
+    for (let i = 0; i < hist.length; i++) sum += hist[i];
+    return sum / hist.length;
+  }
+  return elapsed > 1 ? dmgDealt[k] / elapsed : 0;
+}
+function renderDpsPanel(id) {
+  const box = el(id);
+  if (!box) return;
+  const rows = [];
+  for (const k in weapons) {
+    if (weapons[k].level <= 0) continue;
+    rows.push([k, weaponDps(k)]);
+  }
+  rows.sort((a, b) => b[1] - a[1]);
+  let html = '<div class="dpsTitle">DPS &middot; last 10s</div>';
+  if (!rows.length) {
+    html += '<div class="dpsrow"><span class="wn">no weapons yet</span></div>';
+  } else {
+    for (const row of rows) {
+      const k = row[0], v = row[1];
+      const def = WEAPON_DEFS[k];
+      const vt = v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
+      html += '<div class="dpsrow"><span class="wi">' + def.glyph + '</span><span class="wn">' + def.name + '</span><span class="wv">' + vt + '</span></div>';
+    }
+  }
+  box.innerHTML = html;
 }
 function drawSpark(id) {
   const c = el(id);
@@ -1539,8 +1615,9 @@ function win() {
 }
 function resetGame() {
   elapsed = 0; kills = 0; runCoins = 0; shake = 0; hitStop = 0;
-  combo = 0; comboTimer = 0; bestCombo = 0;
+  combo = 0; comboTimer = 0; bestCombo = 0; comboBreakFlash = 0;
   dmgThisSec = 0; dpsTimer = 0; dpsLog.length = 0;
+  for (const k in dmgDealt) { dpsHistPerWeapon[k] = []; prevDmgSnapshot[k] = 0; }
   biomeIdx = 0;
   player.x = WORLD / 2; player.y = WORLD / 2;
   const TB = treeBonus();
@@ -1602,13 +1679,24 @@ dmgBtn.addEventListener("click", (e) => {
   saveJSON("swarm_dmgnums", showDmgNums);
   refreshToggleBtns();
 });
-el("buyBtn").addEventListener("click", (e) => { e.stopPropagation(); if (selNode) buyNode(selNode); });
-el("respecBtn").addEventListener("click", (e) => { e.stopPropagation(); respecTree(); });
-// --- arcade navigation + pause menu ---
-function goHome() { try { window.location.href = "../index.html"; } catch (e) {} }
+el("buyBtnFull").addEventListener("click", (e) => { e.stopPropagation(); if (selNode) buyNode(selNode); });
+el("respecBtnFull").addEventListener("click", (e) => { e.stopPropagation(); respecTree(); });
+el("openTreeBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  titleScreen.classList.add("hidden");
+  treeScreen.classList.remove("hidden");
+  renderTree();
+});
+el("treeBackBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  selNode = null;
+  treeScreen.classList.add("hidden");
+  titleScreen.classList.remove("hidden");
+  renderStartRow();
+});
+// --- navigation: ⌂ always returns to THIS game's title screen (no arcade-hub links) ---
+function goHome() { setState(ST_TITLE); }
 el("homeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
-el("deathHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
-el("winHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
 el("pauseHomeBtn").addEventListener("click", (e) => { e.stopPropagation(); goHome(); });
 el("pauseMuteBtn").addEventListener("click", (e) => {
   e.stopPropagation();
@@ -1641,6 +1729,7 @@ window.addEventListener("keydown", (e) => { // bonus: Esc toggles pause (never r
 
 // ---------- Spawning director ----------
 let spawnTimer = 0.8;
+const ARTILLERY_CAP = 3; // hard cap on simultaneous artillery — they used to dogpile one spot
 function director(dt) {
   spawnTimer -= dt;
   const late = Math.max(0, elapsed - 480);
@@ -1649,10 +1738,12 @@ function director(dt) {
   if (spawnTimer <= 0) {
     spawnTimer = interval;
     const batch = Math.min(30, 1 + Math.floor(elapsed / 40) + Math.floor(late / 80) + Math.floor(late2 / 60));
+    let artilleryAlive = 0;
+    for (let i = 0; i < enemies.length; i++) if (enemies[i].kind === 7 && !enemies[i].dead) artilleryAlive++;
     for (let i = 0; i < batch; i++) {
       const r = Math.random();
       let kind = 0;
-      if (elapsed > 480 && r > 0.92) kind = 7;      // artillery: punishes standing still
+      if (elapsed > 480 && r > 0.985 && artilleryAlive < ARTILLERY_CAP) { kind = 7; artilleryAlive++; } // artillery: rare, punishes standing still
       else if (elapsed > 360 && r > 0.85) kind = 8; // bomber: telegraphed suicide blast
       else if (elapsed > 30 && r > 0.80) kind = 1;
       else if (elapsed > 90 && r > 0.68) kind = 5;
@@ -1687,7 +1778,15 @@ function update(dt) {
   if (bi !== biomeIdx) { biomeIdx = bi; banner("THE FIELD SHIFTS", "New ground, same swarm"); }
 
   // combo decay
-  if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0; }
+  if (comboTimer > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) {
+      comboTimer = 0;
+      if (combo > 0) comboBreakFlash = 0.5;
+      combo = 0;
+    }
+  }
+  if (comboBreakFlash > 0) comboBreakFlash -= dt;
 
   // dps log
   dpsTimer += dt;
@@ -1696,6 +1795,13 @@ function update(dt) {
     dpsLog.push(dmgThisSec);
     dmgThisSec = 0;
     if (dpsLog.length > 1800) dpsLog.shift();
+    for (const k in dmgDealt) {
+      const delta = dmgDealt[k] - (prevDmgSnapshot[k] || 0);
+      prevDmgSnapshot[k] = dmgDealt[k];
+      const hist = dpsHistPerWeapon[k] || (dpsHistPerWeapon[k] = []);
+      hist.push(delta);
+      if (hist.length > 10) hist.shift();
+    }
   }
 
   // --- player movement: chase cursor ---
@@ -1734,6 +1840,11 @@ function update(dt) {
     let ex = player.x - e.x, ey = player.y - e.y;
     const ed = Math.hypot(ex, ey) || 1;
     ex /= ed; ey /= ed;
+    if (e.kind !== 4) { // boss aims true; everyone else approaches at their own persistent angle so groups don't collapse onto one point
+      const co = Math.cos(e.apprOff), so = Math.sin(e.apprOff);
+      const rex = ex * co - ey * so, rey = ex * so + ey * co;
+      ex = rex; ey = rey;
+    }
     e.wob += dt * 5;
     if (e.flash > 0) e.flash -= dt;
     if (e.orbitCd > 0) e.orbitCd -= dt;
@@ -1794,23 +1905,23 @@ function update(dt) {
           spits.push({ x: e.x, y: e.y, vx: ex * 260, vy: ey * 260, life: 2.6, dmg: e.dmg + 4, r: 6, hue: 95 });
         }
       }
-      // separation
-      const near = gridQuery(e.x, e.y, e.r + 20);
+      // separation — wider lookahead + stronger push so chasers fan out instead of collapsing onto one spot
+      const near = gridQuery(e.x, e.y, e.r + 40);
       let sx = 0, sy = 0, checked = 0;
-      for (let j = 0; j < near.length && checked < 9; j++) {
+      for (let j = 0; j < near.length && checked < 12; j++) {
         const o = enemies[near[j]];
         if (o === e || o.dead) continue;
         checked++;
         const ox = e.x - o.x, oy = e.y - o.y;
         const od = Math.hypot(ox, oy);
-        const minD = e.r + o.r;
+        const minD = e.r + o.r + 12;
         if (od > 0.001 && od < minD) {
           const push = (minD - od) / minD;
           sx += (ox / od) * push; sy += (oy / od) * push;
         }
       }
-      e.x += (mvx * slowMul + sx * 60 + e.kbx) * dt;
-      e.y += (mvy * slowMul + sy * 60 + e.kby) * dt;
+      e.x += (mvx * slowMul + sx * 130 + e.kbx) * dt;
+      e.y += (mvy * slowMul + sy * 130 + e.kby) * dt;
       e.kbx *= Math.pow(0.002, dt); e.kby *= Math.pow(0.002, dt);
     }
     e.x = Math.max(e.r, Math.min(WORLD - e.r, e.x));
@@ -1947,6 +2058,10 @@ function update(dt) {
     }
     p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
     let dead = p.life <= 0;
+    if (!dead && hitsRock(p.x, p.y, p.r)) {
+      dead = true;
+      spawnParticle(p.x, p.y, 40, 70, 2);
+    }
     if (!dead) {
       const near = gridQuery(p.x, p.y, p.r + 50);
       for (let j = 0; j < near.length; j++) {
@@ -1979,6 +2094,10 @@ function update(dt) {
       const d = Math.hypot(dx2, dy2) || 1;
       g.x += dx2 / d * 540 * dt; g.y += dy2 / d * 540 * dt;
       if (d < 24) remove = true;
+    }
+    if (!remove && hitsRock(g.x, g.y, g.r)) {
+      remove = true;
+      spawnParticle(g.x, g.y, 40, 70, 2);
     }
     if (!remove) {
       const near = gridQuery(g.x, g.y, g.r + 50);
@@ -2018,6 +2137,7 @@ function update(dt) {
     const s = spits[i];
     s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
     let dead = s.life <= 0;
+    if (!dead && hitsRock(s.x, s.y, s.r)) dead = true;
     if (!dead && Math.hypot(s.x - player.x, s.y - player.y) < s.r + player.r) {
       hurtPlayer(s.dmg); dead = true;
     }
@@ -2549,11 +2669,22 @@ function drawHUD() {
   ctx.fillStyle = "#8a7a4a";
   ctx.fillText("BANK " + coins, W - 150, 71);
   // combo
-  if (combo >= 8) {
+  if (combo >= 3) {
     const pop = 1 + Math.min(0.5, comboTimer * 0.2);
     ctx.font = "bold " + Math.round(17 * pop) + "px system-ui, sans-serif";
     ctx.fillStyle = "rgba(255, 209, 102, " + Math.min(1, comboTimer) + ")";
-    ctx.fillText("×" + combo, W - 150, 96);
+    ctx.fillText("×" + combo + " combo", W - 150, 96);
+    // drain timer bar, right-aligned under the combo text
+    const cbw = 76, cbh = 4, cbx = W - 150 - cbw, cby = 101;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(cbx, cby, cbw, cbh);
+    ctx.fillStyle = "#ffd166";
+    ctx.fillRect(cbx, cby, cbw * Math.max(0, comboTimer / COMBO_WINDOW), cbh);
+  } else if (comboBreakFlash > 0) {
+    const a = comboBreakFlash / 0.5;
+    ctx.font = "bold 15px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255, 90, 90, " + a + ")";
+    ctx.fillText("combo broken", W - 150, 96);
   }
   ctx.textAlign = "left";
 

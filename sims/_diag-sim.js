@@ -24,7 +24,7 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 
-const HTML_PATH = path.join(__dirname, '..', 'games', 'depths.html');
+const HTML_PATH = '/private/tmp/claude-501/-Users-miroslavpavelek-Game-dev-fable-experiment/bfa9546b-7787-44c4-9fc8-3174f415e65a/scratchpad/depths-instrumented.html';
 const HTML = fs.readFileSync(HTML_PATH, 'utf8');
 
 const RUNS_PER_CELL = parseInt(process.env.RUNS || '22', 10); // 6 cells * 22 = 132 runs
@@ -636,4 +636,63 @@ function main() {
   if (totalErrors > 0) process.exitCode = 1;
 }
 
-main();
+
+
+// ---------------------------------------------------------------- diagnostic ---
+function runDiag(policy, cls, n) {
+  const agg = { runs: 0, d1d2deaths: 0, shotsD1: 0, shotsD2: 0, dmgD1: 0, dmgD2: 0,
+    hideFails: 0, hideSuccesses: 0, deathsByCause: {}, deathDepths: [],
+    monPoolCounts: {}, avgTurnsToDepth2: [] };
+  const _findHideTile = findHideTile; // capture module-local ref before override
+  for (let i = 0; i < n; i++) {
+    const { dom, win, D, errors } = loadGame();
+    try {
+      const card = D.titleL.cards.find(c => c.key === cls);
+      clickRect(win, card.rect);
+      const ctx = { win, D, policy, cls, lastDepth: 0, shopped: false, holdCount: 0, mappedDepth: {}, chase: {}, ignore: {}, hideWait: {} };
+
+      let hideOk = 0, hideFail = 0;
+      let turnsAtD2 = null;
+
+      let acts = 0, sameTurn = 0, lastTurn = -1, stuck = false;
+      const tRun = Date.now();
+      while (acts < MAX_ACTS && D.screen === 'game') {
+        if (Date.now() - tRun > MAX_RUN_MS) { stuck = true; break; }
+        if (D.S.depth === 2 && turnsAtD2 === null) turnsAtD2 = D.S.turn;
+        // sample monster pool composition once per run at depth 1
+        if (D.S.depth === 1 && acts === 1) {
+          for (const m of D.S.monsters) agg.monPoolCounts[m.key] = (agg.monPoolCounts[m.key] || 0) + 1;
+        }
+        act(ctx);
+        acts++;
+        const t = D.S.turn;
+        if (t === lastTurn) { sameTurn++; if (sameTurn > 40) clickTile(win, D, D.S.px, D.S.py); if (sameTurn > 80) { stuck = true; break; } }
+        else { sameTurn = 0; lastTurn = t; }
+      }
+      const S = D.S;
+      agg.runs++;
+      if (turnsAtD2 !== null) agg.avgTurnsToDepth2.push(turnsAtD2);
+      const shots = S.diagShots || [];
+      for (const sh of shots) {
+        if (sh.key !== 'kobold') continue;
+        if (sh.depth === 1) { agg.shotsD1++; agg.dmgD1 += sh.dmg; }
+        if (sh.depth === 2) { agg.shotsD2++; agg.dmgD2 += sh.dmg; }
+      }
+      if (D.screen === 'dead') {
+        agg.deathDepths.push(S.depth);
+        if (S.depth <= 2) agg.d1d2deaths++;
+        const key = causeKey(S.causeOfDeath);
+        agg.deathsByCause[key] = (agg.deathsByCause[key] || 0) + 1;
+      }
+    } finally {
+      dom.window.close();
+    }
+  }
+  return agg;
+}
+
+const cls = process.argv[2] || 'warrior';
+const policy = process.argv[3] || 'careful';
+const n = parseInt(process.argv[4] || '20', 10);
+const agg = runDiag(policy, cls, n);
+console.log(JSON.stringify(agg, null, 2));
