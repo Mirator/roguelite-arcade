@@ -36,8 +36,16 @@ Opening `index.html` directly from disk works too, though a local server is reco
 Each game has a re-runnable, headless balance harness under [`sims/`](sims/) that loads the real game in [jsdom](https://github.com/jsdom/jsdom) and plays it through the game's own input handlers — no game logic is reimplemented. Results are written up in `sims/results-*.md`.
 
 ```bash
-cd sims && npm install        # one-time (installs jsdom)
-node loopline-sim.js          # e.g. run the Loopline balance batch
+cd sims
+npm ci                        # reproducible install from package-lock.json
+npm test                      # fast syntax and mechanics verification
+```
+
+Long-running balance batches are separate from the fast verification command:
+
+```bash
+cd sims
+npm run loopline              # e.g. run the Loopline balance batch
 ```
 
 ## Deployment
